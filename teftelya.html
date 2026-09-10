@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Тефтеля</title>
+<style>
+  html, body { margin:0; padding:0; height:100%; background:#1b1410; overflow:hidden; touch-action:none; -webkit-user-select:none; user-select:none; }
+  canvas { display:block; margin:0 auto; background:#1b1410; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+(() => {
+'use strict';
+
+// ---------- setup ----------
+const W = 480, H = 854;
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+let scale = 1;
+function resize() {
+  const s = Math.min(innerWidth / W, innerHeight / H);
+  scale = s;
+  cv.width = Math.round(W * s * devicePixelRatio);
+  cv.height = Math.round(H * s * devicePixelRatio);
+  cv.style.width = Math.round(W * s) + 'px';
+  cv.style.height = Math.round(H * s) + 'px';
+  cv.style.marginTop = Math.round((innerHeight - H * s) / 2) + 'px';
+}
+addEventListener('resize', resize); resize();
+
+const rnd = (a, b) => a + Math.random() * (b - a);
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const lerp = (a, b, t) => a + (b - a) * t;
+
+// ---------- audio (synth, no files) ----------
+let AC = null;
+function audio() { if (!AC) { try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} } if (AC && AC.state === 'suspended') AC.resume(); return AC; }
+function tone(f0, f1, dur, type = 'sine', vol = 0.25) {
+  const ac = audio(); if (!ac) return;
+  const o = ac.createOscillator(), g = ac.createGain();
+  o.type = type; o.frequency.setValueAtTime(f0, ac.currentTime);
+  o.frequency.exponentialRampToValueAtTime(f1, ac.currentTime + dur);
+  g.gain.setValueAtTime(vol, ac.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + dur);
+  o.connect(g).connect(ac.destination); o.start(); o.stop(ac.currentTime + dur);
+}
+const sfx = {
+  jump: m => tone(220 - m * 8, 420 - m * 10, 0.14, 'sine', 0.2),
+  eat:  () => tone(rnd(500, 700), rnd(900, 1200), 0.09, 'triangle', 0.18),
+  big:  () => { tone(300, 160, 0.18, 'square', 0.12); tone(600, 900, 0.12, 'triangle', 0.15); },
+  hit:  () => tone(140, 60, 0.25, 'sawtooth', 0.22),
+  die:  () => { tone(300, 40, 0.6, 'sawtooth', 0.25); },
+};
+
+// ---------- item catalogue ----------
+const FOOD = {
+  ketchup: { r: 15, mass: 1, coins: 1, jumps: 1, w: 5, name: 'кетчуп' },
+  pasta:   { r: 17, mass: 1, coins: 2, jumps: 2, w: 4, name: 'макароны' },
+  meat:    { r: 21, mass: 2, coins: 5, jumps: 3, w: 2, name: 'мясо' },
+};
+const TRASH = {
+  hair: { r: 18, mass: -1, w: 5, name: 'волос' },
+  dirt: { r: 16, mass: -2, w: 3, name: 'грязь' },
+  fly:  { r: 13, mass: -1, w: 3, name: 'муха', moving: true },
+};
+function pick(tbl) {
+  const keys = Object.keys(tbl); let sum = 0; keys.forEach(k => sum += tbl[k].w);
+  let t = Math.random() * sum;
+  for (const k of keys) { t -= tbl[k].w; if (t <= 0) return k; }
+  return keys[0];
+}
+
+// ---------- soft body meatball ----------
+const N = 26;
+const ball = {
+  x: W / 2, y: 0, vx: 0, vy: 0,
+  mass: 1, r: 26,
+  pts: [], // {ox, oy, vx, vy} offsets from center
+  full: 0,          // накопленное переедание
+  hiccup: 0,        // икота: тапы не работают
+  jumps: 4,         // заряды прыжка
+  regen: 0,         // таймер восстановления
+  face: 0,          // eye direction blend
+  mouth: 0,         // 0 closed .. 1 open
+  blink: 0,
+  alive: true,
+};
+function radiusFor(m) { return 26 + 13 * Math.sqrt(Math.max(0, m - 1)); }
+function initBody() {
+  ball.pts = [];
+  for (let i = 0; i < N; i++) {
+    const a = i / N * Math.PI * 2;
+    ball.pts.push({ ox: Math.cos(a) * ball.r, oy: Math.sin(a) * ball.r, vx: 0, vy: 0 });
+  }
+}
+// deform: pushes points; fn(angle, dirx, diry) -> {x,y} impulse
+function deform(fn) {
+  for (let i = 0; i < N; i++) {
+    const a = i / N * Math.PI * 2, dx = Math.cos(a), dy = Math.sin(a);
+    const im = fn(a, dx, dy); ball.pts[i].vx += im.x; ball.pts[i].vy += im.y;
+  }
+}
+function squash(amount) { // сплющить (по y внутрь, по x наружу)
+  deform((a, dx, dy) => ({ x: dx * amount * 0.8, y: -dy * amount * 1.3 }));
+}
+function pulse(amount) { deform((a, dx, dy) => ({ x: dx * amount, y: dy * amount })); }
+function jolt(px, py, amount) { // тычок со стороны точки px,py
+  const ang = Math.atan2(py - ball.y, px - ball.x);
+  deform((a, dx, dy) => { const d = Math.cos(a - ang); return d > 0 ? { x: -dx * amount * d, y: -dy * amount * d } : { x: 0, y: 0 }; });
+}
+function updateBody(dt) {
+  // жёсткость и демпфирование падают с массой: большая тефтеля колышется лениво и дольше
+  const k = lerp(260, 120, clamp((ball.mass - 1) / 15, 0, 1));
+  const damp = lerp(9, 5.5, clamp((ball.mass - 1) / 15, 0, 1));
+  const nk = 40;
+  // лаг от скорости: точки тянутся за движением
+  const lagx = clamp(-ball.vx * 0.04, -16, 16), lagy = clamp(-ball.vy * 0.012, -7, 7);
+  for (let i = 0; i < N; i++) {
+    const p = ball.pts[i], a = i / N * Math.PI * 2;
+    const dx = Math.cos(a), dy = Math.sin(a);
+    // растяжение вдоль направления движения
+    const tx = dx * ball.r + lagx * (dy * dy), ty = dy * ball.r + lagy * Math.abs(dy);
+    let ax = (tx - p.ox) * k - p.vx * damp, ay = (ty - p.oy) * k - p.vy * damp;
+    const prev = ball.pts[(i + N - 1) % N], next = ball.pts[(i + 1) % N];
+    ax += ((prev.ox + next.ox) / 2 - p.ox) * nk; ay += ((prev.oy + next.oy) / 2 - p.oy) * nk;
+    p.vx += ax * dt; p.vy += ay * dt; p.ox += p.vx * dt; p.oy += p.vy * dt;
+  }
+}
+
+// ---------- world state ----------
+let state = 'title'; // title | play | dead
+let camY = 0, camShake = 0, shakeX = 0, shakeY = 0;
+let items = [], particles = [], texts = [], plates = [];
+let spawnedTo = 0, maxHeight = 0, coins = 0, best = 0, runCoins = 0, tGame = 0, lastEat = 0;
+try { best = +localStorage.getItem('teft_best') || 0; coins = +localStorage.getItem('teft_coins') || 0; } catch (e) {}
+
+const G = 1500;
+function jumpPower() { return 690; }
+function heavy() { return clamp((ball.mass - 1) / 15, 0, 1); }      // 0 маленькая .. 1 огромная
+function coinMult() { return 1 + Math.floor((ball.mass - 1) / 4) * 0.5; } // масса 5 ×1.5, 9 ×2, 13 ×2.5
+const HAIR_PROOF = 6; // с этой массы волосы не страшны
+const MAXJ = 4;       // максимум зарядов прыжка
+const REGEN = 1.6;    // секунд на восстановление одного заряда без еды
+const WALL_HIT = 260; // скорость, с которой удар о стену отрывает мясо
+
+function reset() {
+  ball.x = W / 2; ball.y = 0; ball.vx = 0; ball.vy = 0; ball.mass = 1; ball.r = radiusFor(1);
+  ball.full = 0; ball.hiccup = 0; ball.jumps = MAXJ; ball.mouth = 0; ball.alive = true; initBody();
+  camY = -H + 120; items = []; particles = []; texts = []; plates = [];
+  spawnedTo = -160; maxHeight = 0; runCoins = 0; tGame = 0; camShake = 0;
+  plates.push({ x: W / 2, y: 30, w: 220 });
+}
+
+function spawn() {
+  while (spawnedTo > camY - 300) {
+    const gap = rnd(95, 150);
+    spawnedTo -= gap;
+    const h = -spawnedTo / 10;
+    const trashP = clamp(0.12 + h / 5000, 0.12, 0.5);
+    const count = 1 + (Math.random() < 0.55 ? 1 : 0) + (Math.random() < h / 3000 ? 1 : 0);
+    const used = [];
+    for (let i = 0; i < count; i++) {
+      let x, tries = 0;
+      do { x = rnd(40, W - 40); tries++; } while (used.some(u => Math.abs(u - x) < 90) && tries < 8);
+      used.push(x);
+      const isTrash = h > 8 && Math.random() < trashP;
+      const key = isTrash ? pick(TRASH) : pick(FOOD);
+      const def = isTrash ? TRASH[key] : FOOD[key];
+      items.push({ kind: key, trash: isTrash, def, x, y: spawnedTo + rnd(-25, 25), r: def.r,
+        vx: def.moving ? (Math.random() < 0.5 ? -1 : 1) * rnd(70, 140) : 0, seed: Math.random() * 10, dead: false });
+    }
+  }
+}
+
+// ---------- juice ----------
+function burst(x, y, color, n, spd = 220, life = 0.6, size = 4) {
+  for (let i = 0; i < n; i++) {
+    const a = rnd(0, Math.PI * 2), s = rnd(spd * 0.3, spd);
+    particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 60, life, t: life, color, size: rnd(size * 0.6, size * 1.4), g: 500 });
+  }
+}
+function crumbs(x, y) {
+  for (let i = 0; i < 8; i++) particles.push({ x: x + rnd(-ball.r * 0.6, ball.r * 0.6), y, vx: rnd(-90, 90), vy: rnd(40, 160), life: 0.5, t: 0.5, color: '#a0472a', size: rnd(2, 5), g: 300 });
+}
+function popText(x, y, str, color, big = false) { texts.push({ x, y, str, color, t: 0, big }); }
+
+// ---------- input ----------
+function tap(sx, sy) {
+  audio();
+  if (state === 'title') { reset(); state = 'play'; }
+  else if (state === 'dead') { if (tGame > 0.6) { reset(); state = 'play'; } return; }
+  if (!ball.alive) return;
+  const dir = sx < ball.x ? -1 : 1;
+  if (ball.hiccup > 0) { deform((a, dx, dy) => ({ x: dx * 60, y: dy * 60 })); tone(180, 120, 0.08, 'square', 0.1); return; }
+  if (ball.jumps <= 0) { // пусто — вялая попытка, заряд копится сам
+    deform((a, dx, dy) => ({ x: 0, y: -dy * 90 })); tone(160, 90, 0.12, 'sine', 0.12); return;
+  }
+  ball.jumps--;
+  const p = jumpPower();
+  ball.vy = -p;
+  // тяжёлая тефтеля хуже слушается: меньше боковой импульс, больше сохраняет прежний ход
+  const side = lerp(250, 150, heavy());
+  ball.vx = clamp(ball.vx * lerp(0.35, 0.75, heavy()) + dir * side, -420, 420);
+  squash(p * 0.55);
+  crumbs(ball.x, ball.y + ball.r * 0.8);
+  sfx.jump(ball.mass);
+  ball.blink = 0.08;
+}
+function toGame(e) {
+  const rect = cv.getBoundingClientRect();
+  const t = e.touches ? e.touches[0] : e;
+  return [(t.clientX - rect.left) / scale, (t.clientY - rect.top) / scale];
+}
+cv.addEventListener('pointerdown', e => { e.preventDefault(); const [x, y] = toGame(e); tap(x, y); });
+addEventListener('keydown', e => {
+  if (e.repeat) return;
+  if (e.code === 'ArrowLeft' || e.key === 'a' || e.key === 'ф') tap(ball.x - 10, 0);
+  else if (e.code === 'ArrowRight' || e.key === 'd' || e.key === 'в') tap(ball.x + 10, 0);
+  else if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') tap(ball.x + (ball.vx >= 0 ? 10 : -10), 0);
+});
+
+// ---------- update ----------
+function eat(it) {
+  const d = it.def;
+  it.dead = true;
+  if (!it.trash) {
+    const gain = Math.round(d.coins * coinMult());
+    ball.mass += d.mass; runCoins += gain; lastEat = tGame;
+    ball.jumps = Math.min(MAXJ, ball.jumps + d.jumps);
+    ball.mouth = 1;
+    pulse(140 * d.mass);
+    burst(it.x, it.y, colorOf(it.kind), 10 + d.mass * 6, 260, 0.5, 5);
+    popText(it.x, it.y - 20, '+' + gain, '#ffe08a', d.mass > 1 || coinMult() > 1);
+    if (d.mass > 1) { camShake = 6; sfx.big(); } else sfx.eat();
+  } else if (it.kind === 'hair' && ball.mass >= HAIR_PROOF) {
+    // жирная тефтеля волос даже не заметила
+    burst(it.x, it.y, '#222', 6, 160, 0.4, 2);
+    popText(it.x, it.y - 20, 'пф', 'rgba(255,255,255,0.7)');
+    tone(700, 300, 0.06, 'square', 0.08);
+  } else {
+    ball.mass += d.mass;
+    jolt(it.x, it.y, 260);
+    loseMeat(it.x, it.y, -d.mass * 2);
+    burst(it.x, it.y, '#6b6b6b', 12, 200, 0.5, 3);
+    popText(it.x, it.y - 20, d.name, '#ff7a6b', true);
+    camShake = 10; sfx.hit();
+    ball.vy = Math.min(ball.vy + 200, 400); ball.vx *= 0.5;
+    if (ball.mass < 1) die();
+  }
+}
+function loseMeat(fromX, fromY, n) {
+  for (let i = 0; i < n; i++) {
+    const a = Math.atan2(ball.y - fromY, ball.x - fromX) + rnd(-1.2, 1.2), sp = rnd(180, 340);
+    particles.push({ x: ball.x + Math.cos(a) * ball.r * 0.6, y: ball.y + Math.sin(a) * ball.r * 0.6, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 120,
+      life: 1.1, t: 1.1, color: '#b9542f', size: ball.r * rnd(0.22, 0.34), g: 700, meat: true, rot: rnd(0, 6), rv: rnd(-8, 8) });
+  }
+}
+function die() {
+  if (!ball.alive) return;
+  ball.alive = false; state = 'dead'; tGame = 0;
+  sfx.die(); camShake = 16;
+  burst(ball.x, ball.y, '#b9542f', 40, 380, 0.9, 6);
+  coins += runCoins; if (maxHeight > best) best = maxHeight;
+  try { localStorage.setItem('teft_best', best); localStorage.setItem('teft_coins', coins); } catch (e) {}
+}
+
+function wallHit(wx, speed) {
+  jolt(wx, ball.y, 200);
+  if (speed > WALL_HIT && ball.mass > 1) { // сильный удар: часть фарша отлетает
+    ball.mass -= 1; loseMeat(wx, ball.y, 2); camShake = 9; sfx.hit();
+    popText(ball.x, ball.y - ball.r - 10, '−1 мясо', '#ff7a6b', true);
+  } else if (speed > 120) crumbs(ball.x, ball.y);
+}
+function update(dt) {
+  tGame += dt;
+  if (state === 'play' && ball.alive) {
+    ball.vy += G * dt;
+    ball.x += ball.vx * dt; ball.y += ball.vy * dt;
+    ball.vx *= Math.pow(lerp(0.35, 0.6, heavy()), dt);
+    // стены
+    if (ball.x < ball.r) { ball.x = ball.r; if (ball.vx < 0) { wallHit(0, -ball.vx); ball.vx = -ball.vx * 0.5; } }
+    if (ball.x > W - ball.r) { ball.x = W - ball.r; if (ball.vx > 0) { wallHit(W, ball.vx); ball.vx = -ball.vx * 0.5; } }
+    // стартовая тарелка
+    for (const pl of plates) {
+      if (Math.abs(ball.x - pl.x) < pl.w / 2 && ball.vy > 0 && ball.y + ball.r > pl.y && ball.y + ball.r < pl.y + 40) {
+        ball.y = pl.y - ball.r; if (ball.vy > 80) { squash(ball.vy * 0.5); crumbs(ball.x, ball.y + ball.r); }
+        ball.vy = 0; ball.vx *= 0.8;
+      }
+    }
+    // камера — только вверх
+    const target = ball.y - H * 0.55;
+    if (target < camY) camY = lerp(camY, target, 1 - Math.pow(0.001, dt));
+    maxHeight = Math.max(maxHeight, Math.floor(-ball.y / 10));
+    // смерть внизу
+    if (ball.y - ball.r > camY + H + 40) die();
+    // радиус растёт плавно
+    ball.r = lerp(ball.r, radiusFor(ball.mass), 1 - Math.pow(0.01, dt));
+    ball.full = Math.max(0, ball.full - dt * 0.9);
+    if (ball.jumps < MAXJ) { ball.regen += dt; if (ball.regen >= REGEN) { ball.regen = 0; ball.jumps++; } } else ball.regen = 0;
+    if (ball.hiccup > 0) { ball.hiccup -= dt; ball.vx *= Math.pow(0.05, dt);
+      if (Math.random() < dt * 8) { deform((a, dx, dy) => ({ x: dx * 45, y: -Math.abs(dy) * 70 })); ball.vy -= 60; } }
+    ball.mouth = Math.max(0, ball.mouth - dt * 3);
+    ball.face = lerp(ball.face, clamp(ball.vx / 300, -1, 1), 1 - Math.pow(0.02, dt));
+    spawn();
+    // предметы
+    for (const it of items) {
+      if (it.dead) continue;
+      if (it.vx) { it.x += it.vx * dt; if (it.x < 30 || it.x > W - 30) it.vx = -it.vx; it.y += Math.sin(tGame * 6 + it.seed) * 18 * dt; }
+      const dx = it.x - ball.x, dy = it.y - ball.y;
+      if (dx * dx + dy * dy < (it.r + ball.r * 0.92) ** 2) eat(it);
+    }
+    items = items.filter(it => !it.dead && it.y < camY + H + 80);
+  }
+  ball.blink -= dt; if (ball.blink < -rnd(2, 5)) ball.blink = 0.1;
+  updateBody(dt);
+  for (const p of particles) { p.vy += p.g * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.t -= dt; }
+  particles = particles.filter(p => p.t > 0);
+  for (const t of texts) t.t += dt;
+  texts = texts.filter(t => t.t < 1);
+  camShake = Math.max(0, camShake - dt * 40);
+  shakeX = rnd(-camShake, camShake); shakeY = rnd(-camShake, camShake);
+}
+
+// ---------- draw ----------
+function colorOf(kind) { return { ketchup: '#e3342f', pasta: '#f6c343', meat: '#b5452b', hair: '#222', dirt: '#5a4a3a', fly: '#2b2b2b' }[kind]; }
+
+function drawBg() {
+  // кухонная плитка, плавно темнеет с высотой
+  const h = clamp(-camY / 12000, 0, 1);
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, `rgb(${lerp(58, 20, h)|0},${lerp(44, 22, h)|0},${lerp(36, 40, h)|0})`);
+  g.addColorStop(1, `rgb(${lerp(42, 14, h)|0},${lerp(30, 14, h)|0},${lerp(26, 30, h)|0})`);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = 'rgba(255,255,255,0.05)'; ctx.lineWidth = 2;
+  const tile = 96, off = ((-camY * 0.5) % tile + tile) % tile;
+  for (let y = -tile + off; y < H + tile; y += tile) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+  for (let x = 0; x <= W; x += tile) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+  // высотные отметки
+  ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.font = '600 14px system-ui, sans-serif'; ctx.textAlign = 'left';
+  const step = 500; // 50 м
+  for (let y = Math.floor(camY / step) * step; y < camY + H; y += step) {
+    if (y >= 0) continue;
+    ctx.fillText((-y / 10) + ' м', 8, y - camY - 4);
+    ctx.fillRect(0, y - camY, 40, 1);
+  }
+}
+
+function drawItem(it) {
+  const x = it.x, y = it.y - camY;
+  const wob = Math.sin(tGame * 4 + it.seed) * 3;
+  ctx.save(); ctx.translate(x, y + wob);
+  switch (it.kind) {
+    case 'ketchup': // капля
+      ctx.fillStyle = '#e3342f'; ctx.beginPath();
+      ctx.moveTo(0, -18); ctx.bezierCurveTo(14, -2, 15, 10, 0, 16); ctx.bezierCurveTo(-15, 10, -14, -2, 0, -18); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.45)'; ctx.beginPath(); ctx.ellipse(-4, 2, 3, 6, 0.4, 0, 7); ctx.fill();
+      break;
+    case 'pasta': // спиралька
+      ctx.strokeStyle = '#f6c343'; ctx.lineWidth = 6; ctx.lineCap = 'round'; ctx.beginPath();
+      for (let i = 0; i <= 24; i++) { const t = i / 24; const px = -16 + t * 32, py = Math.sin(t * Math.PI * 4) * 8; i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); }
+      ctx.stroke(); ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 2; ctx.stroke();
+      break;
+    case 'meat': // кусок мяса
+      ctx.fillStyle = '#b5452b'; ctx.beginPath(); ctx.ellipse(0, 0, 22, 16, -0.3, 0, 7); ctx.fill();
+      ctx.fillStyle = '#f3e0c8'; ctx.beginPath(); ctx.ellipse(6, -4, 7, 4, -0.3, 0, 7); ctx.fill();
+      ctx.strokeStyle = '#f3e0c8'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(-14, 6); ctx.quadraticCurveTo(-4, 2, 4, 9); ctx.stroke();
+      break;
+    case 'hair':
+      ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.beginPath();
+      ctx.moveTo(-16, -10); ctx.bezierCurveTo(10, -20, -14, 8, 14, 12); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(-12, 6); ctx.bezierCurveTo(4, -8, 12, 14, 18, -2); ctx.stroke();
+      break;
+    case 'dirt':
+      ctx.fillStyle = '#5a4a3a';
+      for (let i = 0; i < 6; i++) { const a = i / 6 * 6.28; ctx.beginPath(); ctx.arc(Math.cos(a) * 7, Math.sin(a) * 7, 8, 0, 7); ctx.fill(); }
+      ctx.fillStyle = '#7a6a56'; ctx.beginPath(); ctx.arc(-3, -3, 4, 0, 7); ctx.fill();
+      break;
+    case 'fly': {
+      const w = Math.sin(tGame * 60) * 6;
+      ctx.fillStyle = 'rgba(200,220,255,0.6)'; ctx.beginPath(); ctx.ellipse(-6, -6 + w, 8, 4, -0.5, 0, 7); ctx.ellipse(6, -6 - w, 8, 4, 0.5, 0, 7); ctx.fill();
+      ctx.fillStyle = '#2b2b2b'; ctx.beginPath(); ctx.ellipse(0, 0, 9, 6, 0, 0, 7); ctx.fill();
+      ctx.fillStyle = '#c33'; ctx.beginPath(); ctx.arc(-4, -2, 2, 0, 7); ctx.arc(4, -2, 2, 0, 7); ctx.fill();
+      break; }
+  }
+  ctx.restore();
+}
+
+function chunk(x, y, rx, ry) { // один шарик фарша с корочкой
+  const g = ctx.createRadialGradient(x - rx * 0.35, y - ry * 0.4, rx * 0.1, x, y, rx * 1.1);
+  g.addColorStop(0, '#e89a6c'); g.addColorStop(0.5, '#c0583a'); g.addColorStop(1, '#833218');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = 'rgba(70,20,8,0.35)'; ctx.beginPath(); ctx.ellipse(x + rx * 0.35, y + ry * 0.4, rx * 0.35, ry * 0.25, 0.6, 0, 7); ctx.fill();
+  ctx.fillStyle = 'rgba(255,230,200,0.4)'; ctx.beginPath(); ctx.ellipse(x - rx * 0.3, y - ry * 0.35, rx * 0.2, ry * 0.12, -0.5, 0, 7); ctx.fill();
+}
+function drawBall() {
+  const cx = ball.x, cy = ball.y - camY;
+  const P = ball.pts;
+  const disp = ang => { // смещение мягкого тела под углом ang
+    const i = ((Math.round(ang / (Math.PI * 2) * N) % N) + N) % N;
+    return { x: P[i].ox - Math.cos(i / N * Math.PI * 2) * ball.r, y: P[i].oy - Math.sin(i / N * Math.PI * 2) * ball.r };
+  };
+  // раскладка шариков фарша: наружное кольцо образует бугристый силуэт, внутри — заполнение
+  const chunks = [];
+  const outerN = Math.min(12, 6 + Math.floor(ball.mass * 0.5));
+  for (let i = 0; i < outerN; i++) {
+    const a = i / outerN * Math.PI * 2 + 0.3, d = disp(a);
+    const rr = ball.r * 0.58, cr = ball.r * (0.46 + (i % 3) * 0.05);
+    chunks.push({ x: Math.cos(a) * rr + d.x * 0.9, y: Math.sin(a) * rr + d.y * 0.9, rx: cr, ry: cr * (0.82 + (i % 2) * 0.16), rot: i * 0.8, z: Math.sin(a) });
+  }
+  const innerN = Math.min(9, 2 + Math.floor(ball.mass * 0.5));
+  for (let i = 0; i < innerN; i++) {
+    const a = i * 2.399 + 1.7, rr = Math.sqrt(i / innerN) * ball.r * 0.35, d = disp(a);
+    chunks.push({ x: Math.cos(a) * rr + d.x * 0.4, y: Math.sin(a) * rr + d.y * 0.4 - ball.r * 0.05, rx: ball.r * 0.48, ry: ball.r * 0.44, rot: i, z: 2 });
+  }
+  chunks.sort((a, b) => a.z - b.z); // нижние сзади, верхние и центральные впереди
+  ctx.save(); ctx.translate(cx, cy);
+  // тень
+  ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(4, ball.r * 0.3 + 6, ball.r * 1.0, ball.r * 0.9, 0, 0, 7); ctx.fill();
+  // тёмная подложка — щели между шариками
+  ctx.fillStyle = '#5a1f0c';
+  for (const c of chunks) { ctx.beginPath(); ctx.ellipse(c.x, c.y, c.rx * 1.06, c.ry * 1.06, c.rot, 0, 7); ctx.fill(); }
+  for (const c of chunks) { ctx.save(); ctx.translate(c.x, c.y); ctx.rotate(c.rot); chunk(0, 0, c.rx, c.ry); ctx.restore(); }
+  // соус стекает по верхним шарикам
+  const top = P[Math.round(N * 0.75)];
+  ctx.fillStyle = '#d9382c'; ctx.beginPath();
+  ctx.moveTo(top.ox - ball.r * 0.6, top.oy + ball.r * 0.12);
+  ctx.quadraticCurveTo(top.ox - ball.r * 0.3, top.oy + ball.r * 0.6, top.ox - ball.r * 0.08, top.oy + ball.r * 0.2);
+  ctx.quadraticCurveTo(top.ox + ball.r * 0.15, top.oy + ball.r * 0.7, top.ox + ball.r * 0.38, top.oy + ball.r * 0.15);
+  ctx.quadraticCurveTo(top.ox + ball.r * 0.6, top.oy + ball.r * 0.35, top.ox + ball.r * 0.68, top.oy);
+  ctx.quadraticCurveTo(top.ox, top.oy - ball.r * 0.35, top.ox - ball.r * 0.7, top.oy - ball.r * 0.05); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.beginPath(); ctx.ellipse(top.ox + ball.r * 0.2, top.oy + ball.r * 0.3, ball.r * 0.06, ball.r * 0.14, 0.3, 0, 7); ctx.fill();
+  // петрушка на макушке
+  { ctx.save(); ctx.translate(top.ox + ball.r * 0.05, top.oy - 2); ctx.rotate(top.ox / ball.r * 0.4 - 0.2);
+    ctx.strokeStyle = '#2f7d32'; ctx.lineWidth = Math.max(2, ball.r * 0.07); ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(0, 4); ctx.lineTo(0, -ball.r * 0.25); ctx.stroke();
+    for (const [lx, ly] of [[0, -ball.r * 0.32], [-ball.r * 0.16, -ball.r * 0.22], [ball.r * 0.16, -ball.r * 0.22]]) {
+      ctx.fillStyle = '#4caf50'; ctx.beginPath(); ctx.ellipse(lx, ly, ball.r * 0.13, ball.r * 0.09, 0, 0, 7); ctx.fill();
+      ctx.fillStyle = '#66bb6a'; ctx.beginPath(); ctx.arc(lx - ball.r * 0.03, ly - ball.r * 0.03, ball.r * 0.04, 0, 7); ctx.fill();
+    }
+    ctx.restore(); }
+  // лицо — на передних центральных шариках
+  const ex = ball.r * 0.3, ey = -ball.r * 0.12, er = Math.max(5, ball.r * 0.19);
+  const look = ball.face * er * 0.35;
+  const blink = ball.blink > 0 ? 0.15 : 1;
+  for (const s of [-1, 1]) {
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.ellipse(s * ex, ey, er, er * blink, 0, 0, 7); ctx.fill();
+    if (blink > 0.5) {
+      ctx.fillStyle = '#1b1410'; ctx.beginPath(); ctx.arc(s * ex + look, ey + (ball.vy < -100 ? -er * 0.2 : er * 0.15), er * 0.5, 0, 7); ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(s * ex + look - er * 0.15, ey - er * 0.15, er * 0.15, 0, 7); ctx.fill();
+    }
+  }
+  const my = ball.r * 0.3, mw = ball.r * 0.26;
+  ctx.strokeStyle = '#3a1c0e'; ctx.lineWidth = Math.max(2, ball.r * 0.08); ctx.lineCap = 'round';
+  if (ball.mouth > 0.1) { ctx.fillStyle = '#3a1c0e'; ctx.beginPath(); ctx.ellipse(0, my, mw * 0.8, ball.r * 0.2 * ball.mouth, 0, 0, 7); ctx.fill(); }
+  else { ctx.beginPath(); ctx.moveTo(-mw, my); ctx.quadraticCurveTo(0, my + ball.r * 0.16, mw, my); ctx.stroke(); }
+  ctx.restore();
+}
+
+function drawHUD() {
+  ctx.textAlign = 'left'; ctx.fillStyle = '#fff';
+  ctx.font = '800 34px system-ui, sans-serif';
+  ctx.fillText(maxHeight + ' м', 16, 44);
+  ctx.textAlign = 'right'; ctx.font = '700 22px system-ui, sans-serif'; ctx.fillStyle = '#ffe08a';
+  ctx.fillText('● ' + runCoins, W - 16, 40);
+  // масса
+  ctx.textAlign = 'right'; ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.font = '600 15px system-ui, sans-serif';
+  ctx.fillText('масса ' + ball.mass + (coinMult() > 1 ? '   ×' + coinMult() : ''), W - 16, 64);
+  if (ball.mass >= HAIR_PROOF) { ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.font = '600 13px system-ui, sans-serif'; ctx.fillText('волосы не страшны', W - 16, 84); }
+  // заряды прыжка
+  for (let i = 0; i < MAXJ; i++) {
+    const x = W / 2 - (MAXJ - 1) * 14 + i * 28, y = 40;
+    ctx.fillStyle = i < ball.jumps ? '#f6c343' : i === ball.jumps ? `rgba(246,195,67,${0.15 + ball.regen / REGEN * 0.6})` : 'rgba(255,255,255,0.15)';
+    ctx.beginPath(); ctx.moveTo(x, y - 9); ctx.lineTo(x + 8, y + 3); ctx.lineTo(x + 2, y + 3); ctx.lineTo(x + 3, y + 10); ctx.lineTo(x - 8, y - 2); ctx.lineTo(x - 2, y - 2); ctx.closePath(); ctx.fill();
+  }
+  ctx.textAlign = 'center';
+}
+
+function panel(title, lines, cta) {
+  ctx.fillStyle = 'rgba(20,12,8,0.72)'; ctx.fillRect(0, 0, W, H);
+  ctx.textAlign = 'center'; ctx.fillStyle = '#fff';
+  ctx.font = '900 64px system-ui, sans-serif'; ctx.fillText(title, W / 2, H * 0.34);
+  ctx.font = '500 20px system-ui, sans-serif'; ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  lines.forEach((l, i) => ctx.fillText(l, W / 2, H * 0.34 + 50 + i * 30));
+  const pulseT = 0.5 + Math.sin(tGame * 5) * 0.5;
+  ctx.fillStyle = `rgba(255,224,138,${0.6 + pulseT * 0.4})`; ctx.font = '800 26px system-ui, sans-serif';
+  ctx.fillText(cta, W / 2, H * 0.72);
+}
+
+function draw() {
+  ctx.setTransform(scale * devicePixelRatio, 0, 0, scale * devicePixelRatio, 0, 0);
+  ctx.save(); ctx.translate(shakeX, shakeY);
+  drawBg();
+  for (const pl of plates) { const y = pl.y - camY; if (y > -20 && y < H + 20) {
+    ctx.fillStyle = '#e9e4da'; ctx.beginPath(); ctx.ellipse(pl.x, y + 8, pl.w / 2, 16, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = '#c9c2b4'; ctx.beginPath(); ctx.ellipse(pl.x, y + 8, pl.w / 2 - 30, 9, 0, 0, 7); ctx.fill(); } }
+  for (const it of items) drawItem(it);
+  if (ball.alive || state === 'title') drawBall();
+  for (const p of particles) {
+    ctx.globalAlpha = clamp(p.t / p.life, 0, 1);
+    if (p.meat) { p.rot += p.rv * 0.016; ctx.save(); ctx.translate(p.x, p.y - camY); ctx.rotate(p.rot); chunk(0, 0, p.size, p.size * 0.78); ctx.restore(); }
+    else { ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x, p.y - camY, p.size, 0, 7); ctx.fill(); }
+  }
+  ctx.globalAlpha = 1;
+  for (const t of texts) {
+    const k = t.t; ctx.globalAlpha = 1 - k * k; ctx.fillStyle = t.color; ctx.textAlign = 'center';
+    ctx.font = `900 ${t.big ? 30 : 22}px system-ui, sans-serif`;
+    ctx.fillText(t.str, t.x, t.y - camY - k * 70);
+  }
+  ctx.globalAlpha = 1;
+  ctx.restore();
+  if (state === 'play') drawHUD();
+  if (state === 'title') panel('Тефтеля', ['Тап — прыжок.', 'Тап слева или справа — в ту сторону.', 'Ешь еду, расти. Волосы и грязь — не ешь.', 'Каждый прыжок тратит заряд, еда возвращает.', 'Об стену на скорости — теряешь мясо.'], 'Тапни, чтобы прыгнуть');
+  if (state === 'dead') panel('Упала', [maxHeight + ' м  ·  лучший ' + best + ' м', 'Собрано за забег: ' + runCoins, 'Всего: ' + coins], tGame > 0.6 ? 'Тапни — ещё раз' : '');
+}
+
+// ---------- loop ----------
+initBody(); reset(); state = 'title';
+window.__dbg = { ball, get camY() { return camY; } };
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.033, (now - last) / 1000); last = now;
+  update(dt); draw(); requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
