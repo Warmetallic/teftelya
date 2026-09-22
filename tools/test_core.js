@@ -15,14 +15,14 @@ const AC = class extends FakeAC { constructor() { super(); ac = this; } };
   const b = d.fieldBounds(); assert.deepStrictEqual(b, { x0: 0, x1: 480, y0: 0, y1: 854 });
   assert.deepStrictEqual(d.toGame({ clientX: 100, clientY: 200 }), [100, 200]);
   // i18n
-  d.setLang('ru'); assert.strictEqual(d.T('again'), 'Ещё раз');
-  d.setLang('tr'); assert.strictEqual(d.T('again'), 'Again');
+  d.setLang('ru'); assert.strictEqual(d.T('again'), 'Ещё раз'); assert.strictEqual(d.lang, 'ru');
+  d.setLang('tr'); assert.strictEqual(d.T('again'), 'Again'); assert.strictEqual(d.lang, 'en', 'хук lang живой, не снимок');
   assert.strictEqual(d.T('no.such.key'), 'no.such.key');
   d.setLang('en'); assert.strictEqual(d.T('item.hair'), 'hair');
   // audio: после mute звук не создаётся, после unmute — создаётся
   d.tone(200, 300, 0.1); assert.strictEqual(ac.created, 1);
-  d.muteAudio(); assert.strictEqual(ac.state, 'suspended'); d.tone(200, 300, 0.1); assert.strictEqual(ac.created, 1);
-  d.unmuteAudio(); assert.strictEqual(ac.state, 'running'); d.tone(200, 300, 0.1); assert.strictEqual(ac.created, 2);
+  d.muteAudio(); assert.strictEqual(ac.state, 'suspended'); assert.strictEqual(d.audioMuted, true); d.tone(200, 300, 0.1); assert.strictEqual(ac.created, 1);
+  d.unmuteAudio(); assert.strictEqual(ac.state, 'running'); assert.strictEqual(d.audioMuted, false); d.tone(200, 300, 0.1); assert.strictEqual(ac.created, 2);
 }
 { // десктоп 1280x720: поле по центру, тап в центре окна = центр поля по x
   const g = require('./_env')(ctx, { width: 1280, height: 720 }); const d = g.dbg();

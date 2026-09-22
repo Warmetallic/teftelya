@@ -101,4 +101,4 @@ YG.setData = async function (obj) {
   const p = await YG._getPlayer(); if (!p) return;
   try { await p.setData(obj, true); } catch (e) { console.warn('setData failed', e); }
 };
-Object.assign(DBG, { YG });
+expose({ YG });

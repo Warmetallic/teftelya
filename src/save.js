@@ -43,4 +43,4 @@ function persist() {
   _writeLocal(snap);
   YG.setData(snap);
 }
-Object.assign(DBG, { save, loadSave, persist, migrate, mergeSaves });
+expose({ save, loadSave, persist, migrate, mergeSaves });

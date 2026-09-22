@@ -137,6 +137,9 @@ function update(dt) {
   camShake = Math.max(0, camShake - dt * 40);
   shakeX = rnd(-camShake, camShake); shakeY = rnd(-camShake, camShake);
 }
-Object.assign(DBG, { setRunCoins(n) { runCoins = n; }, reset, jump, die, continueRun, doubleCoins, update });
-Object.defineProperty(DBG, 'state', { get() { return state; }, set(v) { state = v; } });
-Object.defineProperty(DBG, 'run', { get() { return { maxHeight, runCoins, usedContinue, usedDouble, invuln, massAtDeath }; } });
+expose({
+  get state() { return state; }, set state(v) { state = v; },
+  get run() { return { maxHeight, runCoins, usedContinue, usedDouble, invuln, massAtDeath }; },
+  setRunCoins(n) { runCoins = n; },
+  reset, jump, die, continueRun, doubleCoins, update,
+});

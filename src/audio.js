@@ -25,4 +25,4 @@ const sfx = {
   hit:  () => tone(140, 60, 0.25, 'sawtooth', 0.22),
   die:  () => { tone(300, 40, 0.6, 'sawtooth', 0.25); },
 };
-Object.assign(DBG, { tone, muteAudio, unmuteAudio, get audioMuted() { return audioMuted; } });
+expose({ tone, muteAudio, unmuteAudio, get audioMuted() { return audioMuted; } });

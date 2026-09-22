@@ -63,7 +63,4 @@ function updateFx(dt) {
   for (const t of texts) t.t += dt;
   texts = texts.filter(t => t.t < 1);
 }
-Object.assign(DBG, { FOOD, TRASH, popText });
-Object.defineProperty(DBG, 'camY', { get() { return camY; } });
-Object.defineProperty(DBG, 'items', { get() { return items; } });
-Object.defineProperty(DBG, 'plates', { get() { return plates; } });
+expose({ FOOD, TRASH, get camY() { return camY; }, get items() { return items; }, get plates() { return plates; }, popText });

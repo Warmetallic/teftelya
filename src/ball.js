@@ -50,4 +50,4 @@ function updateBody(dt) {
     p.vx += ax * dt; p.vy += ay * dt; p.ox += p.vx * dt; p.oy += p.vy * dt;
   }
 }
-Object.assign(DBG, { ball });
+expose({ ball });

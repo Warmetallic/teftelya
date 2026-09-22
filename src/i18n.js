@@ -34,4 +34,4 @@ function T(key) {
   const f = STR.ru[key];
   return f === undefined ? key : f;
 }
-Object.assign(DBG, { setLang, T, get lang() { return LANG; } });
+expose({ setLang, T, get lang() { return LANG; } });

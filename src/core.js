@@ -38,4 +38,6 @@ function fieldBounds() {
 }
 // хуки для headless-тестов; каждый модуль добавляет свои
 const DBG = window.__dbg = {};
-Object.assign(DBG, { view, toGame, fieldBounds, resize });
+// expose: копирует и обычные значения, и геттеры/сеттеры (Object.assign вызвал бы геттер один раз и сохранил снимок)
+function expose(o) { Object.defineProperties(DBG, Object.getOwnPropertyDescriptors(o)); }
+expose({ view, toGame, fieldBounds, resize });
