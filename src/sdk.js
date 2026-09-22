@@ -14,11 +14,26 @@ async function _waitFor(pred, maxMs, stepMs = 50) {
   return true;
 }
 function _feature(name) { const f = YG.ysdk && YG.ysdk.features; return f && f[name]; }
+// сигнал от тега <script src="/sdk.js">: load/error приходят раньше любого опроса; без тега промис не резолвится (остаётся опрос)
+function _sdkTagSignal() {
+  return new Promise(resolve => {
+    const all = (document.querySelectorAll ? Array.from(document.querySelectorAll('script[src]')) : []);
+    const tag = all.find(t => /sdk\.js(\?|$)/.test(t.src)); if (!tag) return;
+    if (typeof window.YaGames !== 'undefined') return resolve('load');
+    tag.addEventListener('load', () => resolve('load')); tag.addEventListener('error', () => resolve('error'));
+  });
+}
+function _withTimeout(p, ms) { return Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout ' + ms + ' ms')), ms))]); }
 YG.init = async function () {
-  const has = await _waitFor(() => typeof window.YaGames !== 'undefined', CFG.sdkWaitMs);
+  const isFile = typeof location !== 'undefined' && location.protocol === 'file:'; // dev-страница двойным кликом: SDK заведомо нет
+  let has = false;
+  if (!isFile) {
+    const outcome = await Promise.race([_sdkTagSignal(), _waitFor(() => typeof window.YaGames !== 'undefined', CFG.sdkWaitMs).then(ok => ok ? 'load' : 'timeout')]);
+    has = outcome === 'load' && typeof window.YaGames !== 'undefined';
+  }
   if (has) {
     try {
-      YG.ysdk = await window.YaGames.init();
+      YG.ysdk = await _withTimeout(window.YaGames.init(), CFG.sdkInitMs);
       YG.isMock = false;
       const env = YG.ysdk.environment;
       YG.lang = (env && env.i18n && env.i18n.lang) || 'ru';

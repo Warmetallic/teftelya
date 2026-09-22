@@ -44,6 +44,9 @@ async function runFlow(opts) {
   let again = btn(d, 'again'); g.tap(again.x, again.y); await g.flush(); g.step();
   assert.strictEqual(d.state, 'play'); assert.strictEqual(inters(), n0, 'первый рестарт без рекламы');
   assert.deepStrictEqual([d.run.usedContinue, d.run.usedDouble, d.run.runCoins], [false, false, 0], 'флаги забега сброшены');
+  // второй рестарт в начале сессии — отсрочка 180 с, рекламы нет
+  d.die(); steps(g, 60); again = btn(d, 'again'); g.tap(again.x, again.y); await g.flush(); g.step();
+  assert.strictEqual(inters(), n0, 'отсрочка: до 180 с сессии межстраничной нет');
   // второй рестарт при истёкшем интервале — реклама показана
   d.die(); steps(g, 60); d.forceAdReady();
   again = btn(d, 'again'); g.tap(again.x, again.y);

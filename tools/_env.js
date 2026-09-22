@@ -24,12 +24,12 @@ module.exports = function makeEnv(ctx, opts = {}) {
   const cv = { getContext: () => ctx, addEventListener: (n, f) => { listeners[n] = f; },
     getBoundingClientRect: () => ({ left: 0, top: 0 }), style: {} };
   global.window = global;
-  global.document = { getElementById: () => cv, addEventListener: noop, hidden: false };
+  global.document = { getElementById: () => cv, addEventListener: noop, hidden: false, querySelectorAll: () => [] };
   Object.defineProperty(global, 'navigator', { value: { language: opts.lang || 'ru-RU' }, configurable: true, writable: true });
   global.innerWidth = opts.width || 480; global.innerHeight = opts.height || 854; global.devicePixelRatio = 1;
   global.addEventListener = (n, f) => { listeners['win:' + n] = f; };
   global.localStorage = { getItem: k => store.has(k) ? store.get(k) : null, setItem: (k, v) => store.set(k, String(v)), removeItem: k => store.delete(k) };
-  global.__TEFT_CFG = { sdkWaitMs: 0, adStubMs: 0, rewardedStubMs: 0, manualBoot: true };
+  global.__TEFT_CFG = { sdkWaitMs: 0, sdkInitMs: 50, adStubMs: 0, rewardedStubMs: 0, manualBoot: true };
   delete global.AudioContext; if (opts.AudioContext) global.AudioContext = opts.AudioContext;
   delete global.YaGames; if (opts.YaGames) global.YaGames = opts.YaGames;
   let cb = null, t = 0;

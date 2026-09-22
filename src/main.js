@@ -2,7 +2,7 @@
 // ---------- точка входа: загрузка, ввод, пауза, реклама между забегами, цикл ----------
 const AD_INTERVAL = 180; // секунд между межстраничными показами — свой лимит поверх лимитов Яндекса
 let booted = false, paused = false, awaitTap = false, adBusy = false;
-let restarts = 0, lastAdAt = 0, sessionT = 0;
+let restarts = 0, lastAdAt = 0, sessionT = 0; // lastAdAt = 0: первые AD_INTERVAL секунд сессии без межстраничной — осознанная отсрочка
 
 async function boot() {
   await YG.init();

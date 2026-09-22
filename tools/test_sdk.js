@@ -59,6 +59,8 @@ if (require.main !== module) return;
     assert.deepStrictEqual(await YG.showRewarded(), { rewarded: false });
     const g2 = require('./_env')(ctx, { YaGames: { init: async () => { throw new Error('boom'); } } }); const YG2 = g2.dbg().YG;
     await YG2.init(); assert.strictEqual(YG2.isMock, true, 'сбой init → заглушка');
+    const g3 = require('./_env')(ctx, { YaGames: { init: () => new Promise(() => {}) } }); const YG3 = g3.dbg().YG;
+    await YG3.init(); assert.strictEqual(YG3.isMock, true, 'зависший init → заглушка по таймауту');
   }
   console.log('test_sdk ok');
 })().catch(e => { console.error(e); process.exit(1); });

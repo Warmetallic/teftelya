@@ -1,7 +1,7 @@
 'use strict';
 // ---------- core: конфиг, константы, утилиты, холст ----------
 // __TEFT_CFG выставляют тесты (нулевые задержки SDK и рекламы-заглушки)
-const CFG = Object.assign({ sdkWaitMs: 3000, adStubMs: 1000, rewardedStubMs: 1500, manualBoot: false }, window.__TEFT_CFG || {});
+const CFG = Object.assign({ sdkWaitMs: 15000, sdkInitMs: 10000, adStubMs: 1000, rewardedStubMs: 1500, manualBoot: false }, window.__TEFT_CFG || {});
 const W = 480, H = 854;                        // логическое поле
 const cv = document.getElementById('c');
 const ctx = cv.getContext('2d');
