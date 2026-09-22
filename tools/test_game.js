@@ -49,6 +49,19 @@ const item = (d, kind, trash, x, y) => ({ kind, trash, def: trash ? d.TRASH[kind
   // рекорд высоты и падение за нижний край
   d.reset(); d.state = 'play'; ball.y = -5000; d.update(0.016); assert.ok(d.run.maxHeight >= 499);
   ball.y = d.camY + 854 + 200; d.update(0.016); assert.strictEqual(d.state, 'dead'); assert.ok(d.save.best >= 499);
+  // удар о стену быстрее WALL_HIT отрывает мясо, в неуязвимости — нет
+  d.reset(); d.state = 'play'; ball.mass = 5; ball.x = ball.r - 5; ball.vx = -400; d.update(0.016);
+  assert.strictEqual(ball.mass, 4, 'удар о стену быстрее WALL_HIT отрывает мясо'); assert.ok(ball.vx > 0, 'отскок');
+  d.reset(); d.state = 'play'; ball.mass = 5; d.die(); d.continueRun();
+  ball.x = ball.r - 5; ball.vx = -400; d.update(0.016);
+  assert.strictEqual(ball.mass, 5, 'в неуязвимости стена мясо не отрывает');
+  // монеты через «Продолжить» считаются один раз
+  { d.reset(); d.state = 'play'; const c0 = d.save.coins; d.setRunCoins(20); d.die(); d.continueRun();
+    d.items.push(item(d, 'meat', false, ball.x, ball.y)); d.update(0.016); d.setRunCoins(30); d.die();
+    assert.strictEqual(d.save.coins, c0 + 30, 'смерть → продолжить → смерть: +30, не +50'); }
+  { d.reset(); d.state = 'play'; const c0 = d.save.coins; d.setRunCoins(20); d.die(); d.doubleCoins(); d.continueRun();
+    d.setRunCoins(50); d.die();
+    assert.strictEqual(d.save.coins, c0 + 50, 'смерть → ×2 → продолжить → смерть: +50, не +90'); }
   // reset сбрасывает флаги забега
   d.reset(); assert.deepStrictEqual([d.run.usedContinue, d.run.usedDouble, d.run.runCoins, d.run.invuln], [false, false, 0, 0]);
   console.log('test_game ok');

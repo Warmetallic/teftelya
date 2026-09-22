@@ -15,6 +15,7 @@ async function runFlow(opts) {
   assert.strictEqual(d.state, 'title');
   assert.deepStrictEqual(d.YG.log, ['ready'], 'ready ровно один раз, когда виден титул');
   g.tap(240); assert.strictEqual(d.state, 'play'); assert.strictEqual(d.YG.log.at(-1), 'start');
+  const coinsAtRunStart = d.save.coins;
   steps(g, 3000, 25);
   if (d.state === 'play') d.die();
   assert.strictEqual(d.state, 'dead'); assert.strictEqual(d.YG.log.at(-1), 'stop');
@@ -28,6 +29,7 @@ async function runFlow(opts) {
   steps(g, 200, 30);
   if (d.state === 'play') d.die();
   steps(g, 60);
+  assert.strictEqual(d.save.coins, coinsAtRunStart + d.run.runCoins, 'монеты забега с продолжением учтены один раз');
   assert.ok(!btn(d, 'continue'), 'второго Продолжить нет');
   // «Монеты ×2»
   d.setRunCoins(20); g.step();

@@ -11,6 +11,7 @@ const DOUBLE_MIN_COINS = 10;    // «Монеты ×2» предлагаем о�
 let state = 'title';            // title | play | dead
 let camShake = 0, shakeX = 0, shakeY = 0;
 let maxHeight = 0, runCoins = 0;
+let bankedCoins = 0;            // сколько из runCoins уже зачислено в save.coins — die() банкует по шагам, а не всё сразу
 let usedContinue = false, usedDouble = false, invuln = 0, massAtDeath = 0;
 function jumpPower() { return 690; } // от массы не зависит — ритм тапов одинаковый всю игру
 function coinMult() { return 1 + Math.floor((ball.mass - 1) / 4) * 0.5; } // масса 5 ×1.5, 9 ×2, 13 ×2.5
@@ -18,7 +19,7 @@ function reset() {
   ball.x = W / 2; ball.y = 0; ball.vx = 0; ball.vy = 0; ball.mass = 1; ball.r = radiusFor(1);
   ball.jumps = MAXJ; ball.regen = 0; ball.mouth = 0; ball.face = 0; ball.alive = true; initBody();
   camY = -H + 120; items = []; particles = []; texts = []; plates = [{ x: W / 2, y: 30, w: 220 }];
-  spawnedTo = -160; maxHeight = 0; runCoins = 0; tGame = 0; camShake = 0;
+  spawnedTo = -160; maxHeight = 0; runCoins = 0; bankedCoins = 0; tGame = 0; camShake = 0;
   usedContinue = false; usedDouble = false; invuln = 0; massAtDeath = 0;
 }
 // прыжок в сторону dir (-1 влево, +1 вправо)
@@ -79,7 +80,7 @@ function die() {
   ball.alive = false; state = 'dead'; tGame = 0;
   sfx.die(); camShake = 16;
   burst(ball.x, ball.y, '#b9542f', 40, 380, 0.9, 6);
-  save.coins += runCoins; if (maxHeight > save.best) save.best = maxHeight;
+  save.coins += runCoins - bankedCoins; bankedCoins = runCoins; if (maxHeight > save.best) save.best = maxHeight;
   persist();
   YG.gameplayStop();
 }
@@ -96,7 +97,7 @@ function continueRun() {
   state = 'play';
 }
 // «Монеты ×2» после rewarded
-function doubleCoins() { save.coins += runCoins; runCoins *= 2; usedDouble = true; persist(); }
+function doubleCoins() { save.coins += runCoins; runCoins *= 2; bankedCoins = runCoins; usedDouble = true; persist(); }
 function updateRun(dt) {
   ball.vy += G * dt;
   ball.x += ball.vx * dt; ball.y += ball.vy * dt;
@@ -139,7 +140,7 @@ function update(dt) {
 }
 expose({
   get state() { return state; }, set state(v) { state = v; },
-  get run() { return { maxHeight, runCoins, usedContinue, usedDouble, invuln, massAtDeath }; },
+  get run() { return { maxHeight, runCoins, usedContinue, usedDouble, invuln, massAtDeath, bankedCoins }; },
   setRunCoins(n) { runCoins = n; },
   reset, jump, die, continueRun, doubleCoins, update,
 });
