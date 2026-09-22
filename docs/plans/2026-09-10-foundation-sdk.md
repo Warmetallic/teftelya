@@ -20,7 +20,7 @@
 - «Продолжить»: тарелка `{x: W/2, y: camY + H - 90, w: 220}`, масса `max(massAtDeath, 3)`, полные заряды, неуязвимость 1.5 с, предметы в радиусе 120 удаляются.
 - Сохранение `{ v: 1, best, coins }`: при загрузке поле-по-полю максимум облака и локали; запись только при смерти и наградах.
 - Язык: `ru` → русский, всё остальное → английский. Все видимые строки через `T(key)`.
-- Никаких `TBD`/`TODO` в коде; каждый модуль заканчивается `Object.assign(DBG, {...})` с хуками для headless-тестов.
+- Никаких `TBD`/`TODO` в коде; каждый модуль заканчивается `expose({...})` (функция в core.js; сохраняет геттеры/сеттеры, в отличие от `Object.assign`, который вызывает геттер один раз) с хуками для headless-тестов.
 - Каждая задача: тест → красный → код → зелёный → `node tools/smoke.js` (когда он есть) → коммит с `Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>`.
 
 ## Карта файлов
@@ -167,14 +167,14 @@ const AC = class extends FakeAC { constructor() { super(); ac = this; } };
   const b = d.fieldBounds(); assert.deepStrictEqual(b, { x0: 0, x1: 480, y0: 0, y1: 854 });
   assert.deepStrictEqual(d.toGame({ clientX: 100, clientY: 200 }), [100, 200]);
   // i18n
-  d.setLang('ru'); assert.strictEqual(d.T('again'), 'Ещё раз');
-  d.setLang('tr'); assert.strictEqual(d.T('again'), 'Again');
+  d.setLang('ru'); assert.strictEqual(d.T('again'), 'Ещё раз'); assert.strictEqual(d.lang, 'ru');
+  d.setLang('tr'); assert.strictEqual(d.T('again'), 'Again'); assert.strictEqual(d.lang, 'en', 'хук lang живой, не снимок');
   assert.strictEqual(d.T('no.such.key'), 'no.such.key');
   d.setLang('en'); assert.strictEqual(d.T('item.hair'), 'hair');
   // audio: после mute звук не создаётся, после unmute — создаётся
   d.tone(200, 300, 0.1); assert.strictEqual(ac.created, 1);
-  d.muteAudio(); assert.strictEqual(ac.state, 'suspended'); d.tone(200, 300, 0.1); assert.strictEqual(ac.created, 1);
-  d.unmuteAudio(); assert.strictEqual(ac.state, 'running'); d.tone(200, 300, 0.1); assert.strictEqual(ac.created, 2);
+  d.muteAudio(); assert.strictEqual(ac.state, 'suspended'); assert.strictEqual(d.audioMuted, true); d.tone(200, 300, 0.1); assert.strictEqual(ac.created, 1);
+  d.unmuteAudio(); assert.strictEqual(ac.state, 'running'); assert.strictEqual(d.audioMuted, false); d.tone(200, 300, 0.1); assert.strictEqual(ac.created, 2);
 }
 { // десктоп 1280x720: поле по центру, тап в центре окна = центр поля по x
   const g = require('./_env')(ctx, { width: 1280, height: 720 }); const d = g.dbg();
@@ -236,7 +236,9 @@ function fieldBounds() {
 }
 // хуки для headless-тестов; каждый модуль добавляет свои
 const DBG = window.__dbg = {};
-Object.assign(DBG, { view, toGame, fieldBounds, resize });
+// expose: копирует и обычные значения, и геттеры/сеттеры (Object.assign вызвал бы геттер один раз и сохранил снимок)
+function expose(o) { Object.defineProperties(DBG, Object.getOwnPropertyDescriptors(o)); }
+expose({ view, toGame, fieldBounds, resize });
 ```
 
 - [ ] **Step 6: Написать src/i18n.js**
@@ -278,7 +280,7 @@ function T(key) {
   const f = STR.ru[key];
   return f === undefined ? key : f;
 }
-Object.assign(DBG, { setLang, T, get lang() { return LANG; } });
+expose({ setLang, T, get lang() { return LANG; } });
 ```
 
 - [ ] **Step 7: Написать src/audio.js**
@@ -311,7 +313,7 @@ const sfx = {
   hit:  () => tone(140, 60, 0.25, 'sawtooth', 0.22),
   die:  () => { tone(300, 40, 0.6, 'sawtooth', 0.25); },
 };
-Object.assign(DBG, { tone, muteAudio, unmuteAudio, get audioMuted() { return audioMuted; } });
+expose({ tone, muteAudio, unmuteAudio, get audioMuted() { return audioMuted; } });
 ```
 
 - [ ] **Step 8: Запустить тест, убедиться, что проходит**
@@ -517,7 +519,7 @@ YG.setData = async function (obj) {
   const p = await YG._getPlayer(); if (!p) return;
   try { await p.setData(obj, true); } catch (e) { console.warn('setData failed', e); }
 };
-Object.assign(DBG, { YG });
+expose({ YG });
 ```
 
 - [ ] **Step 4: Запустить тест, убедиться, что проходит**
@@ -640,7 +642,7 @@ function persist() {
   _writeLocal(snap);
   YG.setData(snap);
 }
-Object.assign(DBG, { save, loadSave, persist, migrate, mergeSaves });
+expose({ save, loadSave, persist, migrate, mergeSaves });
 ```
 
 - [ ] **Step 4: Запустить тесты, убедиться, что проходят**
@@ -789,7 +791,7 @@ function updateBody(dt) {
     p.vx += ax * dt; p.vy += ay * dt; p.ox += p.vx * dt; p.oy += p.vy * dt;
   }
 }
-Object.assign(DBG, { ball });
+expose({ ball });
 ```
 
 - [ ] **Step 4: Написать src/world.js**
@@ -860,7 +862,7 @@ function updateFx(dt) {
   for (const t of texts) t.t += dt;
   texts = texts.filter(t => t.t < 1);
 }
-Object.assign(DBG, { FOOD, TRASH, get camY() { return camY; }, get items() { return items; }, get plates() { return plates; }, popText });
+expose({ FOOD, TRASH, get camY() { return camY; }, get items() { return items; }, get plates() { return plates; }, popText });
 ```
 
 - [ ] **Step 5: Написать src/game.js**
@@ -1005,7 +1007,7 @@ function update(dt) {
   camShake = Math.max(0, camShake - dt * 40);
   shakeX = rnd(-camShake, camShake); shakeY = rnd(-camShake, camShake);
 }
-Object.assign(DBG, {
+expose({
   get state() { return state; }, set state(v) { state = v; },
   get run() { return { maxHeight, runCoins, usedContinue, usedDouble, invuln, massAtDeath }; },
   setRunCoins(n) { runCoins = n; },
@@ -1250,7 +1252,7 @@ function drawWorld() { // всё внутри поля; вызывающий с�
   }
   ctx.globalAlpha = 1;
 }
-Object.assign(DBG, { drawBg, drawWorld, drawHUD });
+expose({ drawBg, drawWorld, drawHUD });
 ```
 
 - [ ] **Step 4: Написать src/screens.js**
@@ -1320,7 +1322,7 @@ function loadingScreen() {
   beginField(); dim(1); ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(255,255,255,0.7)';
   ctx.font = '600 22px system-ui, sans-serif'; ctx.fillText(T('loading'), W / 2, H * 0.5);
 }
-Object.assign(DBG, { titleScreen, resultsScreen, pausedScreen, adStubScreen, loadingScreen, get buttons() { return buttons; }, hitButton });
+expose({ titleScreen, resultsScreen, pausedScreen, adStubScreen, loadingScreen, get buttons() { return buttons; }, hitButton });
 ```
 
 - [ ] **Step 5: Запустить тесты, убедиться, что проходят**
@@ -1546,7 +1548,7 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
-Object.assign(DBG, {
+expose({
   get paused() { return paused; }, get awaitTap() { return awaitTap; }, get adBusy() { return adBusy; },
   forceAdReady() { lastAdAt = -1e9; }, pauseGame, resumeGame,
 });
@@ -1752,8 +1754,8 @@ Canvas-игра без ассетов и зависимостей: исходн�
 
 ## Устройство кода
 Обычные скрипты, порядок задаёт `index.html` (маркеры `<!-- src -->`); верхнеуровневые `const/let/function`
-видны между файлами, зависимости только «вниз» по списку. Каждый модуль заканчивается `Object.assign(DBG, …)` —
-хуки для headless-тестов (`window.__dbg`).
+видны между файлами, зависимости только «вниз» по списку. Каждый модуль заканчивается `expose({…})` (core.js) —
+хуки для headless-тестов (`window.__dbg`); `Object.assign` не годится, он вызывает геттеры один раз.
 
 | Файл | Что делает |
 |---|---|
