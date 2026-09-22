@@ -55,8 +55,8 @@
 - Create: `index.html`, `src/core.js`, `src/i18n.js`, `src/audio.js`, `tools/_env.js` (перезаписать), `tools/test_core.js`
 
 **Interfaces:**
-- Produces: `CFG {sdkWaitMs, adStubMs, rewardedStubMs}`, `W, H, cv, ctx, view {scale, offX, offY, winW, winH, dpr}`, `resize()`, `rnd/clamp/lerp`, `toGame(e) → [x, y]`, `beginField()`, `fieldBounds() → {x0, x1, y0, y1}`, `DBG` (= `window.__dbg`), `setLang(code)`, `T(key) → string`, `audio()`, `tone(f0, f1, dur, type, vol)`, `sfx {jump, eat, big, hit, die}`, `muteAudio()`, `unmuteAudio()`.
-- `tools/_env.js` экспортирует `makeEnv(ctx, opts) → { step, tap(x, y), key(code), fire(winEvent), flush(n), boot(), dbg(), store }`; `opts = { width, height, lang, YaGames, dist }`. Файлы из `index.html`, которых ещё нет, пропускаются с предупреждением.
+- Produces: `CFG {sdkWaitMs, adStubMs, rewardedStubMs, manualBoot}`, `W, H, cv, ctx, view {scale, offX, offY, winW, winH, dpr}`, `resize()`, `rnd/clamp/lerp`, `toGame(e) → [x, y]`, `beginField()`, `fieldBounds() → {x0, x1, y0, y1}`, `DBG` (= `window.__dbg`), `setLang(code)`, `T(key) → string`, `audio()`, `tone(f0, f1, dur, type, vol)`, `sfx {jump, eat, big, hit, die}`, `muteAudio()`, `unmuteAudio()`.
+- `tools/_env.js` экспортирует `makeEnv(ctx, opts) → { step, tap(x, y), key(code), fire(winEvent), flush(n), boot(), dbg(), store }`; `boot()` вызывает `DBG.startBoot()` (main.js) и ждёт загрузку; `opts = { width, height, lang, YaGames, dist }`. Файлы из `index.html`, которых ещё нет, пропускаются с предупреждением.
 
 - [ ] **Step 1: Написать index.html** (список скриптов сразу полный — тулинг читает его как единственный источник порядка)
 
@@ -126,7 +126,7 @@ module.exports = function makeEnv(ctx, opts = {}) {
   global.innerWidth = opts.width || 480; global.innerHeight = opts.height || 854; global.devicePixelRatio = 1;
   global.addEventListener = (n, f) => { listeners['win:' + n] = f; };
   global.localStorage = { getItem: k => store.has(k) ? store.get(k) : null, setItem: (k, v) => store.set(k, String(v)), removeItem: k => store.delete(k) };
-  global.__TEFT_CFG = { sdkWaitMs: 0, adStubMs: 0, rewardedStubMs: 0 };
+  global.__TEFT_CFG = { sdkWaitMs: 0, adStubMs: 0, rewardedStubMs: 0, manualBoot: true }; // тесты стартуют загрузку сами через boot()
   delete global.AudioContext; if (opts.AudioContext) global.AudioContext = opts.AudioContext;
   delete global.YaGames; if (opts.YaGames) global.YaGames = opts.YaGames;
   let cb = null, t = 0;
@@ -140,7 +140,7 @@ module.exports = function makeEnv(ctx, opts = {}) {
     key: code => listeners['win:keydown']({ code, repeat: false, preventDefault: noop }),
     fire: name => { const f = listeners['win:' + name]; if (f) f({}); },
     flush,
-    boot: async () => { await window.__dbg.boot; await flush(); },
+    boot: async () => { await window.__dbg.startBoot(); await flush(); },
     dbg: () => window.__dbg,
     store,
   };
@@ -199,7 +199,7 @@ Expected: FAIL — `TypeError: Cannot read properties of undefined` (нет `win
 'use strict';
 // ---------- core: конфиг, константы, утилиты, холст ----------
 // __TEFT_CFG выставляют тесты (нулевые задержки SDK и рекламы-заглушки)
-const CFG = Object.assign({ sdkWaitMs: 3000, adStubMs: 1000, rewardedStubMs: 1500 }, window.__TEFT_CFG || {});
+const CFG = Object.assign({ sdkWaitMs: 3000, adStubMs: 1000, rewardedStubMs: 1500, manualBoot: false }, window.__TEFT_CFG || {});
 const W = 480, H = 854;                        // логическое поле
 const cv = document.getElementById('c');
 const ctx = cv.getContext('2d');
@@ -1346,7 +1346,7 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 
 **Interfaces:**
 - Consumes: всё из предыдущих задач; `fakeYaGames` из `tools/test_sdk.js`.
-- Produces: `AD_INTERVAL = 180`, `boot()`, `pauseGame()`, `resumeGame()`, `restart()`, `tryContinue()`, `tryDouble()`, `onTap(x, y)`, `draw()`, `frame(now)`; DBG: `get paused, get awaitTap, get adBusy, forceAdReady(), pauseGame, resumeGame, boot` (промис загрузки).
+- Produces: `AD_INTERVAL = 180`, `boot()`, `pauseGame()`, `resumeGame()`, `restart()`, `tryContinue()`, `tryDouble()`, `onTap(x, y)`, `draw()`, `frame(now)`; DBG: `get paused, get awaitTap, get adBusy, forceAdReady(), pauseGame, resumeGame, startBoot()` (запускает boot() один раз, возвращает промис; в продакшене вызывается сразу при загрузке, в тестах — из `_env.boot()`, потому что фоновый boot ломал юнит-тесты).
 
 - [ ] **Step 1: Написать падающий тест tools/smoke.js**
 
@@ -1426,6 +1426,7 @@ async function runFlow(opts) {
   return d;
 }
 (async () => {
+  { const g0 = require('./_env')(ctx); await g0.boot(); assert.strictEqual(g0.dbg().state, 'title', 'boot() без предварительного step доводит до титула'); assert.deepStrictEqual(g0.dbg().YG.log, ['ready']); }
   const d1 = await runFlow({});
   assert.strictEqual(d1.lang, 'ru');
   const log = []; const d2 = await runFlow({ YaGames: fakeYaGames(log) });
@@ -1548,11 +1549,13 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
+// старт загрузки: в продакшене сразу при загрузке скрипта; тесты ставят CFG.manualBoot и зовут startBoot() сами
+function startBoot() { if (!DBG.boot) DBG.boot = boot(); return DBG.boot; }
 expose({
   get paused() { return paused; }, get awaitTap() { return awaitTap; }, get adBusy() { return adBusy; },
-  forceAdReady() { lastAdAt = -1e9; }, pauseGame, resumeGame,
+  forceAdReady() { lastAdAt = -1e9; }, pauseGame, resumeGame, startBoot,
 });
-DBG.boot = boot();
+if (!CFG.manualBoot) startBoot();
 ```
 
 - [ ] **Step 4: Запустить smoke и все юнит-тесты**
