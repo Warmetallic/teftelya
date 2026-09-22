@@ -82,7 +82,7 @@ teftelya/
 
 **world.js** — `FOOD`, `TRASH`, `pick`, `spawn`, а также частицы и тексты: `particles`, `texts`, `burst`, `crumbs`, `popText`, `loseMeat`, `colorOf`. Зависит от `core.js`, `ball.js`.
 
-**game.js** — состояние забега: `camY`, `items`, `plates`, `maxHeight`, `runCoins`, `tGame`, `usedContinue`, `usedDouble`, `invuln`; функции `reset()`, `eat()`, `wallHit()`, `die()`, `continueRun()`, `updateRun(dt)`, `jump(dir)`. `die()` больше не пишет сохранение напрямую, а вызывает `onDie` из `main.js`. Зависит от `ball.js`, `world.js`, `audio.js`.
+**game.js** — состояние забега: `camY`, `items`, `plates`, `maxHeight`, `runCoins`, `tGame`, `usedContinue`, `usedDouble`, `invuln`; функции `reset()`, `eat()`, `wallHit()`, `die()`, `continueRun()`, `updateRun(dt)`, `jump(dir)`. `die()` сам вызывает `persist()` и `YG.gameplayStop()` — `save.js` и `sdk.js` стоят выше `game.js`, правило зависимостей не нарушено. Зависит от `ball.js`, `world.js`, `audio.js`, `save.js`, `sdk.js`.
 
 **render.js** — `drawBg` (с заливкой боков за пределами поля), `drawItem`, `chunk`, `drawBall`, `drawHUD`, `drawWorld()`. Только рисование, состояние не меняет. Зависит от `game.js`, `world.js`, `ball.js`.
 
