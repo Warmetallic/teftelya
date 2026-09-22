@@ -94,9 +94,7 @@ function draw() {
   adStubScreen();
 }
 let last = performance.now();
-let bootStarted = false;
 function frame(now) {
-  if (!bootStarted) { bootStarted = true; DBG.boot = boot(); } // старт загрузки — от первого реального кадра, не от разбора скрипта
   const dt = Math.min(0.033, Math.max(0, (now - last) / 1000)); last = now;
   if (booted) {
     if (!paused && !awaitTap && !adBusy) { update(dt); sessionT += dt; }
@@ -109,3 +107,7 @@ expose({
   get paused() { return paused; }, get awaitTap() { return awaitTap; }, get adBusy() { return adBusy; },
   forceAdReady() { lastAdAt = -1e9; }, pauseGame, resumeGame,
 });
+// старт загрузки: в продакшене сразу при загрузке скрипта; тесты ставят CFG.manualBoot и зовут startBoot() сами
+function startBoot() { if (!DBG.boot) DBG.boot = boot(); return DBG.boot; }
+expose({ startBoot });
+if (!CFG.manualBoot) startBoot();

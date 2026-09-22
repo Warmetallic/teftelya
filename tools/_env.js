@@ -29,7 +29,7 @@ module.exports = function makeEnv(ctx, opts = {}) {
   global.innerWidth = opts.width || 480; global.innerHeight = opts.height || 854; global.devicePixelRatio = 1;
   global.addEventListener = (n, f) => { listeners['win:' + n] = f; };
   global.localStorage = { getItem: k => store.has(k) ? store.get(k) : null, setItem: (k, v) => store.set(k, String(v)), removeItem: k => store.delete(k) };
-  global.__TEFT_CFG = { sdkWaitMs: 0, adStubMs: 0, rewardedStubMs: 0 };
+  global.__TEFT_CFG = { sdkWaitMs: 0, adStubMs: 0, rewardedStubMs: 0, manualBoot: true };
   delete global.AudioContext; if (opts.AudioContext) global.AudioContext = opts.AudioContext;
   delete global.YaGames; if (opts.YaGames) global.YaGames = opts.YaGames;
   let cb = null, t = 0;
@@ -43,7 +43,7 @@ module.exports = function makeEnv(ctx, opts = {}) {
     key: code => listeners['win:keydown']({ code, repeat: false, preventDefault: noop }),
     fire: name => { const f = listeners['win:' + name]; if (f) f({}); },
     flush,
-    boot: async () => { await window.__dbg.boot; await flush(); },
+    boot: async () => { await window.__dbg.startBoot(); await flush(); },
     dbg: () => window.__dbg,
     store,
   };

@@ -73,6 +73,7 @@ async function runFlow(opts) {
   return d;
 }
 (async () => {
+  { const g0 = require('./_env')(ctx); await g0.boot(); assert.strictEqual(g0.dbg().state, 'title', 'boot() без предварительного step доводит до титула'); assert.deepStrictEqual(g0.dbg().YG.log, ['ready']); }
   const d1 = await runFlow({});
   assert.strictEqual(d1.lang, 'ru');
   const log = []; const d2 = await runFlow({ YaGames: fakeYaGames(log) });
