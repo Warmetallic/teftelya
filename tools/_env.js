@@ -24,7 +24,7 @@ module.exports = function makeEnv(ctx, opts = {}) {
   const cv = { getContext: () => ctx, addEventListener: (n, f) => { listeners[n] = f; },
     getBoundingClientRect: () => ({ left: 0, top: 0 }), style: {} };
   global.window = global;
-  global.document = { getElementById: () => cv, addEventListener: noop, hidden: false, querySelectorAll: () => [] };
+  global.document = { getElementById: () => cv, addEventListener: (n, f) => { listeners['doc:' + n] = f; }, hidden: false, querySelectorAll: () => [] };
   Object.defineProperty(global, 'navigator', { value: { language: opts.lang || 'ru-RU' }, configurable: true, writable: true });
   global.innerWidth = opts.width || 480; global.innerHeight = opts.height || 854; global.devicePixelRatio = 1;
   global.addEventListener = (n, f) => { listeners['win:' + n] = f; };
@@ -42,6 +42,8 @@ module.exports = function makeEnv(ctx, opts = {}) {
     tap: (x, y = 400) => listeners.pointerdown({ preventDefault: noop, clientX: x, clientY: y }),
     key: code => listeners['win:keydown']({ code, repeat: false, preventDefault: noop }),
     fire: name => { const f = listeners['win:' + name]; if (f) f({}); },
+    hide: () => { global.document.hidden = true; const f = listeners['doc:visibilitychange']; if (f) f({}); },
+    show: () => { global.document.hidden = false; const f = listeners['doc:visibilitychange']; if (f) f({}); },
     flush,
     boot: async () => { await window.__dbg.startBoot(); await flush(); },
     dbg: () => window.__dbg,

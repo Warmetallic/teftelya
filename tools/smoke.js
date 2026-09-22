@@ -23,6 +23,10 @@ async function runFlow(opts) {
   // «Продолжить» за рекламу: ввод во время рекламы заблокирован
   const cont = btn(d, 'continue'); assert.ok(cont, 'кнопка Продолжить');
   g.tap(cont.x, cont.y); assert.ok(d.adBusy, 'во время рекламы ввод заблокирован'); g.tap(240);
+  g.fire('blur'); assert.ok(!d.paused, 'пауза во время рекламы игнорируется');
+  const rewardsBefore = d.YG.log.filter(x => x === 'reward').length;
+  g.tap(cont.x, cont.y);
+  assert.strictEqual(d.YG.log.filter(x => x === 'reward').length, rewardsBefore, 'второй тап по кнопке во время рекламы не запускает вторую рекламу');
   await g.flush(); g.step();
   assert.strictEqual(d.state, 'play'); assert.ok(d.ball.mass >= 3); assert.ok(d.run.usedContinue); assert.ok(d.run.invuln > 0);
   assert.strictEqual(d.YG.log.at(-1), 'start');
@@ -35,7 +39,8 @@ async function runFlow(opts) {
   d.setRunCoins(20); g.step();
   const dbl = btn(d, 'double'); assert.ok(dbl, 'кнопка ×2');
   const total = d.save.coins;
-  g.tap(dbl.x, dbl.y); await g.flush(); g.step();
+  g.tap(dbl.x, dbl.y); g.hide(); await g.flush(); g.step();
+  assert.ok(d.paused, 'вкладка скрыта во время рекламы → после рекламы пауза'); g.show(); assert.ok(!d.paused);
   assert.strictEqual(d.run.runCoins, 40); assert.strictEqual(d.save.coins, total + 20); assert.ok(!btn(d, 'double'));
   assert.strictEqual(d.state, 'dead', 'после ×2 остаёмся на результатах');
   // «Ещё раз»: первый рестарт сессии без рекламы
@@ -66,6 +71,8 @@ async function runFlow(opts) {
   const jumps = d.ball.jumps; g.tap(240);
   assert.ok(!d.awaitTap); assert.strictEqual(d.YG.log.at(-1), 'start'); assert.strictEqual(d.ball.jumps, jumps, 'тап после паузы — не прыжок');
   steps(g, 30, 10); assert.notStrictEqual(d.ball.y, y0);
+  // пауза по скрытию вкладки — тот же путь, что и blur/focus
+  g.hide(); assert.ok(d.paused); g.show(); assert.ok(d.awaitTap); g.tap(240); assert.ok(!d.awaitTap);
   // пауза на экране результатов не трогает геймплей-API
   d.die(); const len = d.YG.log.length; g.fire('blur'); g.fire('focus'); assert.strictEqual(d.YG.log.length, len);
   // клавиатура: пробел на результатах = «Ещё раз», стрелка — прыжок в сторону
@@ -84,5 +91,11 @@ async function runFlow(opts) {
   const log = []; const d2 = await runFlow({ YaGames: fakeYaGames(log) });
   assert.strictEqual(d2.lang, 'en');
   for (const k of ['ready', 'start', 'stop', 'inter', 'reward', 'setData', 'on:game_api_pause', 'on:game_api_resume']) assert.ok(log.includes(k), 'реальный API вызван: ' + k);
+  // награды нет: «Продолжить» остаётся доступной, состояние не меняется
+  { const log2 = []; const g = require('./_env')(ctx, { YaGames: fakeYaGames(log2, { noReward: true }) }); const d = g.dbg();
+    await g.boot(); g.tap(240); d.die(); steps(g, 60);
+    const c = btn(d, 'continue'); g.tap(c.x, c.y); await g.flush(); g.step();
+    assert.strictEqual(d.state, 'dead', 'награды нет → остаёмся на результатах');
+    assert.ok(!d.run.usedContinue); assert.ok(btn(d, 'continue'), 'кнопка Продолжить остаётся'); }
   console.log('smoke ok' + (dist ? ' (dist)' : ''));
 })().catch(e => { console.error(e); process.exit(1); });

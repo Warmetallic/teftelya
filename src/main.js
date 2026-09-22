@@ -29,29 +29,30 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) pause
 window.addEventListener('blur', pauseGame);
 window.addEventListener('focus', resumeGame);
 // --- переходы между забегами с рекламой ---
+// общий каркас показа рекламы: блокируем ввод и цикл, глушим звук; если вкладку скрыли во время рекламы — после неё пауза
+async function showAd(fn) {
+  adBusy = true; muteAudio();
+  let r; try { r = await fn(); } finally { adBusy = false; unmuteAudio(); }
+  if (document.hidden) pauseGame();
+  return r;
+}
 async function restart() {
   restarts++;
   if (restarts > 1 && sessionT - lastAdAt >= AD_INTERVAL) {
-    adBusy = true;
-    const r = await YG.showInterstitial();
-    adBusy = false;
+    const r = await showAd(() => YG.showInterstitial());
     if (r.shown) lastAdAt = sessionT;
   }
   reset(); state = 'play'; YG.gameplayStart();
 }
 async function tryContinue() {
   if (usedContinue) return;
-  adBusy = true;
-  const r = await YG.showRewarded();
-  adBusy = false;
+  const r = await showAd(() => YG.showRewarded());
   if (r.rewarded) { lastAdAt = sessionT; continueRun(); YG.gameplayStart(); }
 }
 async function tryDouble() {
   if (usedDouble || runCoins < DOUBLE_MIN_COINS) return;
-  adBusy = true;
-  const r = await YG.showRewarded();
-  adBusy = false;
-  if (r.rewarded) { lastAdAt = sessionT; doubleCoins(); popText(W / 2, camY + H * 0.5, '×2', '#ffe08a', true); }
+  const r = await showAd(() => YG.showRewarded());
+  if (r.rewarded) { lastAdAt = sessionT; doubleCoins(); }
 }
 // --- ввод ---
 function onTap(x, y) {
