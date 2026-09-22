@@ -2,3 +2,4 @@ node_modules/
 full.png
 ball_big.png
 dist/
+.superpowers/
