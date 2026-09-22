@@ -1,14 +1,20 @@
-// node tools/shot.js — скриншоты: full.png (весь экран) и ball_big.png (тефтеля массы 9 крупно).
-// Нужен node-canvas: npm i canvas
-const fs = require('fs'), { createCanvas } = require('canvas');
-const real = createCanvas(480, 854), ctx = real.getContext('2d');
-Object.defineProperty(real, 'width', { get: () => 480, set: () => {} });
-Object.defineProperty(real, 'height', { get: () => 854, set: () => {} });
-const g = require('./_env')(ctx);
-g.tap(240); for (let i = 0; i < 120; i++) { if (i % 20 === 0) g.tap(i % 40 ? 300 : 180); g.step(); }
-fs.writeFileSync('full.png', real.toBuffer('image/png'));
-window.__dbg.ball.mass = 9; for (let i = 0; i < 60; i++) { if (i % 20 === 0) g.tap(240); g.step(); }
-const b = window.__dbg.ball, cy = b.y - window.__dbg.camY, crop = createCanvas(300, 300);
-crop.getContext('2d').drawImage(real, b.x - 150, cy - 150, 300, 300, 0, 0, 300, 300);
-fs.writeFileSync('ball_big.png', crop.toBuffer('image/png'));
-console.log('full.png, ball_big.png');
+// node tools/shot.js — скриншоты в shots/ через node-canvas (npm i -D canvas).
+// Агент обязан ПОСМОТРЕТЬ каждый PNG перед выдачей визуала, а не описывать код.
+const fs = require('fs'), path = require('path'), { createCanvas } = require('canvas');
+const OUT = path.join(__dirname, '..', 'shots'); fs.mkdirSync(OUT, { recursive: true });
+async function shoot(name, w, h, scenario, opts = {}) {
+  const real = createCanvas(w, h), ctx = real.getContext('2d');
+  const g = require('./_env')(ctx, Object.assign({ width: w, height: h }, opts));
+  await g.boot(); await scenario(g, g.dbg());
+  fs.writeFileSync(path.join(OUT, name + '.png'), real.toBuffer('image/png')); console.log('shots/' + name + '.png');
+}
+const play = async (g, n = 120) => { g.tap(240); for (let i = 0; i < n; i++) { if (i % 20 === 0) g.tap(i % 40 ? 300 : 180); g.step(); } };
+const dead = async (g, d) => { await play(g); d.setRunCoins(23); d.die(); for (let i = 0; i < 60; i++) g.step(); };
+(async () => {
+  await shoot('title', 480, 854, async g => { g.step(); });
+  await shoot('play', 480, 854, async (g, d) => { await play(g); d.ball.mass = 6; for (let i = 0; i < 30; i++) g.step(); });
+  await shoot('results', 480, 854, dead);
+  await shoot('paused', 480, 854, async g => { await play(g); g.fire('blur'); g.fire('focus'); g.step(); });
+  await shoot('desktop', 1280, 720, async g => { await play(g); });
+  await shoot('en_results', 480, 854, dead, { lang: 'en-US' });
+})().catch(e => { console.error(e); process.exit(1); });

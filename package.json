@@ -1,0 +1,14 @@
+{
+  "name": "teftelya",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Тефтеля — вертикальная аркада для Яндекс Игр",
+  "scripts": {
+    "test": "node tools/test_core.js && node tools/test_sdk.js && node tools/test_save.js && node tools/test_game.js && node tools/test_render.js && node tools/smoke.js",
+    "shot": "node tools/shot.js",
+    "build": "node tools/build.js"
+  },
+  "devDependencies": {
+    "canvas": "^3.2.3"
+  }
+}
