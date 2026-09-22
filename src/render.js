@@ -153,7 +153,7 @@ function drawWorld() { // всё внутри поля; вызывающий с�
   if (ball.alive || state === 'title') drawBall();
   for (const p of particles) {
     ctx.globalAlpha = clamp(p.t / p.life, 0, 1);
-    if (p.meat) { p.rot += p.rv * 0.016; ctx.save(); ctx.translate(p.x, p.y - camY); ctx.rotate(p.rot); chunk(0, 0, p.size, p.size * 0.78); ctx.restore(); }
+    if (p.meat) { ctx.save(); ctx.translate(p.x, p.y - camY); ctx.rotate(p.rot); chunk(0, 0, p.size, p.size * 0.78); ctx.restore(); }
     else { ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x, p.y - camY, p.size, 0, 7); ctx.fill(); }
   }
   ctx.globalAlpha = 1;

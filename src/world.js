@@ -58,7 +58,7 @@ function loseMeat(fromX, fromY, n) { // куски фарша отлетают �
   }
 }
 function updateFx(dt) {
-  for (const p of particles) { p.vy += p.g * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.t -= dt; }
+  for (const p of particles) { p.vy += p.g * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.t -= dt; if (p.meat) p.rot += p.rv * dt; }
   particles = particles.filter(p => p.t > 0);
   for (const t of texts) t.t += dt;
   texts = texts.filter(t => t.t < 1);

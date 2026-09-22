@@ -25,7 +25,8 @@ const AC = class extends FakeAC { constructor() { super(); ac = this; } };
   d.unmuteAudio(); assert.strictEqual(ac.state, 'running'); assert.strictEqual(d.audioMuted, false); d.tone(200, 300, 0.1); assert.strictEqual(ac.created, 2);
 }
 { // десктоп 1280x720: поле по центру, тап в центре окна = центр поля по x
-  const g = require('./_env')(ctx, { width: 1280, height: 720 }); const d = g.dbg();
+  const g = require('./_env')(ctx, { width: 1280, height: 720, lang: 'en-US' }); const d = g.dbg();
+  assert.strictEqual(d.lang, 'en', 'язык до setLang берётся из navigator');
   const s = Math.min(1280 / 480, 720 / 854);
   assert.ok(Math.abs(d.view.scale - s) < 1e-9);
   const [x, y] = d.toGame({ clientX: 640, clientY: 360 });

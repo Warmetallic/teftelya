@@ -26,7 +26,8 @@ const STR = {
     'item.hair': 'hair', 'item.dirt': 'dirt', 'item.fly': 'fly',
   },
 };
-let LANG = 'ru';
+// до YG.init()/setLang язык берём из браузера, чтобы «Загрузка…» не всегда была русской
+let LANG = String((window.navigator && window.navigator.language) || 'ru').slice(0, 2).toLowerCase() === 'ru' ? 'ru' : 'en';
 function setLang(code) { LANG = code === 'ru' ? 'ru' : 'en'; }
 function T(key) {
   const t = STR[LANG][key];

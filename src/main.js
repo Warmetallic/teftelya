@@ -109,6 +109,6 @@ expose({
   forceAdReady() { lastAdAt = -1e9; }, pauseGame, resumeGame,
 });
 // старт загрузки: в продакшене сразу при загрузке скрипта; тесты ставят CFG.manualBoot и зовут startBoot() сами
-function startBoot() { if (!DBG.boot) DBG.boot = boot(); return DBG.boot; }
+function startBoot() { if (!DBG.boot) DBG.boot = boot().catch(e => { console.error('boot failed', e); booted = true; state = 'title'; YG.ready(); }); return DBG.boot; }
 expose({ startBoot });
 if (!CFG.manualBoot) startBoot();

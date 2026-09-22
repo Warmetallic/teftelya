@@ -21,7 +21,8 @@ const ctx = new Proxy({}, { get: (t, k) => k === 'fillText' ? s => texts.push(St
   assert.deepStrictEqual(d.buttons.map(b => b.id), ['continue', 'double', 'again']);
   const dbl = d.buttons[1]; assert.strictEqual(d.hitButton(dbl.x, dbl.y).id, 'double');
   assert.strictEqual(d.hitButton(dbl.x + dbl.w, dbl.y), null);
-  d.doubleCoins(); d.resultsScreen(true); assert.deepStrictEqual(d.buttons.map(b => b.id), ['continue', 'again']);
+  d.doubleCoins(); texts.length = 0; d.resultsScreen(true); assert.deepStrictEqual(d.buttons.map(b => b.id), ['continue', 'again']);
+  assert.ok(texts.some(t => t.includes('×2')), 'после удвоения на экране результатов есть отметка ×2');
   d.continueRun(); d.die(); d.resultsScreen(true); assert.deepStrictEqual(d.buttons.map(b => b.id), ['again']);
   d.reset(); d.state = 'play'; d.setRunCoins(9); d.die(); d.resultsScreen(true);
   assert.deepStrictEqual(d.buttons.map(b => b.id), ['continue', 'again'], '×2 только от 10 монет');

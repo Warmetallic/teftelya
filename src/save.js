@@ -17,17 +17,18 @@ function mergeSaves(a, b) {
 }
 function sameSave(a, b) { return a.best === b.best && a.coins === b.coins; }
 function _readLocal() {
-  const st = YG._storage; if (!st) return null;
+  const st = YG.storage; if (!st) return null;
   try {
     const raw = st.getItem(SAVE_KEY);
     if (raw) return JSON.parse(raw);
     // миграция с ключей прототипа
     const b = +st.getItem('teft_best') || 0, c = +st.getItem('teft_coins') || 0;
-    if (b || c) { st.removeItem('teft_best'); st.removeItem('teft_coins'); const o = { v: 1, best: b, coins: c }; st.setItem(SAVE_KEY, JSON.stringify(o)); return o; }
+    if (b || c) { const o = { v: 1, best: b, coins: c }; st.setItem(SAVE_KEY, JSON.stringify(o)); st.removeItem('teft_best'); st.removeItem('teft_coins'); return o; }
   } catch (e) {}
   return null;
 }
-function _writeLocal(obj) { try { if (YG._storage) YG._storage.setItem(SAVE_KEY, JSON.stringify(obj)); } catch (e) {} }
+function _writeLocal(obj) { try { if (YG.storage) YG.storage.setItem(SAVE_KEY, JSON.stringify(obj)); } catch (e) {} }
+let lastSent = '';   // последний снимок, отправленный в облако — чтобы не слать повторно один и тот же
 async function loadSave() {
   const cloudRaw = await YG.getData(), localRaw = _readLocal();
   const cloud = migrate(cloudRaw), local = migrate(localRaw);
@@ -35,12 +36,14 @@ async function loadSave() {
   Object.assign(save, merged);
   if (!localRaw || !sameSave(local, merged)) _writeLocal(merged);
   if (!cloudRaw || !sameSave(cloud, merged)) YG.setData(merged);
+  lastSent = JSON.stringify(merged);
   return save;
 }
 // вызывать только при смерти и наградах: лимит облака 100 запросов за 5 минут
 function persist() {
   const snap = { v: SAVE_VERSION, best: save.best, coins: save.coins };
+  const json = JSON.stringify(snap);
   _writeLocal(snap);
-  YG.setData(snap);
+  if (json !== lastSent) { lastSent = json; YG.setData(snap); }
 }
 expose({ save, loadSave, persist, migrate, mergeSaves });

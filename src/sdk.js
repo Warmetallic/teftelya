@@ -4,7 +4,7 @@ const YG = {
   ysdk: null, isMock: true, lang: 'ru',
   gameplayActive: false, readySent: false,
   adStub: null,          // { kind: 'interstitial'|'rewarded', until } — оверлей заглушки рисует screens.js
-  _player: null, _playerTried: false, _storage: null,
+  _player: null, _playerTried: false, storage: null,
   log: [],               // журнал для тестов: 'ready' | 'start' | 'stop' | 'inter' | 'reward'
 };
 function _sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -37,14 +37,14 @@ YG.init = async function () {
       YG.isMock = false;
       const env = YG.ysdk.environment;
       YG.lang = (env && env.i18n && env.i18n.lang) || 'ru';
-      try { YG._storage = await YG.ysdk.getStorage(); } catch (e) { YG._storage = null; }
+      try { YG.storage = await YG.ysdk.getStorage(); } catch (e) { YG.storage = null; }
     } catch (e) { console.warn('YaGames.init failed, using stub', e); YG.ysdk = null; YG.isMock = true; }
   }
   if (YG.isMock) {
     const nav = (window.navigator && window.navigator.language) || 'ru';
     YG.lang = String(nav).slice(0, 2).toLowerCase();
   }
-  if (!YG._storage) { try { YG._storage = window.localStorage || null; } catch (e) { YG._storage = null; } }
+  if (!YG.storage) { try { YG.storage = window.localStorage || null; } catch (e) { YG.storage = null; } }
 };
 YG.ready = function () {
   if (YG.readySent) return;
@@ -106,13 +106,13 @@ YG._getPlayer = async function () {
 const CLOUD_MOCK_KEY = 'teft_cloud_mock';
 YG.getData = async function () {
   if (YG.isMock) {
-    try { const s = YG._storage && YG._storage.getItem(CLOUD_MOCK_KEY); return s ? JSON.parse(s) : null; } catch (e) { return null; }
+    try { const s = YG.storage && YG.storage.getItem(CLOUD_MOCK_KEY); return s ? JSON.parse(s) : null; } catch (e) { return null; }
   }
   const p = await YG._getPlayer(); if (!p) return null;
   try { const d = await p.getData(); return d && Object.keys(d).length ? d : null; } catch (e) { return null; }
 };
 YG.setData = async function (obj) {
-  if (YG.isMock) { try { if (YG._storage) YG._storage.setItem(CLOUD_MOCK_KEY, JSON.stringify(obj)); } catch (e) {} return; }
+  if (YG.isMock) { try { if (YG.storage) YG.storage.setItem(CLOUD_MOCK_KEY, JSON.stringify(obj)); } catch (e) {} return; }
   const p = await YG._getPlayer(); if (!p) return;
   try { await p.setData(obj, true); } catch (e) { console.warn('setData failed', e); }
 };

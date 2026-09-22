@@ -27,6 +27,11 @@ const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addCol
     d.save.best = 55; d.save.coins = 1; d.persist(); await g.flush();
     assert.deepStrictEqual(JSON.parse(g.store.get('teft_save')), { v: 1, best: 55, coins: 1 });
     assert.deepStrictEqual(await d.YG.getData(), { v: 1, best: 55, coins: 1 });
+    const n = log.filter(x => x === 'setData').length;
+    d.persist(); await g.flush();
+    assert.strictEqual(log.filter(x => x === 'setData').length, n, 'одинаковый снимок в облако не шлётся');
+    d.save.coins = 2; d.persist(); await g.flush();
+    assert.strictEqual(log.filter(x => x === 'setData').length, n + 1);
   }
   { // мусор в хранилищах не роняет загрузку
     const g = require('./_env')(ctx); const d = g.dbg(); await d.YG.init();
