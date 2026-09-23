@@ -18,17 +18,34 @@ const ctx = new Proxy({}, { get: (t, k) => k === 'fillText' ? s => texts.push(St
   d.reset(); d.state = 'play'; d.setRunCoins(20); d.die();
   d.resultsScreen(false); assert.strictEqual(d.buttons.length, 0, 'до 0.6 с кнопок нет');
   d.resultsScreen(true);
-  assert.deepStrictEqual(d.buttons.map(b => b.id), ['continue', 'double', 'again']);
+  assert.deepStrictEqual(d.buttons.map(b => b.id), ['continue', 'double', 'again', 'shop']);
   const dbl = d.buttons[1]; assert.strictEqual(d.hitButton(dbl.x, dbl.y).id, 'double');
   assert.strictEqual(d.hitButton(dbl.x + dbl.w, dbl.y), null);
-  d.doubleCoins(); texts.length = 0; d.resultsScreen(true); assert.deepStrictEqual(d.buttons.map(b => b.id), ['continue', 'again']);
+  d.doubleCoins(); texts.length = 0; d.resultsScreen(true); assert.deepStrictEqual(d.buttons.map(b => b.id), ['continue', 'again', 'shop']);
   assert.ok(texts.some(t => t.includes('×2')), 'после удвоения на экране результатов есть отметка ×2');
-  d.continueRun(); d.die(); d.resultsScreen(true); assert.deepStrictEqual(d.buttons.map(b => b.id), ['again']);
+  d.continueRun(); d.die(); d.resultsScreen(true); assert.deepStrictEqual(d.buttons.map(b => b.id), ['again', 'shop']);
   d.reset(); d.state = 'play'; d.setRunCoins(9); d.die(); d.resultsScreen(true);
-  assert.deepStrictEqual(d.buttons.map(b => b.id), ['continue', 'again'], '×2 только от 10 монет');
+  assert.deepStrictEqual(d.buttons.map(b => b.id), ['continue', 'again', 'shop'], '×2 только от 10 монет');
   // локализованные тексты
   texts.length = 0; d.setLang('ru'); d.resultsScreen(true); assert.ok(texts.includes('Упала') && texts.includes('Ещё раз'));
   texts.length = 0; d.setLang('en'); d.resultsScreen(true); assert.ok(texts.includes('Fell') && texts.includes('Again'));
   texts.length = 0; d.titleScreen(); assert.ok(texts.includes('Meatball'));
+  // магазин: кнопки, тексты эффектов, бейдж и покупка
+  d.setLang('ru'); d.save.earned = 0; d.save.spent = 0; d.reset(); d.state = 'title'; texts.length = 0; d.titleScreen();
+  let sb = d.buttons.find(b => b.id === 'shop'); assert.ok(sb, 'кнопка Магазин на титуле'); assert.ok(!sb.badge, 'без монет точки нет');
+  assert.ok(texts.includes('Магазин'));
+  d.state = 'play'; d.setRunCoins(20); d.die(); d.resultsScreen(true);
+  assert.deepStrictEqual(d.buttons.map(b => b.id), ['continue', 'double', 'again', 'shop'], 'Магазин — четвёртая кнопка');
+  d.save.earned = 500; d.resultsScreen(true); sb = d.buttons.find(b => b.id === 'shop'); assert.ok(sb.badge, 'монет хватает — точка');
+  texts.length = 0; d.shopScreen();
+  assert.deepStrictEqual(d.buttons.map(b => b.id), ['buy:jumps', 'buy:magnet', 'back']);
+  assert.ok(texts.includes('Прыжков: 4 → 5') && texts.includes('Радиус: нет → 60') && texts.includes('Купить 80') && texts.includes('Купить 60'), 'эффекты и цены');
+  assert.strictEqual(d.upEffectText('jumps'), 'Прыжков: 4 → 5');
+  assert.ok(d.buy('magnet')); d.flashCard('magnet'); texts.length = 0; d.shopScreen();
+  assert.ok(texts.includes('Радиус: 60 → 90') && texts.includes('Купить 180'));
+  d.save.spent = 0; d.save.up.jumps = 2; texts.length = 0; d.shopScreen(); assert.ok(texts.includes('Прыжков: 6') && texts.includes('Макс'), 'на максимуме — Макс');
+  texts.length = 0; d.setLang('en'); d.shopScreen(); assert.ok(texts.includes('Shop') && texts.includes('Back'));
+  texts.length = 0; d.setLang('tr'); d.shopScreen(); assert.ok(texts.includes('Mağaza') && texts.includes('Geri'));
+  d.setLang('ru');
   console.log('test_render ok');
 })().catch(e => { console.error(e); process.exit(1); });

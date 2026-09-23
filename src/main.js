@@ -3,6 +3,7 @@
 const AD_INTERVAL = 180; // секунд между межстраничными показами — свой лимит поверх лимитов Яндекса
 let booted = false, paused = false, awaitTap = false, adBusy = false;
 let restarts = 0, lastAdAt = 0, sessionT = 0; // lastAdAt = 0: первые AD_INTERVAL секунд сессии без межстраничной — осознанная отсрочка
+let shopReturn = 'title'; // куда возвращаться из магазина: title | dead
 
 async function boot() {
   await YG.init();
@@ -54,18 +55,31 @@ async function tryDouble() {
   const r = await showAd(() => YG.showRewarded());
   if (r.rewarded) { lastAdAt = sessionT; doubleCoins(); }
 }
+// --- магазин: меню, GameplayAPI не трогаем ---
+function openShop(from) { shopReturn = from; state = 'shop'; }
+function closeShop() { state = shopReturn; }
 // --- ввод ---
 function onTap(x, y) {
   if (!booted || adBusy || paused) return;
   audio();
   if (awaitTap) { awaitTap = false; YG.gameplayStart(); return; } // первый тап после паузы — не прыжок
-  if (state === 'title') { state = 'play'; YG.gameplayStart(); jump(x < ball.x ? -1 : 1); return; }
+  if (state === 'title') {
+    const b = hitButton(x, y); if (b && b.id === 'shop') { openShop('title'); return; }
+    state = 'play'; YG.gameplayStart(); jump(x < ball.x ? -1 : 1); return;
+  }
   if (state === 'dead') {
     if (tGame < 0.6) return;
     const b = hitButton(x, y); if (!b) return;
     if (b.id === 'again') restart();
     else if (b.id === 'continue') tryContinue();
     else if (b.id === 'double') tryDouble();
+    else if (b.id === 'shop') openShop('dead');
+    return;
+  }
+  if (state === 'shop') {
+    const b = hitButton(x, y); if (!b) return;
+    if (b.id === 'back') closeShop();
+    else if (b.id.startsWith('buy:')) { const id = b.id.slice(4); if (buy(id)) flashCard(id); }
     return;
   }
   if (state === 'play' && ball.alive) jump(clamp(x, 0, W) < ball.x ? -1 : 1); // тап по боковой зоне = у края поля
@@ -75,10 +89,12 @@ cv.addEventListener('contextmenu', e => e.preventDefault());
 window.addEventListener('keydown', e => {
   if (e.repeat) return;
   const left = e.code === 'ArrowLeft' || e.code === 'KeyA', right = e.code === 'ArrowRight' || e.code === 'KeyD';
-  const up = e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW' || e.code === 'Enter';
-  if (!left && !right && !up) return;
+  const up = e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW' || e.code === 'Enter', esc = e.code === 'Escape';
+  if (!left && !right && !up && !esc) return;
   e.preventDefault();
+  if (state === 'shop') { if (up || esc) closeShop(); return; }
   if (state === 'dead') { if (up) { const b = buttons.find(b => b.id === 'again'); if (b) onTap(b.x, b.y); } return; }
+  if (esc) return;
   onTap(left ? ball.x - 10 : right ? ball.x + 10 : ball.x + (ball.vx >= 0 ? 10 : -10), 0);
 });
 // --- кадр ---
@@ -91,6 +107,7 @@ function draw() {
   if (state === 'play') drawHUD();
   if (state === 'title') titleScreen();
   if (state === 'dead') resultsScreen(tGame > 0.6);
+  if (state === 'shop') shopScreen();
   if (paused || awaitTap) pausedScreen(awaitTap && !paused);
   adStubScreen();
 }
@@ -107,6 +124,7 @@ requestAnimationFrame(frame);
 expose({
   get paused() { return paused; }, get awaitTap() { return awaitTap; }, get adBusy() { return adBusy; },
   forceAdReady() { lastAdAt = -1e9; }, pauseGame, resumeGame,
+  openShop, closeShop, get shopReturn() { return shopReturn; },
 });
 // старт загрузки: в продакшене сразу при загрузке скрипта; тесты ставят CFG.manualBoot и зовут startBoot() сами
 function startBoot() { if (!DBG.boot) DBG.boot = boot().catch(e => { console.error('boot failed', e); booted = true; state = 'title'; YG.ready(); }); return DBG.boot; }

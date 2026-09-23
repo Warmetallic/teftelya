@@ -43,11 +43,23 @@ async function runFlow(opts) {
   assert.ok(d.paused, 'вкладка скрыта во время рекламы → после рекламы пауза'); g.show(); assert.ok(!d.paused);
   assert.strictEqual(d.run.runCoins, 40); assert.strictEqual(d.coins(), total + 20); assert.ok(!btn(d, 'double'));
   assert.strictEqual(d.state, 'dead', 'после ×2 остаёмся на результатах');
+  // магазин с экрана результатов: покупка пятого заряда, повторный тап без денег, Escape назад
+  d.save.earned = d.save.spent + 100; g.step(); // ровно 100 монет: хватает на заряд (80), но не на второй уровень (300)
+  const shopBtn = btn(d, 'shop'); assert.ok(shopBtn && shopBtn.badge, 'кнопка Магазин с точкой — монет хватает');
+  g.tap(shopBtn.x, shopBtn.y); g.step(); assert.strictEqual(d.state, 'shop');
+  const lenBeforeShop = d.YG.log.length;
+  const buyJ = btn(d, 'buy:jumps'); assert.ok(buyJ, 'кнопка покупки зарядов');
+  const spent0 = d.save.spent; g.tap(buyJ.x, buyJ.y); g.step();
+  assert.strictEqual(d.upLevel('jumps'), 1); assert.strictEqual(d.save.spent, spent0 + 80);
+  g.tap(buyJ.x, buyJ.y); g.step(); assert.strictEqual(d.upLevel('jumps'), 1, 'второй уровень стоит 300 — не хватает');
+  g.key('Escape'); g.step(); assert.strictEqual(d.state, 'dead', 'Escape возвращает на результаты');
+  assert.strictEqual(d.YG.log.length, lenBeforeShop, 'магазин не трогает GameplayAPI');
   // «Ещё раз»: первый рестарт сессии без рекламы
   const inters = () => d.YG.log.filter(x => x === 'inter').length;
   const n0 = inters();
   let again = btn(d, 'again'); g.tap(again.x, again.y); await g.flush(); g.step();
   assert.strictEqual(d.state, 'play'); assert.strictEqual(inters(), n0, 'первый рестарт без рекламы');
+  assert.strictEqual(d.ball.jumps, 5, 'после покупки в новом забеге 5 зарядов');
   assert.deepStrictEqual([d.run.usedContinue, d.run.usedDouble, d.run.runCoins], [false, false, 0], 'флаги забега сброшены');
   // второй рестарт в начале сессии — отсрочка 180 с, рекламы нет
   d.die(); steps(g, 60); again = btn(d, 'again'); g.tap(again.x, again.y); await g.flush(); g.step();
@@ -97,5 +109,11 @@ async function runFlow(opts) {
     const c = btn(d, 'continue'); g.tap(c.x, c.y); await g.flush(); g.step();
     assert.strictEqual(d.state, 'dead', 'награды нет → остаёмся на результатах');
     assert.ok(!d.run.usedContinue); assert.ok(btn(d, 'continue'), 'кнопка Продолжить остаётся'); }
+  // магазин с титула: без монет точки нет, магазин не шлёт start, «Назад» возвращает, тап вне кнопки стартует
+  { const g = require('./_env')(ctx); const d = g.dbg(); await g.boot(); g.step();
+    const sb = btn(d, 'shop'); assert.ok(sb, 'кнопка Магазин на титуле'); assert.ok(!sb.badge, 'без монет точки нет');
+    g.tap(sb.x, sb.y); g.step(); assert.strictEqual(d.state, 'shop'); assert.deepStrictEqual(d.YG.log, ['ready'], 'магазин не шлёт start');
+    const back = btn(d, 'back'); g.tap(back.x, back.y); g.step(); assert.strictEqual(d.state, 'title');
+    g.tap(240, 100); assert.strictEqual(d.state, 'play', 'тап вне кнопки стартует игру'); }
   console.log('smoke ok' + (dist ? ' (dist)' : ''));
 })().catch(e => { console.error(e); process.exit(1); });
