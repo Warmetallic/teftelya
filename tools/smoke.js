@@ -15,7 +15,7 @@ async function runFlow(opts) {
   assert.strictEqual(d.state, 'title');
   assert.deepStrictEqual(d.YG.log, ['ready'], 'ready ровно один раз, когда виден титул');
   g.tap(240); assert.strictEqual(d.state, 'play'); assert.strictEqual(d.YG.log.at(-1), 'start');
-  const coinsAtRunStart = d.save.coins;
+  const coinsAtRunStart = d.coins();
   steps(g, 3000, 25);
   if (d.state === 'play') d.die();
   assert.strictEqual(d.state, 'dead'); assert.strictEqual(d.YG.log.at(-1), 'stop');
@@ -33,15 +33,15 @@ async function runFlow(opts) {
   steps(g, 200, 30);
   if (d.state === 'play') d.die();
   steps(g, 60);
-  assert.strictEqual(d.save.coins, coinsAtRunStart + d.run.runCoins, 'монеты забега с продолжением учтены один раз');
+  assert.strictEqual(d.coins(), coinsAtRunStart + d.run.runCoins, 'монеты забега с продолжением учтены один раз');
   assert.ok(!btn(d, 'continue'), 'второго Продолжить нет');
   // «Монеты ×2»
   d.setRunCoins(20); g.step();
   const dbl = btn(d, 'double'); assert.ok(dbl, 'кнопка ×2');
-  const total = d.save.coins;
+  const total = d.coins();
   g.tap(dbl.x, dbl.y); g.hide(); await g.flush(); g.step();
   assert.ok(d.paused, 'вкладка скрыта во время рекламы → после рекламы пауза'); g.show(); assert.ok(!d.paused);
-  assert.strictEqual(d.run.runCoins, 40); assert.strictEqual(d.save.coins, total + 20); assert.ok(!btn(d, 'double'));
+  assert.strictEqual(d.run.runCoins, 40); assert.strictEqual(d.coins(), total + 20); assert.ok(!btn(d, 'double'));
   assert.strictEqual(d.state, 'dead', 'после ×2 остаёмся на результатах');
   // «Ещё раз»: первый рестарт сессии без рекламы
   const inters = () => d.YG.log.filter(x => x === 'inter').length;

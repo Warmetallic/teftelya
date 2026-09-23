@@ -11,7 +11,7 @@ const DOUBLE_MIN_COINS = 10;    // «Монеты ×2» предлагаем о�
 let state = 'title';            // title | play | dead
 let camShake = 0, shakeX = 0, shakeY = 0;
 let maxHeight = 0, runCoins = 0;
-let bankedCoins = 0;            // сколько из runCoins уже зачислено в save.coins — die() банкует по шагам, а не всё сразу
+let bankedCoins = 0;            // сколько из runCoins уже зачислено в save.earned — die() банкует по шагам, а не всё сразу
 let usedContinue = false, usedDouble = false, invuln = 0, massAtDeath = 0;
 function jumpPower() { return 690; } // от массы не зависит — ритм тапов одинаковый всю игру
 function coinMult() { return 1 + Math.floor((ball.mass - 1) / 4) * 0.5; } // масса 5 ×1.5, 9 ×2, 13 ×2.5
@@ -80,7 +80,7 @@ function die() {
   ball.alive = false; state = 'dead'; tGame = 0;
   sfx.die(); camShake = 16;
   burst(ball.x, ball.y, '#b9542f', 40, 380, 0.9, 6);
-  save.coins += runCoins - bankedCoins; bankedCoins = runCoins; if (maxHeight > save.best) save.best = maxHeight;
+  save.earned += runCoins - bankedCoins; bankedCoins = runCoins; if (maxHeight > save.best) save.best = maxHeight;
   persist();
   YG.gameplayStop();
 }
@@ -97,7 +97,7 @@ function continueRun() {
   state = 'play';
 }
 // «Монеты ×2» после rewarded
-function doubleCoins() { save.coins += runCoins; runCoins *= 2; bankedCoins = runCoins; usedDouble = true; persist(); }
+function doubleCoins() { save.earned += runCoins; runCoins *= 2; bankedCoins = runCoins; usedDouble = true; persist(); }
 function updateRun(dt) {
   ball.vy += G * dt;
   ball.x += ball.vx * dt; ball.y += ball.vy * dt;

@@ -39,7 +39,7 @@ function resultsScreen(active) {
   ctx.textAlign = 'center'; ctx.fillStyle = '#fff';
   ctx.font = '900 64px system-ui, sans-serif'; ctx.fillText(T('fell'), W / 2, H * 0.30);
   ctx.font = '500 20px system-ui, sans-serif'; ctx.fillStyle = 'rgba(255,255,255,0.85)';
-  const lines = [maxHeight + ' ' + T('m') + '  ·  ' + T('best') + ' ' + save.best + ' ' + T('m'), T('runCoins') + ': ' + runCoins + (usedDouble ? '  ×2' : ''), T('total') + ': ' + save.coins];
+  const lines = [maxHeight + ' ' + T('m') + '  ·  ' + T('best') + ' ' + save.best + ' ' + T('m'), T('runCoins') + ': ' + runCoins + (usedDouble ? '  ×2' : ''), T('total') + ': ' + coins()];
   lines.forEach((l, i) => ctx.fillText(l, W / 2, H * 0.30 + 50 + i * 30));
   if (!active) return;
   let y = H * 0.56;
