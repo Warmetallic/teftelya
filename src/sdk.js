@@ -21,6 +21,11 @@ function _sdkTagSignal() {
     const tag = all.find(t => /sdk\.js(\?|$)/.test(t.src)); if (!tag) return;
     if (typeof window.YaGames !== 'undefined') return resolve('load');
     tag.addEventListener('load', () => resolve('load')); tag.addEventListener('error', () => resolve('error'));
+    // тег мог отработать ошибкой раньше, чем мы подписались (dev-сервер, недоступный CDN): запрашиваем файл сами;
+    // тот же URL, что и у тега, поэтому его провал означает провал тега — ждать 15 с не нужно
+    if (typeof fetch === 'function') fetch(tag.src, { cache: 'force-cache' })
+      .then(r => { if (!r.ok && typeof window.YaGames === 'undefined') resolve('error'); })
+      .catch(() => { if (typeof window.YaGames === 'undefined') resolve('error'); });
   });
 }
 function _withTimeout(p, ms) { return Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout ' + ms + ' ms')), ms))]); }

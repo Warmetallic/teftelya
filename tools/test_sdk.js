@@ -62,5 +62,13 @@ if (require.main !== module) return;
     const g3 = require('./_env')(ctx, { YaGames: { init: () => new Promise(() => {}) } }); const YG3 = g3.dbg().YG;
     await YG3.init(); assert.strictEqual(YG3.isMock, true, 'зависший init → заглушка по таймауту');
   }
+  { // тег /sdk.js уже отработал ошибкой до подписки: fetch того же URL даёт 404 → заглушка сразу, а не через sdkWaitMs
+    const tag = { src: 'http://localhost/sdk.js', addEventListener: noop };
+    const g = require('./_env')(ctx, { cfg: { sdkWaitMs: 5000 }, scriptTags: [tag], fetch: async () => ({ ok: false, status: 404 }) });
+    const t0 = Date.now(); await g.dbg().YG.init();
+    assert.strictEqual(g.dbg().YG.isMock, true); assert.ok(Date.now() - t0 < 1000, 'не ждали таймаут опроса: ' + (Date.now() - t0) + ' мс');
+    const g2 = require('./_env')(ctx, { cfg: { sdkWaitMs: 5000 }, scriptTags: [tag], fetch: async () => { throw new Error('offline'); } });
+    const t1 = Date.now(); await g2.dbg().YG.init(); assert.strictEqual(g2.dbg().YG.isMock, true); assert.ok(Date.now() - t1 < 1000, 'офлайн → заглушка сразу');
+  }
   console.log('test_sdk ok');
 })().catch(e => { console.error(e); process.exit(1); });
