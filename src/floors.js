@@ -23,24 +23,25 @@ function buffetFor(n) { // гарантированная еда под люко
   return [{ kind: 'meat', x: 160, y: y + 120 }, { kind: 'pasta', x: 320, y: y + 60 }];
 }
 function spawnHatch(n) {
+  nextHatchFloor = Math.max(nextHatchFloor, n + 1);
   hatches.push({ floor: n, y: hatchY(n), need: hatchMass(n), broken: false, vented: false, underT: 0, bounceT: 0 });
   for (const b of buffetFor(n)) { const def = FOOD[b.kind]; items.push({ kind: b.kind, trash: false, def, x: b.x, y: b.y, r: def.r, vx: 0, seed: Math.random() * 10, dead: false, buffet: true }); }
 }
 // вызывается из game.updateRun после spawn(): спавн прошёл потолок этажа — кладём люк и буфет
-function spawnHatches() { while (spawnedTo <= hatchY(nextHatchFloor)) spawnHatch(nextHatchFloor++); }
+function spawnHatches() { while (spawnedTo <= hatchY(nextHatchFloor)) spawnHatch(nextHatchFloor); }
 function pruneHatches() { hatches = hatches.filter(h => h.y < camY + H + 80); }
 function activeHatch() { // ближайший не открытый люк над тефтелей
   let best = null;
   for (const h of hatches) if (!h.broken && !h.vented && h.y < ball.y && (!best || h.y > best.y)) best = h;
   return best;
 }
-function setStartFloor(n) { save.startFloor = clamp(n, 1, save.floor + 1); persist(); }
+function setStartFloor(n) { const v = clamp(n, 1, save.floor + 1); if (v === save.startFloor) return; save.startFloor = v; persist(); }
 // столкновение с ближайшим люком и таймер вентиляции; вызывается из game.updateRun.
 // Возвращает событие для game.js (тряска, бонус, прогресс применяет он): null | { type: 'break'|'bounce'|'vent', hatch }
 function hatchUpdate(dt) {
   const h = activeHatch(); if (!h) return null;
   h.bounceT = Math.max(0, h.bounceT - dt);
-  if (ball.y <= h.y + VENT_NEAR) {
+  if (ball.y <= h.y + VENT_NEAR && ball.mass < h.need) { // съел буфет — таймер стоит
     h.underT += dt;
     if (h.underT >= VENT_TIME) {
       h.vented = true; tone(300, 500, 0.3, 'triangle', 0.15);

@@ -119,7 +119,8 @@ async function runFlow(opts) {
     g.tap(240, 100); assert.strictEqual(d.state, 'play', 'тап вне кнопки стартует игру'); }
   // этажи: пробитие люка открывает этаж 2; селектор на титуле; старт со 2 этажа со стартовой массой
   { const g = require('./_env')(ctx); const d = g.dbg(); await g.boot(); g.tap(240);
-    d.ball.mass = 6; d.ball.y = -1400; steps(g, 8); assert.ok(d.hatches.length >= 1, 'люк первого этажа создан');
+    d.ball.mass = 6; d.ball.y = -1300; d.ball.vy = 0; steps(g, 8); assert.ok(d.hatches.length >= 1, 'люк первого этажа создан');
+    assert.ok(!d.hatches[0].broken, 'до постановки под люк не пробит');
     d.ball.y = d.hatches[0].y + 12 + d.ball.r + 4; d.ball.vy = -300; g.step();
     assert.ok(d.hatches[0].broken, 'люк пробит'); assert.strictEqual(d.save.floor, 1); assert.strictEqual(d.run.newUnlock, 2);
     d.die(); steps(g, 60); assert.strictEqual(d.state, 'dead');

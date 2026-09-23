@@ -19,9 +19,10 @@ function jumpPower() { return 690; } // от массы не зависит — 
 function coinMult() { for (const [m, k] of COIN_MULT) if (ball.mass >= m) return k; return 1; }
 function reset(n = 1) {
   const baseY = floorBaseY(n);
-  ball.x = W / 2; ball.y = baseY; ball.vx = 0; ball.vy = 0; ball.mass = startMass(n); ball.r = radiusFor(ball.mass);
+  ball.x = W / 2; ball.vx = 0; ball.vy = 0; ball.mass = startMass(n); ball.r = radiusFor(ball.mass);
   ball.jumps = maxJumps(); ball.regen = 0; ball.mouth = 0; ball.face = 0; ball.alive = true; initBody();
   camY = baseY - H + 120; items = []; particles = []; texts = []; plates = [{ x: W / 2, y: baseY + 30, w: 220 }];
+  ball.y = plates[0].y - ball.r;
   spawnedTo = baseY - 160; maxHeight = FLOOR_H * (n - 1); runCoins = 0; bankedCoins = 0; tGame = 0; camShake = 0;
   usedContinue = false; usedDouble = false; invuln = 0; massAtDeath = 0;
   resetHatches(n); floorReached = n; clearedThisRun = []; newUnlock = 0;
@@ -105,7 +106,7 @@ function doubleCoins() { save.earned += runCoins; runCoins *= 2; bankedCoins = r
 // этаж пройден честно: учёт за забег и прогресс сохранения
 function floorCleared(n) {
   clearedThisRun.push(n);
-  if (n > save.floor) { save.floor = n; newUnlock = n + 1; persist(); }
+  if (n > save.floor) { save.floor = n; newUnlock = n + 1; save.startFloor = n + 1; persist(); }
 }
 function updateRun(dt) {
   ball.vy += G * dt;
