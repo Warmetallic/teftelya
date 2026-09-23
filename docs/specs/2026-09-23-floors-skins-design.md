@@ -93,7 +93,7 @@
 
 | Файл | 3a | 3b |
 |---|---|---|
-| `src/floors.js` (новый, после `upgrades.js`) | `FLOOR_H`, `floorOf`, `startMass`, `hatchMass`, `hatchBonus`, `VENT_TIME`, список `hatches`, `spawnHatch(N)`, `hatchUpdate(dt)`, `buffetFor(N)`, `drawHatch` | `buffetExtra()` из скина |
+| `src/floors.js` (новый, после `world.js`) | `FLOOR_H`, `floorOf`, `startMass`, `hatchMass`, `hatchBonus`, `VENT_TIME`, список `hatches`, `spawnHatch(N)`, `hatchUpdate(dt)`, `buffetFor(N)`, `drawHatch` | `buffetExtra()` из скина |
 | `src/skins.js` (новый, после `floors.js`) | — | `SKINS`, `SKIN_ORDER`, `skinUnlocked`, `equippedSkin`, `cycleSkin`, эффекты, `drawSkin` |
 | `src/lines.js` (новый, после `skins.js`) | — | `say(event)`, `bubble`, `updateBubble`, `drawBubble` |
 | `src/save.js` | v3 (`floor`, `startFloor`, `skin`) | — |
@@ -106,8 +106,8 @@
 | `index.html`, `package.json` | `src/floors.js`; `test_floors.js` | `src/skins.js`, `src/lines.js`; `test_skins.js` |
 | тесты, `tools/shot.js`, README, DEVLOG | по §11 | по §11 |
 
-Правило зависимостей: `save → upgrades → floors → skins → lines → ball → world → game → render → screens → main`.
-`floors.js` не читает `ball`/`world` на верхнем уровне (только внутри функций, вызываемых из `game.js`).
+Правило зависимостей: `save → upgrades → ball → world → floors → skins → lines → game → render → screens → main`.
+`floors.js` читает `ball`/`world`, а `world.js` не знает про этажи: подавление спавна в зоне буфета идёт через хук `spawnFilter`, который `floors.js` выставляет при загрузке; люки создаёт `spawnHatches()` из `game.js` после `spawn()`. `hatchUpdate(dt)` возвращает событие (`break` / `bounce` / `vent`), а тряску, бонус монет и прогресс применяет `game.js`.
 
 ## 11. Тестирование и скриншоты
 
