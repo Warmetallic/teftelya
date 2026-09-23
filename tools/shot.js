@@ -21,5 +21,6 @@ const shop = async (g, d) => { await dead(g, d); d.save.earned += 150; d.buy('ma
   await shoot('en_results', 480, 854, dead, { lang: 'en-US' });
   await shoot('shop', 480, 854, shop);
   await shoot('en_shop', 480, 854, shop, { lang: 'en-US' });
+  await shoot('tr_shop', 480, 854, shop, { lang: 'tr-TR' });
   await shoot('tr_results', 480, 854, dead, { lang: 'tr-TR' });
 })().catch(e => { console.error(e); process.exit(1); });
