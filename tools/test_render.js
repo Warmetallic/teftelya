@@ -27,8 +27,8 @@ const ctx = new Proxy({}, { get: (t, k) => k === 'fillText' ? s => texts.push(St
   d.reset(); d.state = 'play'; d.setRunCoins(9); d.die(); d.resultsScreen(true);
   assert.deepStrictEqual(d.buttons.map(b => b.id), ['continue', 'again', 'shop'], '×2 только от 10 монет');
   // локализованные тексты
-  texts.length = 0; d.setLang('ru'); d.resultsScreen(true); assert.ok(texts.includes('Упала') && texts.includes('Ещё раз'));
-  texts.length = 0; d.setLang('en'); d.resultsScreen(true); assert.ok(texts.includes('Fell') && texts.includes('Again'));
+  texts.length = 0; d.setLang('ru'); d.resultsScreen(true); assert.ok(texts.includes('Шлёп!') && texts.includes('Ещё раз'));
+  texts.length = 0; d.setLang('en'); d.resultsScreen(true); assert.ok(texts.includes('Splat!') && texts.includes('Again'));
   texts.length = 0; d.titleScreen(); assert.ok(texts.includes('Meatball'));
   // магазин: кнопки, тексты эффектов, бейдж и покупка
   d.setLang('ru'); d.save.earned = 0; d.save.spent = 0; d.reset(); d.state = 'title'; texts.length = 0; d.titleScreen();
