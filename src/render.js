@@ -133,6 +133,9 @@ function drawHUD() {
   ctx.textAlign = 'left'; ctx.fillStyle = '#fff';
   ctx.font = '800 34px system-ui, sans-serif';
   ctx.fillText(maxHeight + ' ' + T('m'), 16, 44);
+  ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.font = '600 15px system-ui, sans-serif';
+  ctx.fillText(T('floor') + ' ' + floorOf(Math.max(0, -ball.y / 10)), 16, 66);
+  ctx.fillStyle = '#fff';
   ctx.textAlign = 'right'; ctx.font = '700 22px system-ui, sans-serif'; ctx.fillStyle = '#ffe08a';
   ctx.fillText('● ' + runCoins, W - 16, 40);
   ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.font = '600 15px system-ui, sans-serif';
@@ -150,6 +153,7 @@ function drawWorld() { // всё внутри поля; вызывающий с�
   for (const pl of plates) { const y = pl.y - camY; if (y > -20 && y < H + 20) {
     ctx.fillStyle = '#e9e4da'; ctx.beginPath(); ctx.ellipse(pl.x, y + 8, pl.w / 2, 16, 0, 0, 7); ctx.fill();
     ctx.fillStyle = '#c9c2b4'; ctx.beginPath(); ctx.ellipse(pl.x, y + 8, pl.w / 2 - 30, 9, 0, 0, 7); ctx.fill(); } }
+  for (const h of hatches) drawHatch(h);
   for (const it of items) drawItem(it);
   if (ball.alive || state === 'title') drawBall();
   for (const p of particles) {

@@ -38,6 +38,34 @@ const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addCol
   // люки ниже экрана удаляются
   d.reset(1); d.state = 'play'; d.hatches.push({ floor: 0, y: 5000, need: 1, broken: true, vented: false, underT: 0, bounceT: 0 }); d.update(0.016);
   assert.strictEqual(d.hatches.length, 0, 'люк за нижним краем удалён');
+  const under = h => { ball.y = h.y + 12 + ball.r + 4; ball.vy = -300; ball.vx = 0; }; // подвести к люку снизу и лететь вверх
+  // пробитие: масса ≥ need → люк сломан, бонус, этаж засчитан и сохранён, следующий старт открыт
+  d.save.floor = 0; d.save.startFloor = 1; // часть 1 оставила floor = 2 для проверки зажима — сбрасываем прогресс
+  d.reset(1); d.state = 'play'; d.spawnHatch(1); ball.mass = 5; under(d.hatches[0]); d.YG.gameplayStart();
+  const c0 = d.run.runCoins; d.update(0.016);
+  assert.ok(d.hatches[0].broken, 'люк пробит'); assert.strictEqual(d.run.runCoins, c0 + 10, 'бонус 5+5·1');
+  assert.deepStrictEqual(d.run.clearedThisRun, [1]); assert.strictEqual(d.run.newUnlock, 2); assert.strictEqual(d.save.floor, 1);
+  assert.strictEqual(JSON.parse(g.store.get('teft_save')).floor, 1, 'прогресс сохранён'); assert.ok(ball.vy < 0, 'летит дальше вверх');
+  // повторное пробитие того же этажа не двигает save.floor и не открывает ничего нового
+  d.reset(1); d.state = 'play'; d.spawnHatch(1); ball.mass = 5; under(d.hatches[0]); d.update(0.016);
+  assert.strictEqual(d.save.floor, 1); assert.strictEqual(d.run.newUnlock, 0); assert.deepStrictEqual(d.run.clearedThisRun, [1]);
+  // отскок: масса < need → люк цел, тефтеля ниже люка, летит вниз, масса не меняется
+  // масса 1: радиус равен radiusFor(1) и не «доезжает» лерпом в этом же кадре — позицию можно сверять точно
+  d.reset(1); d.state = 'play'; d.spawnHatch(1); ball.mass = 1; under(d.hatches[0]); d.update(0.016);
+  assert.ok(!d.hatches[0].broken); assert.strictEqual(ball.mass, 1); assert.ok(ball.vy > 0, 'отскок вниз');
+  assert.ok(Math.abs(ball.y - (d.hatches[0].y + 12 + ball.r)) < 1e-6, 'выставлена под люк'); assert.strictEqual(d.run.runCoins, 0);
+  // вентиляция: 8 с под люком без пробития → люк открыт без бонуса и без прогресса; после него проход свободен
+  d.reset(1); d.state = 'play'; d.spawnHatch(1); ball.mass = 6; d.save.floor = 0; // масса 6: случайный мусор не убьёт, а без vy < 0 пробития нет
+  for (let i = 0; i < 520; i++) { ball.y = d.hatches[0].y + 200; ball.vy = 0; d.update(0.016); }
+  assert.ok(d.hatches[0].vented, 'вентиляция'); assert.ok(!d.hatches[0].broken); assert.strictEqual(d.run.runCoins, 0); assert.strictEqual(d.save.floor, 0);
+  under(d.hatches[0]); d.update(0.016); assert.ok(ball.vy < 0 && ball.y < d.hatches[0].y + 12 + ball.r, 'через вентиляцию проходит без отскока');
+  // вне зоны под люком таймер не копится
+  d.reset(1); d.state = 'play'; d.spawnHatch(1); ball.mass = 6;
+  for (let i = 0; i < 100; i++) { ball.y = d.hatches[0].y + 600; ball.vy = 0; d.update(0.016); }
+  assert.strictEqual(d.hatches[0].underT, 0, 'дальше 300 px таймер стоит');
+  // рисование не падает
+  d.drawHatch(d.hatches[0]); d.hatches[0].broken = true; d.drawHatch(d.hatches[0]); d.hatches[0].broken = false; d.hatches[0].vented = true; d.drawHatch(d.hatches[0]);
+  d.drawWorld(); d.drawHUD();
   console.log('test_floors part1 ok');
   console.log('test_floors ok');
 })().catch(e => { console.error(e); process.exit(1); });

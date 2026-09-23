@@ -119,6 +119,11 @@ function updateRun(dt) {
       ball.vy = 0; ball.vx *= 0.8;
     }
   }
+  const hv = hatchUpdate(dt); // люк: пробитие даёт тряску, бонус и прогресс; отскок — лёгкую тряску
+  if (hv && hv.type === 'break') {
+    camShake = 12; const bonus = hatchBonus(hv.hatch.floor); runCoins += bonus;
+    popText(ball.x, hv.hatch.y - 30, '+' + bonus, '#ffe08a', true); floorCleared(hv.hatch.floor);
+  } else if (hv && hv.type === 'bounce') camShake = 4;
   const target = ball.y - H * 0.55; // камера едет только вверх
   if (target < camY) camY = lerp(camY, target, 1 - Math.pow(0.001, dt));
   maxHeight = Math.max(maxHeight, Math.floor(-ball.y / 10));
