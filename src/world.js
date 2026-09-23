@@ -24,11 +24,13 @@ function colorOf(kind) { return { ketchup: '#e3342f', pasta: '#f6c343', meat: '#
 // состояние мира; сбрасывает game.reset()
 let camY = 0, spawnedTo = 0, tGame = 0;
 let items = [], plates = [], particles = [], texts = [];
+let spawnFilter = null; // этажи (floors.js) выключают спавн в зоне буфета: spawnFilter(h) → true = ряд пропустить
 function spawn() {
   while (spawnedTo > camY - 300) {
     const gap = rnd(95, 150);
     spawnedTo -= gap;
     const h = -spawnedTo / 10;
+    if (spawnFilter && spawnFilter(h)) continue;
     const trashP = clamp(0.12 + h / 5000, 0.12, 0.5);
     const pool = trashPoolFor(h);
     const count = 1 + (Math.random() < 0.55 ? 1 : 0) + (Math.random() < h / 3000 ? 1 : 0);
