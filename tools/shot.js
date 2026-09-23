@@ -10,7 +10,7 @@ async function shoot(name, w, h, scenario, opts = {}) {
 }
 const play = async (g, n = 120) => { g.tap(240); for (let i = 0; i < n; i++) { if (i % 20 === 0) g.tap(i % 40 ? 300 : 180); g.step(); } };
 const dead = async (g, d) => { await play(g); d.setRunCoins(23); d.die(); for (let i = 0; i < 60; i++) g.step(); };
-// магазин после забега: один уровень магнита куплен, на пятый заряд хватает (жёлтая кнопка), на второй магнит — нет (серая)
+// магазин после забега: один уровень магнита куплен (80), на пятый заряд (60) хватает — жёлтая кнопка, на второй магнит (180) — нет (серая)
 const shop = async (g, d) => { await dead(g, d); d.save.earned += 150; d.buy('magnet'); d.openShop('dead'); g.step(); };
 (async () => {
   await shoot('title', 480, 854, async g => { g.step(); });

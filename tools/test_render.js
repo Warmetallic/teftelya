@@ -39,7 +39,7 @@ const ctx = new Proxy({}, { get: (t, k) => k === 'fillText' ? s => texts.push(St
   d.save.earned = 500; d.resultsScreen(true); sb = d.buttons.find(b => b.id === 'shop'); assert.ok(sb.badge, 'монет хватает — точка');
   texts.length = 0; d.shopScreen();
   assert.deepStrictEqual(d.buttons.map(b => b.id), ['buy:jumps', 'buy:magnet', 'back']);
-  assert.ok(texts.includes('Прыжков: 4 → 5') && texts.includes('Радиус: нет → 60') && texts.includes('Купить 80') && texts.includes('Купить 60'), 'эффекты и цены');
+  assert.ok(texts.includes('Прыжков: 4 → 5') && texts.includes('Радиус: нет → 60') && texts.includes('Купить 60') && texts.includes('Купить 80'), 'эффекты и цены');
   assert.strictEqual(d.upEffectText('jumps'), 'Прыжков: 4 → 5');
   assert.ok(d.buy('magnet')); d.flashCard('magnet'); texts.length = 0; d.shopScreen();
   assert.ok(texts.includes('Радиус: 60 → 90') && texts.includes('Купить 180'));

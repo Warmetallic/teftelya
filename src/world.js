@@ -10,8 +10,9 @@ const TRASH = {
   dirt: { r: 16, mass: -2, w: 3 },
   fly:  { r: 13, mass: -1, w: 3, moving: true },
 };
-// онбординг: каждый вид мусора появляется со своей высоты (м), чтобы игрок знакомился с угрозами по одной
-const TRASH_FROM = { hair: 25, dirt: 60, fly: 100 };
+// онбординг: каждый вид мусора появляется со своей высоты (м). Первый ряд предметов ~26 м, ряды через 9.5–15 м:
+// до 60 м три ряда только еды (масса 4–6 к первому волосу), грязь с 130 м, муха с 220 м
+const TRASH_FROM = { hair: 60, dirt: 130, fly: 220 };
 function trashPoolFor(h) { const pool = {}; for (const k of Object.keys(TRASH)) if (h >= TRASH_FROM[k]) pool[k] = TRASH[k]; return pool; }
 function pick(tbl) {
   const keys = Object.keys(tbl); let sum = 0; keys.forEach(k => sum += tbl[k].w);
@@ -29,13 +30,13 @@ function spawn() {
     spawnedTo -= gap;
     const h = -spawnedTo / 10;
     const trashP = clamp(0.12 + h / 5000, 0.12, 0.5);
+    const pool = trashPoolFor(h);
     const count = 1 + (Math.random() < 0.55 ? 1 : 0) + (Math.random() < h / 3000 ? 1 : 0);
     const used = [];
     for (let i = 0; i < count; i++) {
       let x, tries = 0;
       do { x = rnd(40, W - 40); tries++; } while (used.some(u => Math.abs(u - x) < 90) && tries < 8);
       used.push(x);
-      const pool = trashPoolFor(h);
       const isTrash = Object.keys(pool).length > 0 && Math.random() < trashP;
       const key = isTrash ? pick(pool) : pick(FOOD);
       const def = isTrash ? TRASH[key] : FOOD[key];

@@ -64,17 +64,17 @@ const item = (d, kind, trash, x, y) => ({ kind, trash, def: trash ? d.TRASH[kind
     assert.strictEqual(d.coins(), c0 + 50, 'смерть → ×2 → продолжить → смерть: +50, не +90'); }
   // множитель: ×1.5 / ×2 / ×3 / ×4 с массы 4 / 7 / 10 / 14
   for (const [m, k] of [[1, 1], [3, 1], [4, 1.5], [6, 1.5], [7, 2], [9, 2], [10, 3], [13, 3], [14, 4], [20, 4]]) { ball.mass = m; assert.strictEqual(d.coinMult(), k, 'масса ' + m); }
-  // гейты мусора: до 25 м только еда, 25–60 только волосы, 60–100 без мухи
+  // гейты мусора: до 60 м только еда, 60–130 только волосы, 130–220 без мухи
   assert.deepStrictEqual(Object.keys(d.trashPoolFor(10)), []);
-  assert.deepStrictEqual(Object.keys(d.trashPoolFor(30)), ['hair']);
-  assert.deepStrictEqual(Object.keys(d.trashPoolFor(70)), ['hair', 'dirt']);
-  assert.deepStrictEqual(Object.keys(d.trashPoolFor(150)), ['hair', 'dirt', 'fly']);
+  assert.deepStrictEqual(Object.keys(d.trashPoolFor(70)), ['hair']);
+  assert.deepStrictEqual(Object.keys(d.trashPoolFor(150)), ['hair', 'dirt']);
+  assert.deepStrictEqual(Object.keys(d.trashPoolFor(300)), ['hair', 'dirt', 'fly']);
   { const all = []; for (let i = 0; i < 30; i++) { d.reset(); d.state = 'play'; d.update(0.016); all.push(...d.items); }
     const hOf = it => -it.y / 10; // предмет может лежать на ±2.5 м от строки спавна, поэтому запас 3 м
     assert.ok(all.some(it => it.trash), 'мусор вообще спавнится');
-    assert.ok(!all.some(it => it.trash && hOf(it) < 22), 'ниже 25 м мусора нет');
-    assert.ok(!all.some(it => it.trash && it.kind !== 'hair' && hOf(it) < 57), 'ниже 60 м только волосы');
-    assert.ok(!all.some(it => it.kind === 'fly' && hOf(it) < 97), 'ниже 100 м мухи нет'); }
+    assert.ok(!all.some(it => it.trash && hOf(it) < 57), 'ниже 60 м мусора нет');
+    assert.ok(!all.some(it => it.trash && it.kind !== 'hair' && hOf(it) < 127), 'ниже 130 м только волосы');
+    assert.ok(!all.some(it => it.kind === 'fly' && hOf(it) < 217), 'ниже 220 м мухи нет'); }
   // заряды по апгрейду: максимум 6, еда и регенерация наполняют до него, «Продолжить» даёт полный
   d.save.up.jumps = 2; d.reset(); d.state = 'play';
   assert.strictEqual(ball.jumps, 6); d.jump(1); d.jump(1); d.jump(1);

@@ -41,7 +41,7 @@ const STR = {
     adStub: 'Reklam (taslak)', loading: 'Yükleniyor…',
     'item.hair': 'kıl', 'item.dirt': 'kir', 'item.fly': 'sinek',
     shop: 'Mağaza', back: 'Geri', buy: 'Satın al', max: 'Maks', none: 'yok',
-    'up.jumps': 'Zıplama şarjı', 'up.magnet': 'Mıknatıs', 'up.jumps.effect': 'Zıplama', 'up.magnet.effect': 'Yarıçap',
+    'up.jumps': 'Zıplama şarjı', 'up.magnet': 'Mıknatıs', 'up.jumps.effect': 'Zıplama sayısı', 'up.magnet.effect': 'Yarıçap',
   },
 };
 function langFor(code) { const c = String(code || '').slice(0, 2).toLowerCase(); return c === 'ru' ? 'ru' : c === 'tr' ? 'tr' : 'en'; }
