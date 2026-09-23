@@ -138,8 +138,9 @@ function drawHUD() {
   ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.font = '600 15px system-ui, sans-serif';
   ctx.fillText(T('mass') + ' ' + ball.mass + (coinMult() > 1 ? '   ×' + coinMult() : ''), W - 16, 64);
   if (ball.mass >= HAIR_PROOF) { ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.font = '600 13px system-ui, sans-serif'; ctx.fillText(T('hairProof'), W - 16, 84); }
-  for (let i = 0; i < MAXJ; i++) { // заряды прыжка
-    const x = W / 2 - (MAXJ - 1) * 14 + i * 28, y = 40;
+  const mj = maxJumps();
+  for (let i = 0; i < mj; i++) { // заряды прыжка — столько, сколько максимум с апгрейдами
+    const x = W / 2 - (mj - 1) * 14 + i * 28, y = 40;
     ctx.fillStyle = i < ball.jumps ? '#f6c343' : i === ball.jumps ? `rgba(246,195,67,${0.15 + ball.regen / REGEN * 0.6})` : 'rgba(255,255,255,0.15)';
     ctx.beginPath(); ctx.moveTo(x, y - 9); ctx.lineTo(x + 8, y + 3); ctx.lineTo(x + 2, y + 3); ctx.lineTo(x + 3, y + 10); ctx.lineTo(x - 8, y - 2); ctx.lineTo(x - 2, y - 2); ctx.closePath(); ctx.fill();
   }

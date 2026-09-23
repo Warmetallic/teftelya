@@ -62,6 +62,39 @@ const item = (d, kind, trash, x, y) => ({ kind, trash, def: trash ? d.TRASH[kind
   { d.reset(); d.state = 'play'; const c0 = d.coins(); d.setRunCoins(20); d.die(); d.doubleCoins(); d.continueRun();
     d.setRunCoins(50); d.die();
     assert.strictEqual(d.coins(), c0 + 50, 'смерть → ×2 → продолжить → смерть: +50, не +90'); }
+  // множитель: ×1.5 / ×2 / ×3 / ×4 с массы 4 / 7 / 10 / 14
+  for (const [m, k] of [[1, 1], [3, 1], [4, 1.5], [6, 1.5], [7, 2], [9, 2], [10, 3], [13, 3], [14, 4], [20, 4]]) { ball.mass = m; assert.strictEqual(d.coinMult(), k, 'масса ' + m); }
+  // гейты мусора: до 25 м только еда, 25–60 только волосы, 60–100 без мухи
+  assert.deepStrictEqual(Object.keys(d.trashPoolFor(10)), []);
+  assert.deepStrictEqual(Object.keys(d.trashPoolFor(30)), ['hair']);
+  assert.deepStrictEqual(Object.keys(d.trashPoolFor(70)), ['hair', 'dirt']);
+  assert.deepStrictEqual(Object.keys(d.trashPoolFor(150)), ['hair', 'dirt', 'fly']);
+  { const all = []; for (let i = 0; i < 30; i++) { d.reset(); d.state = 'play'; d.update(0.016); all.push(...d.items); }
+    const hOf = it => -it.y / 10; // предмет может лежать на ±2.5 м от строки спавна, поэтому запас 3 м
+    assert.ok(all.some(it => it.trash), 'мусор вообще спавнится');
+    assert.ok(!all.some(it => it.trash && hOf(it) < 22), 'ниже 25 м мусора нет');
+    assert.ok(!all.some(it => it.trash && it.kind !== 'hair' && hOf(it) < 57), 'ниже 60 м только волосы');
+    assert.ok(!all.some(it => it.kind === 'fly' && hOf(it) < 97), 'ниже 100 м мухи нет'); }
+  // заряды по апгрейду: максимум 6, еда и регенерация наполняют до него, «Продолжить» даёт полный
+  d.save.up.jumps = 2; d.reset(); d.state = 'play';
+  assert.strictEqual(ball.jumps, 6); d.jump(1); d.jump(1); d.jump(1);
+  d.items.push(item(d, 'meat', false, ball.x, ball.y)); d.update(0.016); assert.strictEqual(ball.jumps, 6, 'еда наполняет до 6');
+  ball.x = 240; ball.y = 0; ball.vx = 0; ball.vy = 0; // вернуть на тарелку: после трёх прыжков вбок тефтеля улетела бы со сцены и погибла до конца регенерации
+  ball.jumps = 5; for (let i = 0; i < 110; i++) d.update(0.016); assert.strictEqual(d.state, 'play'); assert.strictEqual(ball.jumps, 6, 'регенерация до 6');
+  d.die(); d.continueRun(); assert.strictEqual(ball.jumps, 6);
+  d.save.up.jumps = 0; d.reset(); assert.strictEqual(ball.jumps, 4);
+  // магнит: еда в радиусе подтягивается, мусор и еда вне радиуса — нет
+  d.save.up.magnet = 1; d.reset(); d.state = 'play';
+  const near = item(d, 'ketchup', false, ball.x + ball.r + 50, ball.y), far = item(d, 'ketchup', false, ball.x + ball.r + 200, ball.y), junk = item(d, 'hair', true, ball.x - ball.r - 50, ball.y);
+  d.items.push(near, far, junk); const nx = near.x, fx = far.x, jx = junk.x; d.update(0.016);
+  assert.ok(near.x < nx - 3 && !near.dead, 'еда в радиусе подтянулась и ещё не съедена');
+  assert.strictEqual(far.x, fx, 'еда вне радиуса на месте'); assert.strictEqual(junk.x, jx, 'мусор не притягивается');
+  d.save.up.magnet = 0; d.reset(); d.state = 'play';
+  const n2 = item(d, 'ketchup', false, ball.x + ball.r + 50, ball.y); d.items.push(n2); const n2x = n2.x; d.update(0.016);
+  assert.strictEqual(n2.x, n2x, 'без апгрейда магнита нет');
+  // смерть и ×2 пишут в earned
+  d.reset(); d.state = 'play'; const e0 = d.save.earned; d.setRunCoins(7); d.die(); assert.strictEqual(d.save.earned, e0 + 7);
+  d.doubleCoins(); assert.strictEqual(d.save.earned, e0 + 14);
   // reset сбрасывает флаги забега
   d.reset(); assert.deepStrictEqual([d.run.usedContinue, d.run.usedDouble, d.run.runCoins, d.run.invuln], [false, false, 0, 0]);
   console.log('test_game ok');

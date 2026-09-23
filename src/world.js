@@ -10,6 +10,9 @@ const TRASH = {
   dirt: { r: 16, mass: -2, w: 3 },
   fly:  { r: 13, mass: -1, w: 3, moving: true },
 };
+// онбординг: каждый вид мусора появляется со своей высоты (м), чтобы игрок знакомился с угрозами по одной
+const TRASH_FROM = { hair: 25, dirt: 60, fly: 100 };
+function trashPoolFor(h) { const pool = {}; for (const k of Object.keys(TRASH)) if (h >= TRASH_FROM[k]) pool[k] = TRASH[k]; return pool; }
 function pick(tbl) {
   const keys = Object.keys(tbl); let sum = 0; keys.forEach(k => sum += tbl[k].w);
   let t = Math.random() * sum;
@@ -32,8 +35,9 @@ function spawn() {
       let x, tries = 0;
       do { x = rnd(40, W - 40); tries++; } while (used.some(u => Math.abs(u - x) < 90) && tries < 8);
       used.push(x);
-      const isTrash = h > 8 && Math.random() < trashP;
-      const key = isTrash ? pick(TRASH) : pick(FOOD);
+      const pool = trashPoolFor(h);
+      const isTrash = Object.keys(pool).length > 0 && Math.random() < trashP;
+      const key = isTrash ? pick(pool) : pick(FOOD);
       const def = isTrash ? TRASH[key] : FOOD[key];
       items.push({ kind: key, trash: isTrash, def, x, y: spawnedTo + rnd(-25, 25), r: def.r,
         vx: def.moving ? (Math.random() < 0.5 ? -1 : 1) * rnd(70, 140) : 0, seed: Math.random() * 10, dead: false });
@@ -63,4 +67,4 @@ function updateFx(dt) {
   for (const t of texts) t.t += dt;
   texts = texts.filter(t => t.t < 1);
 }
-expose({ FOOD, TRASH, get camY() { return camY; }, get items() { return items; }, get plates() { return plates; }, popText });
+expose({ FOOD, TRASH, TRASH_FROM, trashPoolFor, get camY() { return camY; }, get items() { return items; }, get plates() { return plates; }, popText });

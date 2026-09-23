@@ -1,23 +1,24 @@
 'use strict';
 // ---------- забег: правила, столкновения, смерть, «Продолжить», «×2» ----------
 const G = 1500;
-const MAXJ = 4;                 // максимум зарядов прыжка
+const COIN_MULT = [[14, 4], [10, 3], [7, 2], [4, 1.5]]; // [масса, множитель монет] — первая подходящая ступень сверху вниз
+const MAGNET_SPEED = 300;       // px/с — с какой скоростью магнит подтягивает еду
 const REGEN = 1.6;              // секунд на восстановление заряда без еды
 const WALL_HIT = 260;           // скорость удара о стену, отрывающая мясо
 const HAIR_PROOF = 6;           // с этой массы волосы не страшны
 const CONTINUE_MIN_MASS = 3;    // масса после «Продолжить» не меньше
 const INVULN_TIME = 1.5;        // секунд неуязвимости после «Продолжить»
 const DOUBLE_MIN_COINS = 10;    // «Монеты ×2» предлагаем от этой суммы
-let state = 'title';            // title | play | dead
+let state = 'title';            // title | play | dead | shop
 let camShake = 0, shakeX = 0, shakeY = 0;
 let maxHeight = 0, runCoins = 0;
 let bankedCoins = 0;            // сколько из runCoins уже зачислено в save.earned — die() банкует по шагам, а не всё сразу
 let usedContinue = false, usedDouble = false, invuln = 0, massAtDeath = 0;
 function jumpPower() { return 690; } // от массы не зависит — ритм тапов одинаковый всю игру
-function coinMult() { return 1 + Math.floor((ball.mass - 1) / 4) * 0.5; } // масса 5 ×1.5, 9 ×2, 13 ×2.5
+function coinMult() { for (const [m, k] of COIN_MULT) if (ball.mass >= m) return k; return 1; }
 function reset() {
   ball.x = W / 2; ball.y = 0; ball.vx = 0; ball.vy = 0; ball.mass = 1; ball.r = radiusFor(1);
-  ball.jumps = MAXJ; ball.regen = 0; ball.mouth = 0; ball.face = 0; ball.alive = true; initBody();
+  ball.jumps = maxJumps(); ball.regen = 0; ball.mouth = 0; ball.face = 0; ball.alive = true; initBody();
   camY = -H + 120; items = []; particles = []; texts = []; plates = [{ x: W / 2, y: 30, w: 220 }];
   spawnedTo = -160; maxHeight = 0; runCoins = 0; bankedCoins = 0; tGame = 0; camShake = 0;
   usedContinue = false; usedDouble = false; invuln = 0; massAtDeath = 0;
@@ -40,13 +41,13 @@ function eat(it) {
   const d = it.def;
   if (!it.trash) {
     it.dead = true;
-    const gain = Math.round(d.coins * coinMult());
+    const mult = coinMult(), gain = Math.round(d.coins * mult); // множитель до прироста массы — и для монет, и для флага big
     ball.mass += d.mass; runCoins += gain;
-    ball.jumps = Math.min(MAXJ, ball.jumps + d.jumps);
+    ball.jumps = Math.min(maxJumps(), ball.jumps + d.jumps);
     ball.mouth = 1;
     pulse(140 * d.mass);
     burst(it.x, it.y, colorOf(it.kind), 10 + d.mass * 6, 260, 0.5, 5);
-    popText(it.x, it.y - 20, '+' + gain, '#ffe08a', d.mass > 1 || coinMult() > 1);
+    popText(it.x, it.y - 20, '+' + gain, '#ffe08a', d.mass > 1 || mult > 1);
     if (d.mass > 1) { camShake = 6; sfx.big(); } else sfx.eat();
     return;
   }
@@ -90,7 +91,7 @@ function continueRun() {
   plates.push(plate);
   ball.mass = Math.max(massAtDeath, CONTINUE_MIN_MASS); ball.r = radiusFor(ball.mass);
   ball.x = plate.x; ball.y = plate.y - ball.r; ball.vx = 0; ball.vy = 0;
-  ball.jumps = MAXJ; ball.regen = 0; ball.mouth = 0; ball.alive = true; initBody();
+  ball.jumps = maxJumps(); ball.regen = 0; ball.mouth = 0; ball.alive = true; initBody();
   for (const it of items) { const dx = it.x - ball.x, dy = it.y - ball.y; if (dx * dx + dy * dy < 120 * 120) it.dead = true; }
   items = items.filter(it => !it.dead);
   invuln = INVULN_TIME; usedContinue = true; camShake = 0; tGame = 0;
@@ -115,13 +116,18 @@ function updateRun(dt) {
   maxHeight = Math.max(maxHeight, Math.floor(-ball.y / 10));
   if (ball.y - ball.r > camY + H + 40) { die(); return; }
   ball.r = lerp(ball.r, radiusFor(ball.mass), 1 - Math.pow(0.01, dt));
-  if (ball.jumps < MAXJ) { ball.regen += dt; if (ball.regen >= REGEN) { ball.regen = 0; ball.jumps++; } } else ball.regen = 0;
+  if (ball.jumps < maxJumps()) { ball.regen += dt; if (ball.regen >= REGEN) { ball.regen = 0; ball.jumps++; } } else ball.regen = 0;
   invuln = Math.max(0, invuln - dt);
   ball.mouth = Math.max(0, ball.mouth - dt * 3);
   ball.face = lerp(ball.face, clamp(ball.vx / 300, -1, 1), 1 - Math.pow(0.02, dt));
   spawn();
+  const mr = magnetRadius();
   for (const it of items) {
     if (it.dead) continue;
+    if (mr > 0 && !it.trash) { // магнит: еда в радиусе подтягивается к центру, мусор нет
+      const dx0 = ball.x - it.x, dy0 = ball.y - it.y, dist = Math.hypot(dx0, dy0);
+      if (dist > 0 && dist < ball.r + mr) { const step = Math.min(dist, MAGNET_SPEED * dt); it.x += dx0 / dist * step; it.y += dy0 / dist * step; }
+    }
     if (it.vx) { it.x += it.vx * dt; if (it.x < 30 || it.x > W - 30) it.vx = -it.vx; it.y += Math.sin(tGame * 6 + it.seed) * 18 * dt; }
     const dx = it.x - ball.x, dy = it.y - ball.y;
     if (dx * dx + dy * dy < (it.r + ball.r * 0.92) ** 2) { eat(it); if (!ball.alive) return; }
@@ -142,5 +148,5 @@ expose({
   get state() { return state; }, set state(v) { state = v; },
   get run() { return { maxHeight, runCoins, usedContinue, usedDouble, invuln, massAtDeath, bankedCoins }; },
   setRunCoins(n) { runCoins = n; },
-  reset, jump, die, continueRun, doubleCoins, update,
+  reset, jump, die, continueRun, doubleCoins, update, coinMult,
 });
