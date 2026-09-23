@@ -36,17 +36,25 @@ function titleScreen() {
   ctx.font = '900 64px system-ui, sans-serif'; ctx.fillText(T('title'), W / 2, H * 0.34);
   ctx.font = '500 20px system-ui, sans-serif'; ctx.fillStyle = 'rgba(255,255,255,0.85)';
   [T('hint1'), T('hint2'), T('hint3'), T('hint4'), T('hint5')].forEach((l, i) => ctx.fillText(l, W / 2, H * 0.34 + 50 + i * 30));
-  const sb = button('shop', W / 2, H * 0.62, 220, 52, T('shop'), '', false, 'neutral'); if (canBuyAny()) badge(sb);
+  if (save.floor >= 1) { // селектор стартового этажа: от первого до последнего пройденного + 1
+    const ys = H * 0.57;
+    ctx.fillStyle = '#fff'; ctx.font = '800 22px system-ui, sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(T('floor') + ' ' + save.startFloor, W / 2, ys + 8);
+    button('floor-', W / 2 - 100, ys, 44, 44, '◀', '', false, save.startFloor > 1 ? 'neutral' : 'dim');
+    button('floor+', W / 2 + 100, ys, 44, 44, '▶', '', false, save.startFloor < save.floor + 1 ? 'neutral' : 'dim');
+  }
+  const sb = button('shop', W / 2, H * 0.64, 220, 52, T('shop'), '', false, 'neutral'); if (canBuyAny()) badge(sb);
   const p = 0.5 + Math.sin(tGame * 5) * 0.5;
   ctx.fillStyle = `rgba(255,224,138,${0.6 + p * 0.4})`; ctx.font = '800 26px system-ui, sans-serif';
-  ctx.fillText(T('tapToJump'), W / 2, H * 0.74);
+  ctx.fillText(T('tapToJump'), W / 2, H * 0.75);
 }
 function resultsScreen(active) {
   clearButtons(); dim(0.72);
   ctx.textAlign = 'center'; ctx.fillStyle = '#fff';
   ctx.font = '900 64px system-ui, sans-serif'; ctx.fillText(T('fell'), W / 2, H * 0.30);
   ctx.font = '500 20px system-ui, sans-serif'; ctx.fillStyle = 'rgba(255,255,255,0.85)';
-  const lines = [maxHeight + ' ' + T('m') + '  ·  ' + T('best') + ' ' + save.best + ' ' + T('m'), T('runCoins') + ': ' + runCoins + (usedDouble ? '  ×2' : ''), T('total') + ': ' + coins()];
+  const lines = [maxHeight + ' ' + T('m') + '  ·  ' + T('best') + ' ' + save.best + ' ' + T('m'), T('runCoins') + ': ' + runCoins + (usedDouble ? '  ×2' : ''), T('total') + ': ' + coins(), T('floor') + ' ' + floorReached];
+  if (newUnlock) lines.push(T('floorUnlocked', newUnlock));
   lines.forEach((l, i) => ctx.fillText(l, W / 2, H * 0.30 + 50 + i * 30));
   if (!active) return;
   let y = H * 0.56;

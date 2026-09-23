@@ -9,7 +9,7 @@ async function boot() {
   await YG.init();
   setLang(YG.lang);
   await loadSave();
-  reset(); state = 'title';
+  reset(save.startFloor); state = 'title';
   YG.onPause(pauseGame); YG.onResume(resumeGame);
   booted = true;
   draw();       // титул на экране — игра готова к взаимодействию
@@ -43,7 +43,7 @@ async function restart() {
     const r = await showAd(() => YG.showInterstitial());
     if (r.shown) lastAdAt = sessionT;
   }
-  reset(); state = 'play'; YG.gameplayStart();
+  reset(save.startFloor); state = 'play'; YG.gameplayStart();
 }
 async function tryContinue() {
   if (usedContinue) return;
@@ -64,7 +64,9 @@ function onTap(x, y) {
   audio();
   if (awaitTap) { awaitTap = false; YG.gameplayStart(); return; } // первый тап после паузы — не прыжок
   if (state === 'title') {
-    const b = hitButton(x, y); if (b && b.id === 'shop') { openShop('title'); return; }
+    const b = hitButton(x, y);
+    if (b && b.id === 'shop') { openShop('title'); return; }
+    if (b && (b.id === 'floor-' || b.id === 'floor+')) { setStartFloor(save.startFloor + (b.id === 'floor+' ? 1 : -1)); reset(save.startFloor); return; }
     state = 'play'; YG.gameplayStart(); jump(x < ball.x ? -1 : 1); return;
   }
   if (state === 'dead') {

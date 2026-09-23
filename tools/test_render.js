@@ -49,5 +49,18 @@ const ctx = new Proxy({}, { get: (t, k) => k === 'fillText' ? s => texts.push(St
   texts.length = 0; d.setLang('en'); d.shopScreen(); assert.ok(texts.includes('Shop') && texts.includes('Back'));
   texts.length = 0; d.setLang('tr'); d.shopScreen(); assert.ok(texts.includes('Mağaza') && texts.includes('Geri'));
   d.setLang('ru');
+  // этажи: селектор на титуле только при пройденных этажах; строки результатов
+  d.save.floor = 0; d.save.startFloor = 1; d.reset(); d.state = 'title'; d.titleScreen();
+  assert.ok(!d.buttons.some(b => b.id === 'floor-' || b.id === 'floor+'), 'без пройденных этажей селектора нет');
+  d.save.floor = 2; d.save.startFloor = 3; texts.length = 0; d.titleScreen();
+  const fm = d.buttons.find(b => b.id === 'floor-'), fp = d.buttons.find(b => b.id === 'floor+');
+  assert.ok(fm && fp, 'кнопки селектора'); assert.ok(texts.includes('Этаж 3'), 'текущий стартовый этаж');
+  assert.ok(fm.y === fp.y && fm.y < d.buttons.find(b => b.id === 'shop').y, 'селектор выше кнопки Магазин');
+  d.save.floor = 0; d.save.startFloor = 1; d.reset(1); d.state = 'play'; d.spawnHatch(1); d.ball.mass = 5; d.ball.y = d.hatches[0].y + 12 + d.ball.r + 4; d.ball.vy = -300; d.update(0.016);
+  assert.strictEqual(d.run.newUnlock, 2); d.die(); texts.length = 0; d.resultsScreen(true);
+  assert.ok(texts.includes('Этаж 1') && texts.includes('Открыт этаж 2'), 'строки этажа на результатах: достигнут 1-й, открыт 2-й');
+  texts.length = 0; d.setLang('en'); d.resultsScreen(true); assert.ok(texts.includes('Floor 2 unlocked')); d.setLang('ru');
+  texts.length = 0; d.state = 'play'; d.drawHUD(); assert.ok(texts.some(t => t.startsWith('Этаж ')), 'HUD показывает этаж');
+  d.save.floor = 0; d.save.startFloor = 1;
   console.log('test_render ok');
 })().catch(e => { console.error(e); process.exit(1); });
