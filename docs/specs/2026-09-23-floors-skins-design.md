@@ -28,13 +28,13 @@
 
 - `FLOOR_H = 150` м (1500 px). Этаж N занимает высоты `[150·(N−1), 150·N)`; `floorOf(h) = floor(h / 150) + 1`; потолок этажа N на высоте `150·N` (мировой `y = −1500·N`).
 - `startMass(N) = N === 1 ? 1 : min(1 + N, 12)`; `hatchMass(N) = min(3 + N, 15)`; `hatchBonus(N) = 5 + 5·N` монет (черновые числа, живут в `src/floors.js`).
-- Старт с этажа N (`reset(N)`): `baseY = −1500·(N−1)`; тарелка `{x: W/2, y: baseY + 30, w: 220}`; тефтеля на `baseY` с массой `startMass(N)` и полными зарядами; `camY = baseY − H + 120`; `spawnedTo = baseY − 160`; `maxHeight` продолжает считать абсолютную высоту, `save.best` — абсолютный рекорд.
+- Старт с этажа N (`reset(N)`): `baseY = −1500·(N−1)`; тарелка `{x: W/2, y: baseY + 30, w: 220}`; тефтеля на `baseY` с массой `startMass(N)` и полными зарядами; `camY = baseY − H + 120`; `spawnedTo = baseY − 160`; `maxHeight = 150·(N−1)` сразу при старте и дальше считает абсолютную высоту, `save.best` — абсолютный рекорд. `reset(N)` заменяет `reset()`; `restart()` и загрузка передают `save.startFloor`.
 - Выбранный этаж хранится в `save.startFloor` (1 … `save.floor + 1`) и выбирается на титуле (§7). `save.floor` — максимальный честно пройденный этаж (0 в начале).
 - Сложность по абсолютной высоте не меняется (`TRASH_FROM`, `trashP`, отметки метров).
 
 ## 4. Люк, буфет, вентиляция
 
-- **Сущность люка** создаётся спавном, когда `spawnedTo` проходит потолок этажа N: `hatch = { floor: N, y: −1500·N, need: hatchMass(N), broken: false, vented: false, underT: 0 }`. Активен один люк — ближайший сверху; после пробития или вентиляции остаётся в мире как «открытый» до ухода за нижний край.
+- **Сущность люка** создаётся спавном, когда `spawnedTo` проходит потолок этажа N: `hatch = { floor: N, y: −1500·N, need: hatchMass(N), broken: false, vented: false, underT: 0 }`. Люки хранятся списком `hatches[]`; столкновение и таймер вентиляции считаются для ближайшего не открытого люка над тефтелей; после пробития или вентиляции люк остаётся в мире как «открытый» до ухода за нижний край и удаляется вместе с предметами.
 - **Столкновение** (`updateRun`): если люк не открыт, тефтеля ниже него (`ball.y > hatch.y`), летит вверх (`vy < 0`) и `ball.y − ball.r ≤ hatch.y + 12`:
   - `ball.mass ≥ hatch.need` → **пробитие**: `hatch.broken = true`, `burst` фаршем и щепками, `camShake = 12`, `sfx.big`, `runCoins += hatchBonus(N)` (с всплывающим `+N`), надпись `T('floorCleared', N)`; если `N > save.floor` → `save.floor = N`, `persist()`, флаг `newUnlock = N + 1`; скин по §5, если положен.
   - иначе → **отскок**: `ball.y = hatch.y + 12 + ball.r`, `ball.vy = 200`, `squash`, `sfx.hit` (масса не теряется), надпись `T('needMass', need)`; не чаще раза в 0.5 с.
@@ -93,7 +93,7 @@
 
 | Файл | 3a | 3b |
 |---|---|---|
-| `src/floors.js` (новый, после `upgrades.js`) | `FLOOR_H`, `floorOf`, `startMass`, `hatchMass`, `hatchBonus`, `VENT_TIME`, состояние `hatch`, `spawnHatch`, `hatchUpdate(dt)`, `buffetFor(N)`, `drawHatch` | `buffetExtra()` из скина |
+| `src/floors.js` (новый, после `upgrades.js`) | `FLOOR_H`, `floorOf`, `startMass`, `hatchMass`, `hatchBonus`, `VENT_TIME`, список `hatches`, `spawnHatch(N)`, `hatchUpdate(dt)`, `buffetFor(N)`, `drawHatch` | `buffetExtra()` из скина |
 | `src/skins.js` (новый, после `floors.js`) | — | `SKINS`, `SKIN_ORDER`, `skinUnlocked`, `equippedSkin`, `cycleSkin`, эффекты, `drawSkin` |
 | `src/lines.js` (новый, после `skins.js`) | — | `say(event)`, `bubble`, `updateBubble`, `drawBubble` |
 | `src/save.js` | v3 (`floor`, `startFloor`, `skin`) | — |
