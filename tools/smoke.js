@@ -117,5 +117,23 @@ async function runFlow(opts) {
     g.tap(sb.x, sb.y); g.step(); assert.strictEqual(d.state, 'shop'); assert.deepStrictEqual(d.YG.log, ['ready'], 'магазин не шлёт start');
     const back = btn(d, 'back'); g.tap(back.x, back.y); g.step(); assert.strictEqual(d.state, 'title');
     g.tap(240, 100); assert.strictEqual(d.state, 'play', 'тап вне кнопки стартует игру'); }
+  // этажи: пробитие люка открывает этаж 2; селектор на титуле; старт со 2 этажа со стартовой массой
+  { const g = require('./_env')(ctx); const d = g.dbg(); await g.boot(); g.tap(240);
+    d.ball.mass = 6; d.ball.y = -1300; d.ball.vy = 0; steps(g, 8); assert.ok(d.hatches.length >= 1, 'люк первого этажа создан');
+    assert.ok(!d.hatches[0].broken, 'до постановки под люк не пробит');
+    d.ball.y = d.hatches[0].y + 12 + d.ball.r + 4; d.ball.vy = -300; g.step();
+    assert.ok(d.hatches[0].broken, 'люк пробит'); assert.strictEqual(d.save.floor, 1); assert.strictEqual(d.run.newUnlock, 2);
+    d.die(); steps(g, 60); assert.strictEqual(d.state, 'dead');
+    assert.strictEqual(JSON.parse(g.store.get('teft_save')).floor, 1, 'этаж сохранён'); }
+  { const g = require('./_env')(ctx);
+    g.store.set('teft_save', JSON.stringify({ v: 3, best: 0, earned: 0, spent: 0, up: { jumps: 0, magnet: 0 }, floor: 2, startFloor: 2, skin: 'none' }));
+    const d = g.dbg(); await g.boot(); g.step();
+    const fp = btn(d, 'floor+'); assert.ok(fp, 'кнопка floor+ при пройденных этажах');
+    g.tap(fp.x, fp.y); g.step(); assert.strictEqual(d.save.startFloor, 3);
+    g.tap(fp.x, fp.y); g.step(); assert.strictEqual(d.save.startFloor, 3, 'выше floor+1 нельзя');
+    const fm = btn(d, 'floor-'); g.tap(fm.x, fm.y); g.step(); assert.strictEqual(d.save.startFloor, 2);
+    assert.strictEqual(d.state, 'title', 'селектор не стартует игру');
+    g.tap(240, 100); assert.strictEqual(d.state, 'play'); assert.strictEqual(d.ball.mass, 3, 'стартовая масса этажа 2'); assert.strictEqual(d.run.maxHeight, 150);
+    assert.strictEqual(d.YG.log.at(-1), 'start'); }
   console.log('smoke ok' + (dist ? ' (dist)' : ''));
 })().catch(e => { console.error(e); process.exit(1); });

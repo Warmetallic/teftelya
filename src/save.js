@@ -1,32 +1,40 @@
 'use strict';
 // ---------- сохранения: облако Яндекса + локальный резерв, при загрузке максимум по полям ----------
-// v2 — монотонный журнал: earned/spent только растут, баланс = earned − spent; уровни апгрейдов тоже только растут.
+// v3 — монотонный журнал: earned/spent, уровни апгрейдов и пройденные этажи только растут, скин упорядочен по открытию.
 // Поэтому слияние «максимум по полям» корректно: игрок никогда не теряет, а баланс не уходит в минус
 // (на каждом устройстве spent ≤ earned, значит max(earned) − max(spent) ≥ 0).
-const SAVE_VERSION = 2;
+const SAVE_VERSION = 3;
 const SAVE_KEY = 'teft_save';
 const UP_MAX = { jumps: 2, magnet: 3 };   // максимальные уровни апгрейдов; каталог и цены — в upgrades.js
-const save = { v: SAVE_VERSION, best: 0, earned: 0, spent: 0, up: { jumps: 0, magnet: 0 } };
+const SKIN_ORDER = ['none', 'chef', 'glasses', 'crown', 'bow', 'mustache']; // порядок открытия скинов (каталог — в skins.js)
+const save = { v: SAVE_VERSION, best: 0, earned: 0, spent: 0, up: { jumps: 0, magnet: 0 }, floor: 0, startFloor: 1, skin: 'none' };
 function coins() { return Math.max(0, save.earned - save.spent); }
 const _int = v => Math.max(0, Math.floor(+v || 0));
-// приводит объект любой версии (или мусор) к текущей схеме; v1 {coins} → earned = coins, spent = 0
+const _clampStart = (start, floor) => Math.min(Math.max(1, start), floor + 1);
+// приводит объект любой версии (или мусор) к текущей схеме; v1 {coins} → earned = coins, spent = 0; v2 → этажи и скин по умолчанию
 function migrate(obj) {
-  const o = { v: SAVE_VERSION, best: 0, earned: 0, spent: 0, up: { jumps: 0, magnet: 0 } };
+  const o = { v: SAVE_VERSION, best: 0, earned: 0, spent: 0, up: { jumps: 0, magnet: 0 }, floor: 0, startFloor: 1, skin: 'none' };
   if (obj && typeof obj === 'object') {
     o.best = _int(obj.best);
     if (obj.earned !== undefined || obj.spent !== undefined) { o.earned = _int(obj.earned); o.spent = _int(obj.spent); }
     else o.earned = _int(obj.coins);
     const up = obj.up && typeof obj.up === 'object' ? obj.up : {};
     for (const k of Object.keys(UP_MAX)) o.up[k] = Math.min(UP_MAX[k], _int(up[k]));
+    o.floor = _int(obj.floor);
+    o.startFloor = _clampStart(_int(obj.startFloor) || 1, o.floor);
+    o.skin = SKIN_ORDER.includes(obj.skin) ? obj.skin : 'none';
   }
   return o;
 }
 function mergeSaves(a, b) {
-  const o = { v: SAVE_VERSION, best: Math.max(a.best || 0, b.best || 0), earned: Math.max(a.earned || 0, b.earned || 0), spent: Math.max(a.spent || 0, b.spent || 0), up: {} };
+  const o = { v: SAVE_VERSION, best: Math.max(a.best || 0, b.best || 0), earned: Math.max(a.earned || 0, b.earned || 0), spent: Math.max(a.spent || 0, b.spent || 0), up: {},
+    floor: Math.max(a.floor || 0, b.floor || 0), startFloor: 1, skin: 'none' };
   for (const k of Object.keys(UP_MAX)) o.up[k] = Math.max((a.up && a.up[k]) || 0, (b.up && b.up[k]) || 0);
+  o.startFloor = _clampStart(Math.max(a.startFloor || 1, b.startFloor || 1), o.floor);
+  o.skin = SKIN_ORDER[Math.max(Math.max(0, SKIN_ORDER.indexOf(a.skin)), Math.max(0, SKIN_ORDER.indexOf(b.skin)))];
   return o;
 }
-function snapshot() { return { v: SAVE_VERSION, best: save.best, earned: save.earned, spent: save.spent, up: { jumps: save.up.jumps, magnet: save.up.magnet } }; }
+function snapshot() { return { v: SAVE_VERSION, best: save.best, earned: save.earned, spent: save.spent, up: { jumps: save.up.jumps, magnet: save.up.magnet }, floor: save.floor, startFloor: save.startFloor, skin: save.skin }; }
 function sameSave(a, b) { return JSON.stringify(migrate(a)) === JSON.stringify(migrate(b)); }
 function _readLocal() {
   const st = YG.storage; if (!st) return null;
@@ -52,11 +60,11 @@ async function loadSave() {
   lastSent = JSON.stringify(merged);
   return save;
 }
-// вызывать только при смерти, наградах и покупках: лимит облака 100 запросов за 5 минут
+// вызывать только при смерти, наградах, покупках, пройденном этаже и смене этажа/скина: лимит облака 100 запросов за 5 минут
 function persist() {
   const snap = snapshot();
   const json = JSON.stringify(snap);
   _writeLocal(snap);
   if (json !== lastSent) { lastSent = json; YG.setData(snap); }
 }
-expose({ save, coins, loadSave, persist, migrate, mergeSaves, UP_MAX });
+expose({ save, coins, loadSave, persist, migrate, mergeSaves, UP_MAX, SKIN_ORDER });

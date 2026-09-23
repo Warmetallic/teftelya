@@ -14,14 +14,18 @@ let camShake = 0, shakeX = 0, shakeY = 0;
 let maxHeight = 0, runCoins = 0;
 let bankedCoins = 0;            // сколько из runCoins уже зачислено в save.earned — die() банкует по шагам, а не всё сразу
 let usedContinue = false, usedDouble = false, invuln = 0, massAtDeath = 0;
+let floorReached = 1, clearedThisRun = [], newUnlock = 0; // этажи: достигнутый, пройденные за забег, открытый для старта
 function jumpPower() { return 690; } // от массы не зависит — ритм тапов одинаковый всю игру
 function coinMult() { for (const [m, k] of COIN_MULT) if (ball.mass >= m) return k; return 1; }
-function reset() {
-  ball.x = W / 2; ball.y = 0; ball.vx = 0; ball.vy = 0; ball.mass = 1; ball.r = radiusFor(1);
+function reset(n = 1) {
+  const baseY = floorBaseY(n);
+  ball.x = W / 2; ball.vx = 0; ball.vy = 0; ball.mass = startMass(n); ball.r = radiusFor(ball.mass);
   ball.jumps = maxJumps(); ball.regen = 0; ball.mouth = 0; ball.face = 0; ball.alive = true; initBody();
-  camY = -H + 120; items = []; particles = []; texts = []; plates = [{ x: W / 2, y: 30, w: 220 }];
-  spawnedTo = -160; maxHeight = 0; runCoins = 0; bankedCoins = 0; tGame = 0; camShake = 0;
+  camY = baseY - H + 120; items = []; particles = []; texts = []; plates = [{ x: W / 2, y: baseY + 30, w: 220 }];
+  ball.y = plates[0].y - ball.r;
+  spawnedTo = baseY - 160; maxHeight = FLOOR_H * (n - 1); runCoins = 0; bankedCoins = 0; tGame = 0; camShake = 0;
   usedContinue = false; usedDouble = false; invuln = 0; massAtDeath = 0;
+  resetHatches(n); floorReached = n; clearedThisRun = []; newUnlock = 0;
 }
 // прыжок в сторону dir (-1 влево, +1 вправо)
 function jump(dir) {
@@ -99,6 +103,11 @@ function continueRun() {
 }
 // «Монеты ×2» после rewarded
 function doubleCoins() { save.earned += runCoins; runCoins *= 2; bankedCoins = runCoins; usedDouble = true; persist(); }
+// этаж пройден честно: учёт за забег и прогресс сохранения
+function floorCleared(n) {
+  clearedThisRun.push(n);
+  if (n > save.floor) { save.floor = n; newUnlock = n + 1; save.startFloor = n + 1; persist(); }
+}
 function updateRun(dt) {
   ball.vy += G * dt;
   ball.x += ball.vx * dt; ball.y += ball.vy * dt;
@@ -111,9 +120,15 @@ function updateRun(dt) {
       ball.vy = 0; ball.vx *= 0.8;
     }
   }
+  const hv = hatchUpdate(dt); // люк: пробитие даёт тряску, бонус и прогресс; отскок — лёгкую тряску
+  if (hv && hv.type === 'break') {
+    camShake = 12; const bonus = hatchBonus(hv.hatch.floor); runCoins += bonus;
+    popText(ball.x, hv.hatch.y - 30, '+' + bonus, '#ffe08a', true); floorCleared(hv.hatch.floor);
+  } else if (hv && hv.type === 'bounce') camShake = 4;
   const target = ball.y - H * 0.55; // камера едет только вверх
   if (target < camY) camY = lerp(camY, target, 1 - Math.pow(0.001, dt));
   maxHeight = Math.max(maxHeight, Math.floor(-ball.y / 10));
+  floorReached = Math.max(floorReached, floorOf(Math.max(0, -ball.y / 10)));
   if (ball.y - ball.r > camY + H + 40) { die(); return; }
   ball.r = lerp(ball.r, radiusFor(ball.mass), 1 - Math.pow(0.01, dt));
   if (ball.jumps < maxJumps()) { ball.regen += dt; if (ball.regen >= REGEN) { ball.regen = 0; ball.jumps++; } } else ball.regen = 0;
@@ -121,6 +136,7 @@ function updateRun(dt) {
   ball.mouth = Math.max(0, ball.mouth - dt * 3);
   ball.face = lerp(ball.face, clamp(ball.vx / 300, -1, 1), 1 - Math.pow(0.02, dt));
   spawn();
+  spawnHatches();
   const mr = magnetRadius();
   for (const it of items) {
     if (it.dead) continue;
@@ -134,6 +150,7 @@ function updateRun(dt) {
   }
   items = items.filter(it => !it.dead && it.y < camY + H + 80);
   plates = plates.filter(pl => pl.y < camY + H + 80);
+  pruneHatches();
 }
 function update(dt) {
   tGame += dt;
@@ -146,7 +163,7 @@ function update(dt) {
 }
 expose({
   get state() { return state; }, set state(v) { state = v; },
-  get run() { return { maxHeight, runCoins, usedContinue, usedDouble, invuln, massAtDeath, bankedCoins }; },
+  get run() { return { maxHeight, runCoins, usedContinue, usedDouble, invuln, massAtDeath, bankedCoins, floorReached, clearedThisRun, newUnlock }; },
   setRunCoins(n) { runCoins = n; },
-  reset, jump, die, continueRun, doubleCoins, update, coinMult,
+  reset, jump, die, continueRun, doubleCoins, update, coinMult, floorCleared,
 });
