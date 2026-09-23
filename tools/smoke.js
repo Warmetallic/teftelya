@@ -46,12 +46,14 @@ async function runFlow(opts) {
   // магазин с экрана результатов: покупка пятого заряда, повторный тап без денег, Escape назад
   d.save.earned = d.save.spent + 100; g.step(); // ровно 100 монет: хватает на заряд (80), но не на второй уровень (300)
   const shopBtn = btn(d, 'shop'); assert.ok(shopBtn && shopBtn.badge, 'кнопка Магазин с точкой — монет хватает');
-  g.tap(shopBtn.x, shopBtn.y); g.step(); assert.strictEqual(d.state, 'shop');
   const lenBeforeShop = d.YG.log.length;
+  g.tap(shopBtn.x, shopBtn.y); g.step(); assert.strictEqual(d.state, 'shop');
   const buyJ = btn(d, 'buy:jumps'); assert.ok(buyJ, 'кнопка покупки зарядов');
   const spent0 = d.save.spent; g.tap(buyJ.x, buyJ.y); g.step();
   assert.strictEqual(d.upLevel('jumps'), 1); assert.strictEqual(d.save.spent, spent0 + 80);
   g.tap(buyJ.x, buyJ.y); g.step(); assert.strictEqual(d.upLevel('jumps'), 1, 'второй уровень стоит 300 — не хватает');
+  g.key('ArrowUp'); g.step(); assert.strictEqual(d.state, 'shop', 'стрелки магазин не закрывают');
+  g.fire('blur'); g.key('Escape'); g.step(); assert.strictEqual(d.state, 'shop', 'в паузе Escape магазин не закрывает'); g.fire('focus');
   g.key('Escape'); g.step(); assert.strictEqual(d.state, 'dead', 'Escape возвращает на результаты');
   assert.strictEqual(d.YG.log.length, lenBeforeShop, 'магазин не трогает GameplayAPI');
   // «Ещё раз»: первый рестарт сессии без рекламы

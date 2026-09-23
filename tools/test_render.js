@@ -43,6 +43,8 @@ const ctx = new Proxy({}, { get: (t, k) => k === 'fillText' ? s => texts.push(St
   assert.strictEqual(d.upEffectText('jumps'), 'Прыжков: 4 → 5');
   assert.ok(d.buy('magnet')); d.flashCard('magnet'); texts.length = 0; d.shopScreen();
   assert.ok(texts.includes('Радиус: 60 → 90') && texts.includes('Купить 180'));
+  assert.ok(d.shopFlash && d.shopFlash.id === 'magnet');
+  d.openShop('title'); assert.strictEqual(d.shopFlash, null, 'вход в магазин сбрасывает подсветку'); d.closeShop();
   d.save.spent = 0; d.save.up.jumps = 2; texts.length = 0; d.shopScreen(); assert.ok(texts.includes('Прыжков: 6') && texts.includes('Макс'), 'на максимуме — Макс');
   texts.length = 0; d.setLang('en'); d.shopScreen(); assert.ok(texts.includes('Shop') && texts.includes('Back'));
   texts.length = 0; d.setLang('tr'); d.shopScreen(); assert.ok(texts.includes('Mağaza') && texts.includes('Geri'));

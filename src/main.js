@@ -56,7 +56,7 @@ async function tryDouble() {
   if (r.rewarded) { lastAdAt = sessionT; doubleCoins(); }
 }
 // --- магазин: меню, GameplayAPI не трогаем ---
-function openShop(from) { shopReturn = from; state = 'shop'; }
+function openShop(from) { shopReturn = from; state = 'shop'; flashCard(null); }
 function closeShop() { state = shopReturn; }
 // --- ввод ---
 function onTap(x, y) {
@@ -92,7 +92,7 @@ window.addEventListener('keydown', e => {
   const up = e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW' || e.code === 'Enter', esc = e.code === 'Escape';
   if (!left && !right && !up && !esc) return;
   e.preventDefault();
-  if (state === 'shop') { if (up || esc) closeShop(); return; }
+  if (state === 'shop') { if ((esc || e.code === 'Space' || e.code === 'Enter') && !paused && !adBusy) closeShop(); return; }
   if (state === 'dead') { if (up) { const b = buttons.find(b => b.id === 'again'); if (b) onTap(b.x, b.y); } return; }
   if (esc) return;
   onTap(left ? ball.x - 10 : right ? ball.x + 10 : ball.x + (ball.vx >= 0 ? 10 : -10), 0);

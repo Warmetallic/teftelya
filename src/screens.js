@@ -56,7 +56,7 @@ function resultsScreen(active) {
   y += 76; const sb = button('shop', W / 2, y, 300, 60, T('shop'), '', false, 'neutral'); if (canBuyAny()) badge(sb);
 }
 let shopFlash = null; // { id, until } — подсветка рамки только что купленной карточки
-function flashCard(id) { shopFlash = { id, until: tGame + 0.3 }; }
+function flashCard(id) { shopFlash = id ? { id, until: tGame + 0.3 } : null; }
 function upEffectText(id) { // «Прыжков: 4 → 5», «Радиус: нет → 60», на максимуме «Прыжков: 6»
   const lvl = upLevel(id), max = upMaxLevel(id);
   const fmt = v => (id === 'magnet' && v === 0) ? T('none') : String(v);
@@ -72,7 +72,7 @@ function shopScreen() {
   Object.keys(UPGRADES).forEach((id, i) => {
     const cw = 400, ch = 150, x0 = W / 2 - cw / 2, y0 = H * (0.27 + i * 0.23) - ch / 2;
     const flash = shopFlash && shopFlash.id === id && tGame < shopFlash.until;
-    ctx.fillStyle = 'rgba(255,255,255,0.08)'; rrect(x0, y0, cw, ch, 16); ctx.fill();
+    ctx.fillStyle = 'rgba(38,26,20,0.94)'; rrect(x0, y0, cw, ch, 16); ctx.fill();
     ctx.strokeStyle = flash ? '#ffe08a' : 'rgba(255,255,255,0.18)'; ctx.lineWidth = flash ? 4 : 2; rrect(x0, y0, cw, ch, 16); ctx.stroke();
     ctx.textAlign = 'left'; ctx.fillStyle = '#fff'; ctx.font = '800 24px system-ui, sans-serif'; ctx.fillText(T('up.' + id), x0 + 20, y0 + 38);
     ctx.font = '500 18px system-ui, sans-serif'; ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.fillText(upEffectText(id), x0 + 20, y0 + 68);
@@ -99,4 +99,4 @@ function loadingScreen() {
   beginField(); dim(1); ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(255,255,255,0.7)';
   ctx.font = '600 22px system-ui, sans-serif'; ctx.fillText(T('loading'), W / 2, H * 0.5);
 }
-expose({ titleScreen, resultsScreen, pausedScreen, adStubScreen, loadingScreen, shopScreen, flashCard, upEffectText, get buttons() { return buttons; }, hitButton });
+expose({ titleScreen, resultsScreen, pausedScreen, adStubScreen, loadingScreen, shopScreen, flashCard, upEffectText, get shopFlash() { return shopFlash; }, get buttons() { return buttons; }, hitButton });
