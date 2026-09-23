@@ -1,6 +1,20 @@
 'use strict';
 // ---------- мягкое тело тефтели: N точек на пружинах вокруг центра ----------
 const N = 26;
+// ---------- прыжок в точку (v2): физика дуги и новые поля тела; мягкое тело ниже живёт до задачи 8 ----------
+const GRAV = 1500;
+const JUMP_MIN_H = 100, JUMP_MAX_H = 280; // высота дуги (px) от низа Тефы до точки тапа с запасом
+const VX_MAX = 420;                       // px/с — предел горизонтальной скорости прыжка
+const AIM_MARGIN = 24;                    // низ Тефы поднимается на столько выше точки тапа, чтобы сесть на платформу, а не пролететь сквозь
+// прыжок к точке (tx, ty): вершина дуги низа Тефы на AIM_MARGIN выше ty; горизонталь рассчитана так, чтобы на спуске
+// низ пересёк уровень ty ровно над tx — игрок тапает туда, куда хочет ПРИЗЕМЛИТЬСЯ
+function aimJump(bx, by, r, tx, ty) {
+  const dy = clamp(by + r - ty + AIM_MARGIN, JUMP_MIN_H, JUMP_MAX_H);
+  const vy = -Math.sqrt(2 * GRAV * dy), tUp = -vy / GRAV, tDown = Math.sqrt(2 * AIM_MARGIN / GRAV);
+  const t = tUp + tDown;
+  const vx = clamp((tx - bx) / t, -VX_MAX, VX_MAX);
+  return { vx, vy, t, dy };
+}
 const ball = {
   x: W / 2, y: 0, vx: 0, vy: 0,
   mass: 1, r: 26,
@@ -11,6 +25,7 @@ const ball = {
   mouth: 0,         // 0 закрыт .. 1 открыт
   blink: 0,
   alive: true,
+  charges: 3, onPlatform: null, sq: 0, sqv: 0, tilt: 0, tiltv: 0, hot: 0,
 };
 function radiusFor(m) { return 26 + 13 * Math.sqrt(Math.max(0, m - 1)); }
 function heavy() { return clamp((ball.mass - 1) / 15, 0, 1); } // 0 маленькая .. 1 огромная
@@ -50,4 +65,4 @@ function updateBody(dt) {
     p.vx += ax * dt; p.vy += ay * dt; p.ox += p.vx * dt; p.oy += p.vy * dt;
   }
 }
-expose({ ball });
+expose({ ball, aimJump, GRAV, JUMP_MIN_H, JUMP_MAX_H, VX_MAX, AIM_MARGIN });
