@@ -1,5 +1,5 @@
 'use strict';
-// ---------- i18n: ru + en, остальные языки → en ----------
+// ---------- i18n: ru, tr, остальные языки → en; недостающий ключ ищется в en, потом в ru ----------
 const STR = {
   ru: {
     title: 'Тефтеля',
@@ -12,6 +12,8 @@ const STR = {
     mass: 'масса', hairProof: 'волосы не страшны', meatLost: '−1 мясо', pf: 'пф', m: 'м',
     adStub: 'Реклама (заглушка)', loading: 'Загрузка…',
     'item.hair': 'волос', 'item.dirt': 'грязь', 'item.fly': 'муха',
+    shop: 'Магазин', back: 'Назад', buy: 'Купить', max: 'Макс', none: 'нет',
+    'up.jumps': 'Заряды прыжка', 'up.magnet': 'Магнит', 'up.jumps.effect': 'Прыжков', 'up.magnet.effect': 'Радиус',
   },
   en: {
     title: 'Meatball',
@@ -24,15 +26,30 @@ const STR = {
     mass: 'mass', hairProof: 'hair-proof', meatLost: '−1 meat', pf: 'pff', m: 'm',
     adStub: 'Ad (stub)', loading: 'Loading…',
     'item.hair': 'hair', 'item.dirt': 'dirt', 'item.fly': 'fly',
+    shop: 'Shop', back: 'Back', buy: 'Buy', max: 'Max', none: 'none',
+    'up.jumps': 'Jump charges', 'up.magnet': 'Magnet', 'up.jumps.effect': 'Jumps', 'up.magnet.effect': 'Radius',
+  },
+  tr: {
+    title: 'Köfte',
+    hint1: 'Zıplamak için dokun.', hint2: 'Sola veya sağa dokun — o yöne zıpla.', hint3: 'Yemek ye, büyü. Kıl ve kirden kaçın.',
+    hint4: 'Her zıplama bir şarj harcar, yemek doldurur.', hint5: 'Duvara hızla çarparsan et kaybedersin.',
+    tapToJump: 'Zıplamak için dokun',
+    fell: 'Düştü', best: 'en iyi', runCoins: 'Bu turda toplanan', total: 'Toplam',
+    again: 'Tekrar', continueAd: 'Devam et', doubleAd: 'Para ×2', forAd: 'reklam izle',
+    paused: 'Duraklatıldı', tapToContinue: 'Devam etmek için dokun',
+    mass: 'kütle', hairProof: 'kıl işlemez', meatLost: '−1 et', pf: 'pöf', m: 'm',
+    adStub: 'Reklam (taslak)', loading: 'Yükleniyor…',
+    'item.hair': 'kıl', 'item.dirt': 'kir', 'item.fly': 'sinek',
+    shop: 'Mağaza', back: 'Geri', buy: 'Satın al', max: 'Maks', none: 'yok',
+    'up.jumps': 'Zıplama şarjı', 'up.magnet': 'Mıknatıs', 'up.jumps.effect': 'Zıplama', 'up.magnet.effect': 'Yarıçap',
   },
 };
+function langFor(code) { const c = String(code || '').slice(0, 2).toLowerCase(); return c === 'ru' ? 'ru' : c === 'tr' ? 'tr' : 'en'; }
 // до YG.init()/setLang язык берём из браузера, чтобы «Загрузка…» не всегда была русской
-let LANG = String((window.navigator && window.navigator.language) || 'ru').slice(0, 2).toLowerCase() === 'ru' ? 'ru' : 'en';
-function setLang(code) { LANG = code === 'ru' ? 'ru' : 'en'; }
+let LANG = langFor((window.navigator && window.navigator.language) || 'ru');
+function setLang(code) { LANG = langFor(code); }
 function T(key) {
-  const t = STR[LANG][key];
-  if (t !== undefined) return t;
-  const f = STR.ru[key];
-  return f === undefined ? key : f;
+  for (const tbl of [STR[LANG], STR.en, STR.ru]) { const t = tbl[key]; if (t !== undefined) return t; }
+  return key;
 }
 expose({ setLang, T, get lang() { return LANG; } });

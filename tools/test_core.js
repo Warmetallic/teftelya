@@ -16,7 +16,7 @@ const AC = class extends FakeAC { constructor() { super(); ac = this; } };
   assert.deepStrictEqual(d.toGame({ clientX: 100, clientY: 200 }), [100, 200]);
   // i18n
   d.setLang('ru'); assert.strictEqual(d.T('again'), 'Ещё раз'); assert.strictEqual(d.lang, 'ru');
-  d.setLang('tr'); assert.strictEqual(d.T('again'), 'Again'); assert.strictEqual(d.lang, 'en', 'хук lang живой, не снимок');
+  d.setLang('de'); assert.strictEqual(d.T('again'), 'Again'); assert.strictEqual(d.lang, 'en', 'хук lang живой, не снимок');
   assert.strictEqual(d.T('no.such.key'), 'no.such.key');
   d.setLang('en'); assert.strictEqual(d.T('item.hair'), 'hair');
   // audio: после mute звук не создаётся, после unmute — создаётся

@@ -24,5 +24,6 @@ const sfx = {
   big:  () => { tone(300, 160, 0.18, 'square', 0.12); tone(600, 900, 0.12, 'triangle', 0.15); },
   hit:  () => tone(140, 60, 0.25, 'sawtooth', 0.22),
   die:  () => { tone(300, 40, 0.6, 'sawtooth', 0.25); },
+  buy:  () => { tone(600, 900, 0.08, 'triangle', 0.18); tone(900, 1300, 0.1, 'triangle', 0.15); },
 };
 expose({ tone, muteAudio, unmuteAudio, get audioMuted() { return audioMuted; } });
