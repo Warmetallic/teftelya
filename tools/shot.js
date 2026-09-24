@@ -29,7 +29,7 @@ const hazards = async (g, d) => { await up(g, d, 18); d.spawnFly(true); d.flies[
   }
   for (const h of d.hazards) if (h.type === 'knife' && h !== kn) h.t = 1.8;
   steps(g, 8); };
-const berserk = async (g, d) => { await up(g, d, 4); for (let i = 0; i < 12; i++) d.streakAdd(1); d.spawnFly(false); d.flies[0].warnT = 0; d.flies[0].x = 380; d.flies[0].y = d.ball.y - 40; steps(g, 12); };
+const berserk = async (g, d) => { await up(g, d, 4); d.powerAdd(d.POWER_FULL); d.tryActivatePower(); d.spawnFly(false); d.flies[0].warnT = 0; d.flies[0].x = 380; d.flies[0].y = d.ball.y - 40; steps(g, 12); };
 const dead = async (g, d) => { await up(g, d, 3); d.setRunCoins(23); d.die('fly'); steps(g, 60); };
 const finish = async (g, d) => { d.state = 'play'; d.run.foodEaten = Math.round(d.run.foodTotal * 0.9); d.run.time = 80; d.setRunCoins(31); d.finishTower(); steps(g, 40); };
 (async () => {

@@ -1,4 +1,4 @@
-// node tools/test_game.js — забег: старт, прыжок и заряды, посадка и серия, урон и смерть, лечение, продолжить, чекпоинт, финиш и рейтинг, еда, берсерк, мухи, god-режим
+// node tools/test_game.js — забег: старт, прыжок и заряды, посадка и шкала силы, урон и смерть, лечение, продолжить, чекпоинт, финиш и рейтинг, еда, суперсила, мухи, god-режим
 const assert = require('assert');
 const noop = () => {};
 const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addColorStop: noop }) : noop, set: () => true });
@@ -15,14 +15,14 @@ const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addCol
   // прыжок тратит заряд; в воздухе ещё два; без зарядов — нет
   assert.ok(d.jumpTo(300, -200)); assert.strictEqual(ball.charges, 2); assert.strictEqual(ball.onPlatform, null); assert.ok(ball.vy < 0);
   assert.ok(d.jumpTo(300, -300)); assert.ok(d.jumpTo(300, -400)); assert.strictEqual(d.jumpTo(300, -500), false, 'заряды кончились');
-  // посадка на платформу ряда 1: заряды полные, серия +1 за новую платформу, повтор не растит
+  // посадка на платформу ряда 1: заряды полные, шкала и серия для мух +1 за первую посадку, повтор не растит
   d.startTower(1); d.state = 'play'; const p1 = d.platforms.find(p => p.row === 1);
   for (const it of d.items) it.dead = true; d.setGod(true); // еда и масло по пути не должны влиять на проверку посадки
-  d.jumpTo(p1.x, p1.y); assert.ok(untilOn(p1.id), 'села на платформу ряда 1'); assert.strictEqual(ball.charges, 3); assert.strictEqual(d.streak.n, 1);
-  d.jumpTo(p1.x, p1.y); assert.ok(untilOn(p1.id)); assert.strictEqual(d.streak.n, 1, 'та же платформа серию не растит'); d.setGod(false);
-  // урон: −1 масса, неуязвимость, серия обнулена, отброс; повтор в неуязвимости не проходит; ноль массы — смерть с банком монет
+  d.jumpTo(p1.x, p1.y); assert.ok(untilOn(p1.id), 'села на платформу ряда 1'); assert.strictEqual(ball.charges, 3); assert.strictEqual(d.power.v, 1); assert.strictEqual(d.power.flyStreak, 1);
+  d.jumpTo(p1.x, p1.y); assert.ok(untilOn(p1.id)); assert.strictEqual(d.power.v, 1, 'та же платформа шкалу не растит'); d.setGod(false);
+  // урон: −1 масса, неуязвимость, четверть шкалы и серия для мух сняты, отброс; повтор в неуязвимости не проходит; ноль массы — смерть с банком монет
   d.setRunCoins(7); const earned0 = d.save.earned; d.YG.gameplayStart();
-  assert.ok(d.damage(1, 'oil', ball.x + 10, ball.y)); assert.strictEqual(ball.mass, 3); assert.ok(d.run.invuln > 0.9); assert.strictEqual(d.streak.n, 0); assert.strictEqual(ball.onPlatform, null);
+  assert.ok(d.damage(1, 'oil', ball.x + 10, ball.y)); assert.strictEqual(ball.mass, 3); assert.ok(d.run.invuln > 0.9); assert.strictEqual(d.power.v, 0); assert.strictEqual(d.power.flyStreak, 0); assert.strictEqual(ball.onPlatform, null);
   assert.strictEqual(d.damage(1, 'oil', ball.x, ball.y), false, 'в неуязвимости урона нет');
   d.run.invuln = 0; d.damage(5, 'knife', ball.x, ball.y); assert.strictEqual(d.state, 'dead'); assert.strictEqual(d.run.reason, 'knife'); assert.strictEqual(d.run.deaths, 1);
   assert.strictEqual(d.save.earned, earned0 + 7, 'монеты забега в сохранении'); assert.strictEqual(d.YG.log.at(-1), 'stop');
@@ -49,12 +49,25 @@ const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addCol
   const tp = d.towerParams(1), R = r => d.ratingFor(Object.assign({ deaths: 0, time: 10, foodEaten: 10, foodTotal: 10, usedContinue: 0 }, r), tp).letter;
   assert.strictEqual(R({}), 'S'); assert.strictEqual(R({ deaths: 1 }), 'A'); assert.strictEqual(R({ deaths: 1, time: 999 }), 'B'); assert.strictEqual(R({ deaths: 1, time: 999, foodEaten: 1 }), 'C'); assert.strictEqual(R({ usedContinue: 1 }), 'D');
   assert.strictEqual(R({ foodEaten: 8 }), 'S', '80% еды хватает'); assert.strictEqual(R({ foodEaten: 7 }), 'A'); assert.strictEqual(d.bonusCoins(3, 'A'), 90);
-  // еда: монеты с множителем башни и специй, серия +1; массу еда не возвращает (спека v2.1.1 §5)
+  // еда: монеты с множителем башни и специй, шкала +1 (в полёте +2); массу еда не возвращает (спека v2.1.1 §5)
   d.startTower(1); d.state = 'play'; const it = d.items[0]; ball.mass = 2; it.x = ball.x; it.y = ball.y; d.update(0.016);
-  assert.ok(it.dead); assert.strictEqual(ball.mass, 2, 'еда не лечит'); assert.strictEqual(d.run.foodEaten, 1); assert.strictEqual(d.run.runCoins, d.coinsFor(it.kind)); assert.strictEqual(d.streak.n, 1);
+  assert.ok(it.dead); assert.strictEqual(ball.mass, 2, 'еда не лечит'); assert.strictEqual(d.run.foodEaten, 1); assert.strictEqual(d.run.runCoins, d.coinsFor(it.kind)); assert.strictEqual(d.power.v, 1);
+  ball.onPlatform = null; ball.vy = 0; const it3 = d.items[1]; it3.x = ball.x; it3.y = ball.y; d.update(0.016); assert.ok(it3.dead); assert.strictEqual(d.power.v, 3, 'еда в полёте — +2');
   d.save.up.spice = 4; assert.strictEqual(d.coinsFor('meat'), Math.round(3 * 1.2)); d.save.up.spice = 0;
-  // берсерк: серия до порога → неуязвимость, монеты ×2, муха съедается
-  d.startTower(1); d.state = 'play'; for (let i = 0; i < 12; i++) d.streakAdd(1); assert.ok(d.isBerserk());
+  // шкала впервые за сессию полна — над Тефой подсказка «Тапни по Тефе!»; в следующий раз её нет (спека v2.1.1 §4.1)
+  const hints = () => d.texts.filter(t => t.str === 'Тапни по Тефе!').length;
+  for (const [k, want, msg] of [[2, 1, 'подсказка при первой полной шкале'], [3, 0, 'за сессию подсказка одна']]) {
+    d.startTower(1); d.state = 'play'; d.resetFx(); d.power.v = d.POWER_FULL - 1;
+    const food = d.items[k]; food.x = ball.x; food.y = ball.y; d.update(0.016);
+    assert.ok(d.powerReady()); assert.strictEqual(hints(), want, msg);
+  }
+  // муха отстала: +3 к шкале и +3 к скрытой серии для мух (спека v2.1.1 §4.1, §4.4)
+  d.startTower(1); d.state = 'play'; d.resetFlies(); d.spawnFly(true);
+  { const f = d.flies[0], v0 = d.power.v, s0 = d.power.flyStreak; f.warnT = 0; f.chaseT = d.flyChase(); d.update(0.016);
+    assert.strictEqual(d.flies.length, 0, 'муха отстала и улетела');
+    assert.strictEqual(d.power.v, v0 + 3, 'муха отстала — +3 к шкале'); assert.strictEqual(d.power.flyStreak, s0 + 3, 'и +3 к серии для мух'); }
+  // берсерк по полной шкале: неуязвимость, монеты ×2, муха съедается и лечит
+  d.startTower(1); d.state = 'play'; assert.strictEqual(d.tryActivatePower(), false, 'пустая шкала'); d.powerAdd(d.POWER_FULL); assert.ok(d.tryActivatePower()); assert.ok(d.isBerserk());
   assert.strictEqual(d.damage(1, 'oil', ball.x, ball.y), false, 'в берсерке урона нет'); assert.strictEqual(d.coinsFor('ketchup'), 2);
   d.spawnFly(true); d.flies[0].warnT = 0; d.flies[0].x = ball.x; d.flies[0].y = ball.y; ball.mass = 2; d.update(0.016);
   assert.strictEqual(d.flies.length, 0); assert.strictEqual(ball.mass, 3, 'муха съедена: +1 масса');
@@ -74,7 +87,7 @@ const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addCol
   // берсерк: сковородка не жжёт — ни урона, ни подброса
   d.startTower(3); d.state = 'play'; d.hazards.length = 0; for (const it of d.items) it.dead = true;
   const pan2 = d.platforms.find(p => p.type === 'pan'); dropOn(pan2); assert.ok(untilOn(pan2.id));
-  for (let i = 0; i < 12; i++) d.streakAdd(1); assert.ok(d.isBerserk());
+  d.powerAdd(d.POWER_FULL); assert.ok(d.tryActivatePower());
   { const m0 = ball.mass; steps(190); // 3.04 с — дольше таймера сковородки башни 3 (1.85 с) и короче берсерка (6 с)
     assert.strictEqual(ball.mass, m0, 'в берсерке масса на сковородке не меняется'); assert.strictEqual(ball.onPlatform, pan2.id, 'и подброса нет'); }
   // лопасти снимают один кусок, как любая опасность; в неуязвимости — ничего (спека v2.1.1 §7.1)
@@ -84,8 +97,11 @@ const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addCol
   const inBlades = () => { ball.x = bl.x; ball.y = bl.y; ball.onPlatform = null; ball.vy = 0; d.setCamY(bl.y - 400); };
   d.run.invuln = 1.5; inBlades(); d.update(0.016); assert.strictEqual(ball.mass, 4, 'в неуязвимости лопасти не ранят');
   d.run.invuln = 0; inBlades(); d.update(0.016); assert.strictEqual(d.state, 'play', 'лопасти не убивают сразу'); assert.strictEqual(ball.mass, 3, 'снят один кусок');
-  // «Продолжить»: серия и берсерк смерть не переживают
-  d.startTower(1); d.state = 'play'; d.streakAdd(5); assert.strictEqual(d.streak.n, 5);
-  d.die('fall'); d.continueRun(); assert.strictEqual(d.streak.n, 0, 'серия обнулена');
+  // «Продолжить»: шкала и потраченный берсерк смерть переживают, берсерк и серия для мух — нет; «Заново» обнуляет всё
+  d.startTower(1); d.state = 'play'; d.powerAdd(10); d.flyStreakAdd(5);
+  d.die('fall'); d.continueRun(); assert.strictEqual(d.power.flyStreak, 0, 'серия для мух обнулена'); assert.strictEqual(d.power.v, 10, 'шкала пережила смерть');
+  d.powerAdd(d.POWER_FULL); assert.ok(d.tryActivatePower()); d.die('fall'); assert.ok(!d.isBerserk(), 'смерть заканчивает берсерк');
+  d.continueRun(); assert.strictEqual(d.power.used, 1, 'смерть не возвращает берсерк'); d.powerAdd(d.POWER_FULL); assert.strictEqual(d.power.v, 0, 'лимит исчерпан — шкала не копится');
+  d.restartTower(); assert.strictEqual(d.power.used, 0); assert.strictEqual(d.power.v, 0, '«Заново» обнуляет шкалу');
   console.log('test_game ok');
 })().catch(e => { console.error(e); process.exit(1); });

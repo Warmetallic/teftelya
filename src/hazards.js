@@ -11,11 +11,12 @@ function spawnFly(fromLeft) {
   flies.push({ type: 'fly', x: left ? -30 : W + 30, y: ball.y - 100, side: left ? -1 : 1, warnT: FLY_WARN, chaseT: 0, phase: Math.random() * 6.28, gone: false });
 }
 function resetFlies() { flies = []; }
-// политика влёта (спека §4.3): лень — гарантированно; высокая серия — по шансу; берсерк и лимит — никогда
-function flyWanted(dt, streakN, campT, berserk) {
+// политика влёта (спека v2.1.1 §4.4): лень — гарантированно; скрытая серия ≥ 6 — по шансу, полная шкала (doubled) его удваивает;
+// берсерк и лимит — никогда
+function flyWanted(dt, streakN, campT, berserk, doubled) {
   if (berserk || flies.length >= FLY_MAX) return false;
   if (campT >= CAMP_T) return true;
-  if (streakN >= 6) return Math.random() < dt * Math.min(0.4, 0.08 + 0.02 * (streakN - 6));
+  if (streakN >= 6) return Math.random() < dt * Math.min(0.4, 0.08 + 0.02 * (streakN - 6)) * (doubled ? 2 : 1);
   return false;
 }
 function knifePhase(t) { // t → { phase, k } где k — 0..1 внутри фазы

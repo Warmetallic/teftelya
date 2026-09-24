@@ -1,6 +1,7 @@
 'use strict';
 // ---------- точка входа: загрузка, ввод, пауза, реклама между забегами, цикл ----------
 const AD_INTERVAL = 180; // секунд между межстраничными показами — свой лимит поверх лимитов Яндекса
+const TAP_TEFA_K = 1.3;   // тап ближе 1.3·r к центру Тефы попадает «по Тефе»: ≈ 1.1 видимого радиуса (тело шире коллизии в 1.25 раза)
 let booted = false, paused = false, awaitTap = false, adBusy = false;
 let plays = 0, lastAdAt = 0, sessionT = 0; // lastAdAt = 0: первые AD_INTERVAL секунд сессии без межстраничной — осознанная отсрочка
 async function boot() {
@@ -56,7 +57,12 @@ function onTap(x, y) {
   if (!booted || adBusy || paused) return;
   audio();
   if (awaitTap) { awaitTap = false; YG.gameplayStart(); return; } // первый тап после паузы — не прыжок
-  if (state === 'play') { if (ball.alive) jumpTo(clamp(x, 0, W), y + camY); return; } // тап по боковой зоне = у края поля
+  if (state === 'play') { // тап по Тефе при полной шкале — суперсила, иначе прыжок в точку (тап по боковой зоне = у края поля)
+    if (!ball.alive) return;
+    const wx = clamp(x, 0, W), wy = y + camY;
+    if (powerReady() && Math.hypot(wx - ball.x, wy - ball.y) <= Math.max(30, TAP_TEFA_K * ball.r)) { tryActivatePower(); return; }
+    jumpTo(wx, wy); return;
+  }
   if (state !== 'title' && tGame < 0.6) return;
   const b = hitButton(x, y); if (!b) return;
   if (b.id === 'play') goPlay('start');
@@ -71,12 +77,12 @@ cv.addEventListener('contextmenu', e => e.preventDefault());
 window.addEventListener('keydown', e => {
   if (e.repeat) return;
   const left = e.code === 'ArrowLeft' || e.code === 'KeyA', right = e.code === 'ArrowRight' || e.code === 'KeyD';
-  const up = e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW' || e.code === 'Enter';
-  if (!left && !right && !up) return;
+  const up = e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW' || e.code === 'Enter', act = e.code === 'KeyE';
+  if (!left && !right && !up && !act) return;
   e.preventDefault();
   if (!booted || adBusy || paused) return;
   if (awaitTap) { onTap(W / 2, H / 2); return; }
-  if (state === 'play') { if (ball.alive) jumpTo(left ? ball.x - 170 : right ? ball.x + 170 : ball.x, ball.y - (up ? 300 : 150)); return; }
+  if (state === 'play') { if (!ball.alive) return; if (act) { tryActivatePower(); return; } jumpTo(left ? ball.x - 170 : right ? ball.x + 170 : ball.x, ball.y - (up ? 300 : 150)); return; } // E — суперсила
   if (up) { const id = state === 'title' ? 'play' : state === 'dead' ? (run.cp > 0 ? 'cp' : 'restart') : 'next'; const b = buttons.find(b => b.id === id); if (b) onTap(b.x, b.y); }
 });
 // --- кадр ---

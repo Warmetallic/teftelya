@@ -25,9 +25,11 @@ const ctx = new Proxy({}, { get: (t, k) => k === 'fillText' ? s => texts.push(St
   // титул: башня, тема, кнопка «Играть»; с чекпоинтом — строка чекпоинта
   texts.length = 0; d.state = 'title'; d.titleScreen(); assert.ok(texts.includes('Башня 1') && texts.includes('Кухня')); assert.deepStrictEqual(d.buttons.map(b => b.id), ['play']);
   d.save.cp = 1; texts.length = 0; d.titleScreen(); assert.ok(texts.includes('Чекпоинт 1')); d.save.cp = 0;
-  // HUD: серия, монеты, башня; в берсерке — «Берсерк!»
-  d.state = 'play'; d.setRunCoins(12); d.streakAdd(4); texts.length = 0; d.drawHUD(); assert.ok(texts.includes('Серия 4') && texts.includes('● 12') && texts.includes('Башня 1'));
-  for (let i = 0; i < 8; i++) d.streakAdd(1); texts.length = 0; d.drawHUD(); assert.ok(texts.includes('Берсерк!'));
+  // HUD: шкала силы, монеты, башня; панели серии и иконок массы нет; при лимите больше одного — остаток берсерков
+  d.state = 'play'; d.setRunCoins(12); d.powerAdd(12); texts.length = 0; d.drawHUD(); assert.ok(texts.includes('● 12') && texts.includes('Башня 1'));
+  assert.ok(!texts.some(t => /Серия|Streak/.test(t)), 'панели серии нет'); assert.ok(!texts.some(t => t.startsWith('×')), 'при лимите 1 число не пишется');
+  d.powerAdd(d.POWER_FULL); d.drawWorld(); d.drawHUD(); d.tryActivatePower(); d.drawWorld(); d.drawHUD(); // полная шкала и берсерк рисуются
+  d.startTower(1); d.state = 'play'; d.save.up.fury = 1; texts.length = 0; d.drawHUD(); assert.ok(texts.includes('×2'), 'остаток берсерков'); d.save.up.fury = 0;
   // смерть: причина, кнопки по флагам
   d.startTower(1); d.state = 'play'; d.die('blades'); d.deadScreen(false); assert.strictEqual(d.buttons.length, 0, 'до 0.6 с кнопок нет');
   texts.length = 0; d.deadScreen(true); assert.ok(texts.includes('Шлёп!') && texts.includes('Лопасти')); assert.deepStrictEqual(d.buttons.map(b => b.id), ['continue', 'restart']);

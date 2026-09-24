@@ -24,7 +24,8 @@ const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addCol
   // политика влёта: лень 3 с — всегда; берсерк — никогда; лимит 3; серия < 6 — никогда; серия ≥ 6 — по вероятности
   d.resetFlies(); assert.strictEqual(d.flyWanted(0.016, 0, 3.1, false), true); assert.strictEqual(d.flyWanted(0.016, 20, 3.1, true), false);
   assert.strictEqual(d.flyWanted(0.016, 0, 0, false), false); assert.strictEqual(d.flyWanted(0.016, 5, 0, false), false);
-  const rnd0 = Math.random; Math.random = () => 0; assert.strictEqual(d.flyWanted(0.016, 6, 0, false), true); Math.random = () => 0.999; assert.strictEqual(d.flyWanted(0.016, 6, 0, false), false); Math.random = rnd0;
+  const rnd0 = Math.random; Math.random = () => 0; assert.strictEqual(d.flyWanted(0.016, 6, 0, false), true); Math.random = () => 0.999; assert.strictEqual(d.flyWanted(0.016, 6, 0, false), false);
+  Math.random = () => 0.002; assert.strictEqual(d.flyWanted(0.016, 6, 0, false, false), false); assert.strictEqual(d.flyWanted(0.016, 6, 0, false, true), true, 'полная шкала удваивает шанс мухи'); Math.random = rnd0;
   d.spawnFly(); d.spawnFly(); d.spawnFly(); assert.strictEqual(d.flyWanted(0.016, 0, 9, false), false, 'не больше FLY_MAX'); d.resetFlies();
   // масло: капля раз в OIL_T, падает вниз, шлёпается на floorY; попадание — hit
   const oil = { id: 1, type: 'oil', x: 240, y: -640, floorY: -500, t: 0, drops: [] };

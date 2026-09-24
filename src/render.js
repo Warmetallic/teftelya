@@ -110,24 +110,33 @@ function drawTefaBall() {
   if (st) { ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(x, st.y - camY + 6, r * 0.9, 8, 0, 0, 7); ctx.fill(); } // тень на платформе
   const pose = { sx: 1 + ball.sq, sy: 1 - ball.sq, tilt: ball.tilt, face: ball.face, mouth: ball.mouth, blink: ball.blink > 0, hot: ball.hot, berserk: bz,
     alpha: run && run.invuln > 0 && Math.floor(tGame * 12) % 2 === 0 ? 0.45 : 1,
-    hp: { cur: ball.mass, max: massMax() },
+    hp: { cur: ball.mass, max: massMax() }, charged: powerReady(),
     tint: ball.mass === 1 ? 0.5 + 0.5 * Math.sin(tGame * Math.PI * 3) : 0, // последний кусок мигает ≈ 1.5 раза в секунду
     heal: ball.healT > 0 ? 1 - ball.healT / HEAL_T : 0 };
   drawTefa(ctx, x, y, r, pose);
   const cm = chargesMax(), top = y - r * 1.16 - 14 - (bz ? r * 0.55 : 0); // заряды над головой; в берсерке выше пламени
   for (let i = 0; i < cm; i++) { ctx.fillStyle = i < ball.charges ? '#f6c343' : 'rgba(255,255,255,0.2)'; ctx.beginPath(); ctx.arc(x - (cm - 1) * 7 + i * 14, top, 4, 0, 7); ctx.fill(); }
 }
-function drawHUD() {
-  const mm = massMax();
-  for (let i = 0; i < mm; i++) { // масса как здоровье
-    const x = 24 + i * 22, y = 34; ctx.fillStyle = i < ball.mass ? '#c0583a' : 'rgba(255,255,255,0.15)'; ctx.beginPath(); ctx.arc(x, y, 8, 0, 7); ctx.fill();
-    if (i < ball.mass) { ctx.fillStyle = 'rgba(255,230,200,0.5)'; ctx.beginPath(); ctx.arc(x - 3, y - 3, 3, 0, 7); ctx.fill(); }
+// шкала суперсилы сверху слева (спека v2.1.1 §3.3): копится оранжевой, полна — золотая и пульсирует, в берсерке показывает
+// остаток его времени, исчерпана — серая; при лимите больше одного справа остаток берсерков
+function drawPowerMeter() {
+  const x = 40, y = 30, w = 140, h = 10, bz = isBerserk(), spent = powerSpent() && !bz, ready = powerReady();
+  ctx.save(); ctx.translate(22, y + 5); // значок-пламя
+  ctx.fillStyle = spent ? 'rgba(255,255,255,0.25)' : ready || bz ? '#ffe08a' : '#ff9a2a';
+  ctx.beginPath(); ctx.moveTo(0, -11); ctx.quadraticCurveTo(9, -2, 6, 5); ctx.quadraticCurveTo(0, 10, -6, 5); ctx.quadraticCurveTo(-9, -2, 0, -11); ctx.fill();
+  ctx.restore();
+  ctx.fillStyle = 'rgba(255,255,255,0.15)'; rrect(x, y, w, h, 5); ctx.fill();
+  const frac = bz ? power.berserkT / berserkDur() : spent ? 0 : clamp(power.v / POWER_FULL, 0, 1);
+  if (frac > 0) {
+    ctx.save();
+    if (ready) { ctx.shadowColor = 'rgba(255,220,120,0.9)'; ctx.shadowBlur = 8 + 8 * (0.5 + 0.5 * Math.sin(tGame * 8)); }
+    ctx.fillStyle = bz ? '#ff7a2a' : ready ? '#ffe08a' : '#ff9a2a'; rrect(x, y, w * frac, h, 5); ctx.fill();
+    ctx.restore();
   }
-  const bz = isBerserk(), frac = bz ? streak.berserkT / berserkDur() : clamp(streak.n / berserkThreshold(), 0, 1); // серия / берсерк
-  ctx.fillStyle = 'rgba(255,255,255,0.15)'; rrect(16, 50, 150, 10, 5); ctx.fill();
-  if (frac > 0) { ctx.fillStyle = bz ? '#ffe08a' : '#8ff0a4'; rrect(16, 50, 150 * frac, 10, 5); ctx.fill(); }
-  ctx.fillStyle = '#fff'; ctx.font = '700 15px system-ui, sans-serif'; ctx.textAlign = 'left';
-  ctx.fillText(bz ? T('berserk') : T('streak') + ' ' + streak.n, 16, 80);
+  if (berserkLimit() > 1) { ctx.fillStyle = '#fff'; ctx.font = '700 14px system-ui, sans-serif'; ctx.textAlign = 'left'; ctx.fillText('×' + (berserkLimit() - power.used), x + w + 8, y + 10); }
+}
+function drawHUD() { // жизни показывает сама Тефа; здесь шкала силы, монеты, номер башни и прогресс
+  drawPowerMeter();
   ctx.textAlign = 'right'; ctx.font = '700 22px system-ui, sans-serif'; ctx.fillStyle = '#ffe08a'; ctx.fillText('● ' + run.runCoins, W - 16, 40);
   ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.font = '600 15px system-ui, sans-serif'; ctx.fillText(T('tower') + ' ' + tower.tp.N, W - 16, 64);
   const x = W - 14, y0 = 110, y1 = H - 110; // прогресс башни с отметками чекпоинтов
@@ -156,4 +165,4 @@ function drawWorld() { // всё внутри поля; вызывающий с�
   }
   ctx.globalAlpha = 1;
 }
-expose({ drawBg, drawWorld, drawHUD, drawPlatform, drawHazard, drawFly });
+expose({ drawBg, drawWorld, drawHUD, drawPowerMeter, drawPlatform, drawHazard, drawFly });
