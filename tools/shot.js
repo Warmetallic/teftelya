@@ -19,8 +19,29 @@ const hazards = async (g, d) => {
   const bl = d.hazards.find(h => h.type === 'blades'); await up(g, d, bl ? Math.max(1, Math.round((-bl.y - 60) / d.ROW_H) - 2) : 18);
   d.spawnFly(true); d.flies[0].warnT = 0; d.flies[0].x = 60; d.flies[0].y = d.ball.y - 60;
   const kn = d.hazards.find(h => h.type === 'knife'); if (kn) { kn.x = 330; kn.y = d.ball.y - 220; kn.by = kn.y - 150; kn.t = 1.8; }
-  d.startPour(d.ball.x + 80); steps(g, 8); };
+  d.resetPours(1e9); d.startPour(d.ball.x + 80); steps(g, 8); }; // один налив сцены, плановые выключены
 const berserk = async (g, d) => { await up(g, d, 4); d.powerAdd(d.POWER_FULL); d.tryActivatePower(); d.spawnFly(false); d.flies[0].warnT = 0; d.flies[0].x = 380; d.flies[0].y = d.ball.y - 40; steps(g, 12); };
+// шкала полна: шкалу добиваем настоящей едой, чтобы сработало событие — Тефа светится, над ней «Тапни по Тефе!»
+const charged = async (g, d) => { await up(g, d, 4); d.resetPours(1e9); d.power.v = d.POWER_FULL - 1; const it = d.items.find(i => !i.dead); it.x = d.ball.x; it.y = d.ball.y; steps(g, 20); };
+// последний кусок: три укуса, испуганное лицо, красная пульсация
+const lastPiece = async (g, d) => { await up(g, d, 4); d.resetPours(1e9); d.ball.mass = 1; steps(g, 70); };
+// башня 3: Тефа на крошащемся сыре, соседний сыр уже пропал и видна пунктирная рамка
+// бот встаёт на платформу пути прямо под сыром (не на сам сыр: тот раскрошился бы, пока сцена готовится), мух нет;
+// Тефу роняем на сыр сверху — правка сцены, как нож в сцене опасностей; через 0.3 с сыр трескается, но ещё держит
+const cheese = async (g, d) => {
+  const c = d.platforms.find(p => p.type === 'cheese' && p.row >= 3 && d.tower.path.includes(p.id));
+  const prev = d.platforms.find(p => p.id === d.tower.path[d.tower.path.indexOf(c.id) - 1]);
+  await up(g, d, prev.row); d.resetPours(1e9); d.resetFlies();
+  const b = d.ball; b.onPlatform = null; b.x = c.x; b.y = c.y - b.r - 40; b.vx = 0; b.vy = 150;
+  for (let i = 0; i < 120 && b.onPlatform !== c.id; i++) g.step(); steps(g, 18);
+  const other = d.platforms.find(p => p.type === 'cheese' && p !== c && Math.abs(p.y - c.y) < 450); if (other) { other.gone = true; other.backT = 2; } };
+// налив: первый половник уже льёт — капли в воздухе, пятно шипит на платформе; второй только наклоняется, пунктир мигает
+const pour = async (g, d) => {
+  await up(g, d, 4); d.resetPours(1e9);
+  const p = d.platforms.filter(q => q.id !== d.ball.onPlatform && q.type !== 'tray' && q.y - d.camY > 200 && q.y - d.camY < 800)
+    .sort((a, b) => Math.abs(b.x - d.ball.x) - Math.abs(a.x - d.ball.x))[0]; // видимая платформа дальше всех от Тефы
+  const fall = Math.round((p.y - d.camY - d.LADLE_Y - 6) / d.POUR_V * 60); // кадров от черпака до платформы
+  d.startPour(p.x); steps(g, Math.round(d.POUR_WARN * 60) + fall + 6); d.startPour(d.ball.x > 240 ? d.ball.x - 150 : d.ball.x + 150); steps(g, 12); };
 const dead = async (g, d) => { await up(g, d, 3); d.setRunCoins(23); d.die('fly'); steps(g, 60); };
 const finish = async (g, d) => { d.state = 'play'; d.run.foodEaten = Math.round(d.run.foodTotal * 0.9); d.run.time = 80; d.setRunCoins(31); d.finishTower(); steps(g, 40); };
 (async () => {
@@ -29,6 +50,10 @@ const finish = async (g, d) => { d.state = 'play'; d.run.foodEaten = Math.round(
   await shoot('play', 480, 854, play);
   await shoot('hazards', 480, 854, hazards, tower3);
   await shoot('berserk', 480, 854, berserk);
+  await shoot('charged', 480, 854, charged);
+  await shoot('last_piece', 480, 854, lastPiece);
+  await shoot('cheese', 480, 854, cheese, tower3);
+  await shoot('pour', 480, 854, pour);
   await shoot('fly_warn', 480, 854, async (g, d) => { await up(g, d, 2); d.spawnFly(true); steps(g, 3); });
   await shoot('dead', 480, 854, dead);
   await shoot('finish', 480, 854, finish);
