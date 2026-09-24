@@ -1,101 +1,92 @@
-// node tools/test_game.js — правила забега без рендера: прыжок, еда, мусор, смерть, продолжить, ×2, неуязвимость
+// node tools/test_game.js — забег v2.1: старт, прыжок и заряды, посадка и серия, урон и смерть, продолжить, чекпоинт, финиш и рейтинг, еда, берсерк, мухи, god-режим
 const assert = require('assert');
 const noop = () => {};
 const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addColorStop: noop }) : noop, set: () => true });
-const item = (d, kind, trash, x, y) => ({ kind, trash, def: trash ? d.TRASH[kind] : d.FOOD[kind], x, y, r: (trash ? d.TRASH : d.FOOD)[kind].r, vx: 0, seed: 0, dead: false });
 (async () => {
   const g = require('./_env')(ctx); const d = g.dbg(); await d.YG.init(); await d.loadSave();
   const ball = d.ball;
-  // прыжок тратит заряд и даёт скорость вверх; сила не зависит от массы
-  d.reset(); d.state = 'play';
-  assert.strictEqual(ball.mass, 1); assert.strictEqual(ball.jumps, 4);
-  d.jump(1); assert.strictEqual(ball.jumps, 3); assert.strictEqual(ball.vy, -690); assert.ok(ball.vx > 0);
-  ball.mass = 9; ball.vy = 0; d.jump(-1); assert.strictEqual(ball.vy, -690); assert.strictEqual(ball.jumps, 2);
-  // без зарядов прыжка нет; регенерация +1 за 1.6 с
-  d.reset(); d.state = 'play'; ball.jumps = 0; ball.vy = 0;
-  d.jump(1); assert.strictEqual(ball.vy, 0);
-  for (let i = 0; i < 110; i++) d.update(0.016);
-  assert.ok(ball.jumps >= 1, 'заряд восстановился'); assert.strictEqual(d.state, 'play', 'на тарелке не умирает');
-  // еда: масса, монеты, заряды; множитель монет от массы
-  d.reset(); d.state = 'play';
-  d.items.push(item(d, 'meat', false, ball.x, ball.y)); d.update(0.016);
-  assert.strictEqual(ball.mass, 3); assert.strictEqual(d.run.runCoins, 5); assert.strictEqual(ball.jumps, 4);
-  ball.mass = 5; d.items.push(item(d, 'ketchup', false, ball.x, ball.y)); d.update(0.016);
-  assert.strictEqual(d.run.runCoins, 7, 'кетчуп при ×1.5 = 2 монеты');
-  // мусор: волос при массе ≥ 6 безвреден, грязь −2
-  ball.mass = 6; d.items.push(item(d, 'hair', true, ball.x, ball.y)); d.update(0.016); assert.strictEqual(ball.mass, 6, 'пф');
-  d.items.push(item(d, 'dirt', true, ball.x, ball.y)); d.update(0.016); assert.strictEqual(ball.mass, 4);
-  // смерть от массы < 1: монеты в сохранение, стоп геймплея
-  d.YG.gameplayStart(); const coins0 = d.coins(); d.setRunCoins(12); ball.mass = 1;
-  d.items.push(item(d, 'dirt', true, ball.x, ball.y)); d.update(0.016);
-  assert.strictEqual(d.state, 'dead'); assert.strictEqual(ball.alive, false);
-  assert.strictEqual(d.coins(), coins0 + 12); assert.strictEqual(d.YG.log.at(-1), 'stop');
-  // продолжить: тарелка внизу, масса ≥ 3, заряды полные, неуязвимость, мусор рядом убран
-  const py = d.camY + 854 - 90;
-  d.items.push(item(d, 'hair', true, 240, py - 40)); d.continueRun();
-  assert.strictEqual(d.state, 'play'); assert.ok(ball.alive); assert.strictEqual(ball.mass, 3); assert.strictEqual(ball.jumps, 4);
-  assert.ok(d.run.invuln > 1.4); assert.ok(d.run.usedContinue);
-  assert.ok(!d.items.some(it => it.kind === 'hair' && Math.abs(it.y - ball.y) < 200), 'мусор у точки появления удалён');
-  assert.ok(d.plates.some(p => p.y === py), 'добавлена тарелка у нижнего края');
-  d.items.push(item(d, 'dirt', true, ball.x, ball.y)); d.update(0.016); assert.strictEqual(ball.mass, 3, 'в неуязвимости мусор не бьёт');
-  for (let i = 0; i < 120; i++) d.update(0.016);
-  assert.strictEqual(d.run.invuln, 0); assert.ok(ball.mass < 3 || d.state === 'dead', 'после неуязвимости мусор бьёт');
-  // «Продолжить» с большой массой сохраняет её
-  d.reset(); d.state = 'play'; ball.mass = 8; d.die(); d.continueRun(); assert.strictEqual(ball.mass, 8);
-  // ×2
-  d.reset(); d.state = 'play'; d.setRunCoins(15); d.die();
-  const c1 = d.coins(); d.doubleCoins();
-  assert.strictEqual(d.run.runCoins, 30); assert.strictEqual(d.coins(), c1 + 15); assert.ok(d.run.usedDouble);
-  // рекорд высоты и падение за нижний край
-  d.reset(); d.state = 'play'; ball.y = -5000; d.update(0.016); assert.ok(d.run.maxHeight >= 499);
-  ball.y = d.camY + 854 + 200; d.update(0.016); assert.strictEqual(d.state, 'dead'); assert.ok(d.save.best >= 499);
-  // удар о стену быстрее WALL_HIT отрывает мясо, в неуязвимости — нет
-  d.reset(); d.state = 'play'; ball.mass = 5; ball.x = ball.r - 5; ball.vx = -400; d.update(0.016);
-  assert.strictEqual(ball.mass, 4, 'удар о стену быстрее WALL_HIT отрывает мясо'); assert.ok(ball.vx > 0, 'отскок');
-  d.reset(); d.state = 'play'; ball.mass = 5; d.die(); d.continueRun();
-  ball.x = ball.r - 5; ball.vx = -400; d.update(0.016);
-  assert.strictEqual(ball.mass, 5, 'в неуязвимости стена мясо не отрывает');
-  // монеты через «Продолжить» считаются один раз
-  { d.reset(); d.state = 'play'; const c0 = d.coins(); d.setRunCoins(20); d.die(); d.continueRun();
-    d.items.push(item(d, 'meat', false, ball.x, ball.y)); d.update(0.016); d.setRunCoins(30); d.die();
-    assert.strictEqual(d.coins(), c0 + 30, 'смерть → продолжить → смерть: +30, не +50'); }
-  { d.reset(); d.state = 'play'; const c0 = d.coins(); d.setRunCoins(20); d.die(); d.doubleCoins(); d.continueRun();
-    d.setRunCoins(50); d.die();
-    assert.strictEqual(d.coins(), c0 + 50, 'смерть → ×2 → продолжить → смерть: +50, не +90'); }
-  // множитель: ×1.5 / ×2 / ×3 / ×4 с массы 4 / 7 / 10 / 14
-  for (const [m, k] of [[1, 1], [3, 1], [4, 1.5], [6, 1.5], [7, 2], [9, 2], [10, 3], [13, 3], [14, 4], [20, 4]]) { ball.mass = m; assert.strictEqual(d.coinMult(), k, 'масса ' + m); }
-  // гейты мусора: до 60 м только еда, 60–130 только волосы, 130–220 без мухи
-  assert.deepStrictEqual(Object.keys(d.trashPoolFor(10)), []);
-  assert.deepStrictEqual(Object.keys(d.trashPoolFor(70)), ['hair']);
-  assert.deepStrictEqual(Object.keys(d.trashPoolFor(150)), ['hair', 'dirt']);
-  assert.deepStrictEqual(Object.keys(d.trashPoolFor(300)), ['hair', 'dirt', 'fly']);
-  { const all = []; for (let i = 0; i < 30; i++) { d.reset(); d.state = 'play'; d.update(0.016); all.push(...d.items); }
-    const hOf = it => -it.y / 10; // предмет может лежать на ±2.5 м от строки спавна, поэтому запас 3 м
-    assert.ok(all.some(it => it.trash), 'мусор вообще спавнится');
-    assert.ok(!all.some(it => it.trash && hOf(it) < 57), 'ниже 60 м мусора нет');
-    assert.ok(!all.some(it => it.trash && it.kind !== 'hair' && hOf(it) < 127), 'ниже 130 м только волосы');
-    assert.ok(!all.some(it => it.kind === 'fly' && hOf(it) < 217), 'ниже 220 м мухи нет'); }
-  // заряды по апгрейду: максимум 6, еда и регенерация наполняют до него, «Продолжить» даёт полный
-  d.save.up.jumps = 2; d.reset(); d.state = 'play';
-  assert.strictEqual(ball.jumps, 6); d.jump(1); d.jump(1); d.jump(1);
-  d.items.push(item(d, 'meat', false, ball.x, ball.y)); d.update(0.016); assert.strictEqual(ball.jumps, 6, 'еда наполняет до 6');
-  ball.x = 240; ball.y = 0; ball.vx = 0; ball.vy = 0; // вернуть на тарелку: после трёх прыжков вбок тефтеля улетела бы со сцены и погибла до конца регенерации
-  ball.jumps = 5; for (let i = 0; i < 110; i++) d.update(0.016); assert.strictEqual(d.state, 'play'); assert.strictEqual(ball.jumps, 6, 'регенерация до 6');
-  d.die(); d.continueRun(); assert.strictEqual(ball.jumps, 6);
-  d.save.up.jumps = 0; d.reset(); assert.strictEqual(ball.jumps, 4);
-  // магнит: еда в радиусе подтягивается, мусор и еда вне радиуса — нет
-  d.save.up.magnet = 1; d.reset(); d.state = 'play';
-  const near = item(d, 'ketchup', false, ball.x + ball.r + 50, ball.y), far = item(d, 'ketchup', false, ball.x + ball.r + 200, ball.y), junk = item(d, 'hair', true, ball.x - ball.r - 50, ball.y);
-  d.items.push(near, far, junk); const nx = near.x, fx = far.x, jx = junk.x; d.update(0.016);
-  assert.ok(near.x < nx - 3 && !near.dead, 'еда в радиусе подтянулась и ещё не съедена');
-  assert.strictEqual(far.x, fx, 'еда вне радиуса на месте'); assert.strictEqual(junk.x, jx, 'мусор не притягивается');
-  d.save.up.magnet = 0; d.reset(); d.state = 'play';
-  const n2 = item(d, 'ketchup', false, ball.x + ball.r + 50, ball.y); d.items.push(n2); const n2x = n2.x; d.update(0.016);
-  assert.strictEqual(n2.x, n2x, 'без апгрейда магнита нет');
-  // смерть и ×2 пишут в earned
-  d.reset(); d.state = 'play'; const e0 = d.save.earned; d.setRunCoins(7); d.die(); assert.strictEqual(d.save.earned, e0 + 7);
-  d.doubleCoins(); assert.strictEqual(d.save.earned, e0 + 14);
-  // reset сбрасывает флаги забега
-  d.reset(); assert.deepStrictEqual([d.run.usedContinue, d.run.usedDouble, d.run.runCoins, d.run.invuln], [false, false, 0, 0]);
+  const steps = (n, dt = 0.016) => { for (let i = 0; i < n; i++) d.update(dt); };
+  const untilOn = (id, n = 120) => { for (let i = 0; i < n; i++) { d.update(0.016); if (ball.onPlatform === id) return true; } return false; };
+  const dropOn = (p) => { ball.onPlatform = null; ball.x = p.x; ball.y = p.y - ball.r - 30; ball.vx = 0; ball.vy = 200; d.setCamY(p.y - 500); };
+  // старт башни 1: Тефа на стартовой тарелке, масса 3 из 4, 3 заряда
+  d.startTower(1); d.state = 'play';
+  assert.strictEqual(d.tower.tp.N, 1); assert.strictEqual(ball.mass, 3); assert.strictEqual(d.massMax(), 4); assert.strictEqual(ball.charges, 3);
+  assert.strictEqual(ball.onPlatform, 0); assert.strictEqual(ball.y, -ball.r); assert.ok(d.run.foodTotal > 0); assert.strictEqual(d.run.deaths, 0);
+  // прыжок тратит заряд; в воздухе ещё два; без зарядов — нет
+  assert.ok(d.jumpTo(300, -200)); assert.strictEqual(ball.charges, 2); assert.strictEqual(ball.onPlatform, null); assert.ok(ball.vy < 0);
+  assert.ok(d.jumpTo(300, -300)); assert.ok(d.jumpTo(300, -400)); assert.strictEqual(d.jumpTo(300, -500), false, 'заряды кончились');
+  // посадка на платформу ряда 1: заряды полные, серия +1 за новую платформу, повтор не растит
+  d.startTower(1); d.state = 'play'; const p1 = d.platforms.find(p => p.row === 1);
+  for (const it of d.items) it.dead = true; d.setGod(true); // еда и масло по пути не должны влиять на проверку посадки
+  d.jumpTo(p1.x, p1.y); assert.ok(untilOn(p1.id), 'села на платформу ряда 1'); assert.strictEqual(ball.charges, 3); assert.strictEqual(d.streak.n, 1);
+  d.jumpTo(p1.x, p1.y); assert.ok(untilOn(p1.id)); assert.strictEqual(d.streak.n, 1, 'та же платформа серию не растит'); d.setGod(false);
+  // урон: −1 масса, неуязвимость, серия обнулена, отброс; повтор в неуязвимости не проходит; ноль массы — смерть с банком монет
+  d.setRunCoins(7); const earned0 = d.save.earned; d.YG.gameplayStart();
+  assert.ok(d.damage(1, 'oil', ball.x + 10, ball.y)); assert.strictEqual(ball.mass, 2); assert.ok(d.run.invuln > 0.9); assert.strictEqual(d.streak.n, 0); assert.strictEqual(ball.onPlatform, null);
+  assert.strictEqual(d.damage(1, 'oil', ball.x, ball.y), false, 'в неуязвимости урона нет');
+  d.run.invuln = 0; d.damage(5, 'knife', ball.x, ball.y); assert.strictEqual(d.state, 'dead'); assert.strictEqual(d.run.reason, 'knife'); assert.strictEqual(d.run.deaths, 1);
+  assert.strictEqual(d.save.earned, earned0 + 7, 'монеты забега в сохранении'); assert.strictEqual(d.YG.log.at(-1), 'stop');
+  // продолжить: на последней платформе, масса ≥ 2, неуязвимость 1.5 с, usedContinue; падение за экран; с чекпоинта
+  d.continueRun(); assert.strictEqual(d.state, 'play'); assert.ok(ball.alive); assert.strictEqual(ball.onPlatform, p1.id); assert.strictEqual(ball.mass, 2); assert.ok(d.run.invuln >= 1.5); assert.strictEqual(d.run.usedContinue, 1);
+  ball.onPlatform = null; ball.y = d.camY + 854 + 200; d.update(0.016); assert.strictEqual(d.state, 'dead'); assert.strictEqual(d.run.reason, 'fall'); assert.strictEqual(d.run.deaths, 2);
+  d.run.cp = 1; d.restartFromCp(); assert.strictEqual(d.state, 'play'); assert.strictEqual(ball.onPlatform, d.platforms.find(p => p.cp === 1).id); assert.strictEqual(ball.mass, 3); assert.strictEqual(d.run.deaths, 2, 'смерти остаются');
+  // чекпоинт: посадка на платформу с cp пишет run.cp и save.cp
+  d.startTower(1); d.state = 'play'; const cp1 = d.platforms.find(p => p.cp === 1); dropOn(cp1); steps(20);
+  assert.strictEqual(ball.onPlatform, cp1.id); assert.strictEqual(d.run.cp, 1); assert.strictEqual(JSON.parse(g.store.get('teft_save')).cp, 1, 'чекпоинт сохранён');
+  // финиш: крыша → finish, рейтинг S, награда, летопись, следующая башня
+  d.startTower(1); d.state = 'play'; d.YG.gameplayStart(); const roof = d.platforms.find(p => p.roof);
+  d.run.foodEaten = d.run.foodTotal; d.setRunCoins(10); dropOn(roof); steps(20);
+  assert.strictEqual(d.state, 'finish'); assert.strictEqual(d.run.rating.letter, 'S'); assert.strictEqual(d.run.bonus, 40); assert.strictEqual(d.run.runCoins, 50);
+  assert.strictEqual(d.save.log[1].r, 'S'); assert.strictEqual(d.save.tower, 2); assert.strictEqual(d.save.cp, 0); assert.strictEqual(d.YG.log.at(-1), 'stop');
+  assert.strictEqual(JSON.parse(g.store.get('teft_save')).tower, 2);
+  // монеты: удвоение после финиша добавляет ровно столько же; смерть → продолжить → смерть банкует один раз
+  { const c0 = d.coins(); d.doubleCoins(); assert.strictEqual(d.coins(), c0 + 50, '×2 добавляет столько же, сколько было'); assert.strictEqual(d.run.runCoins, 100); assert.ok(d.run.usedDouble); }
+  d.nextTower(); assert.strictEqual(d.tower.tp.N, 2); assert.strictEqual(d.state, 'play'); assert.strictEqual(d.run.deaths, 0);
+  { d.startTower(1); d.state = 'play'; const cA = d.coins(); d.setRunCoins(30); d.die('oil'); assert.strictEqual(d.coins(), cA + 30);
+    d.continueRun(); d.die('oil'); assert.strictEqual(d.coins(), cA + 30, 'после продолжения те же монеты не банкуются повторно');
+    d.continueRun(); d.setRunCoins(45); d.die('oil'); assert.strictEqual(d.coins(), cA + 45, 'банкуется только прирост'); }
+  // таблица рейтинга и награда
+  const tp = d.towerParams(1), R = r => d.ratingFor(Object.assign({ deaths: 0, time: 10, foodEaten: 10, foodTotal: 10, usedContinue: 0 }, r), tp).letter;
+  assert.strictEqual(R({}), 'S'); assert.strictEqual(R({ deaths: 1 }), 'A'); assert.strictEqual(R({ deaths: 1, time: 999 }), 'B'); assert.strictEqual(R({ deaths: 1, time: 999, foodEaten: 1 }), 'C'); assert.strictEqual(R({ usedContinue: 1 }), 'D');
+  assert.strictEqual(R({ foodEaten: 8 }), 'S', '80% еды хватает'); assert.strictEqual(R({ foodEaten: 7 }), 'A'); assert.strictEqual(d.bonusCoins(3, 'A'), 90);
+  // еда: +1 масса до максимума, монеты с множителем башни и специй, серия +1
+  d.startTower(1); d.state = 'play'; const it = d.items[0]; ball.mass = 2; it.x = ball.x; it.y = ball.y; d.update(0.016);
+  assert.ok(it.dead); assert.strictEqual(ball.mass, 3); assert.strictEqual(d.run.foodEaten, 1); assert.strictEqual(d.run.runCoins, d.coinsFor(it.kind)); assert.strictEqual(d.streak.n, 1);
+  ball.mass = 4; const it2 = d.items[1]; it2.x = ball.x; it2.y = ball.y; d.update(0.016); assert.strictEqual(ball.mass, 4, 'выше максимума не растёт');
+  d.save.up.spice = 4; assert.strictEqual(d.coinsFor('meat'), Math.round(3 * 1.2)); d.save.up.spice = 0;
+  // берсерк: серия до порога → неуязвимость, монеты ×2, муха съедается
+  d.startTower(1); d.state = 'play'; for (let i = 0; i < 12; i++) d.streakAdd(1); assert.ok(d.isBerserk());
+  assert.strictEqual(d.damage(1, 'oil', ball.x, ball.y), false, 'в берсерке урона нет'); assert.strictEqual(d.coinsFor('ketchup'), 2);
+  d.spawnFly(true); d.flies[0].warnT = 0; d.flies[0].x = ball.x; d.flies[0].y = ball.y; ball.mass = 2; d.update(0.016);
+  assert.strictEqual(d.flies.length, 0); assert.strictEqual(ball.mass, 3, 'муха съедена: +1 масса');
+  // лень: 3 с на платформе → муха прилетает
+  d.startTower(1); d.state = 'play'; d.resetFlies(); steps(200); assert.strictEqual(d.flies.length, 1, 'муха за лень');
+  // god-режим для smoke: урон и падение не убивают, Тефа возвращается на последнюю платформу
+  d.startTower(1); d.state = 'play'; d.setGod(true); assert.strictEqual(d.damage(9, 'knife', 0, 0), false);
+  ball.onPlatform = null; ball.y = d.camY + 2000; d.update(0.016); assert.strictEqual(d.state, 'play'); assert.strictEqual(ball.onPlatform, 0); d.setGod(false);
+  // ожог сковородки: урон и подброс строго вверх, без бокового сноса
+  d.startTower(3); d.state = 'play'; d.hazards.length = 0; for (const it of d.items) it.dead = true; // масло и еда не должны мешать таймеру сковородки
+  const pan = d.platforms.find(p => p.type === 'pan'); assert.ok(pan, 'в башне 3 есть сковородка');
+  dropOn(pan); assert.ok(untilOn(pan.id), 'Тефа стоит на сковородке');
+  { const m0 = ball.mass; let burned = false;
+    for (let i = 0; i < 400 && !burned; i++) { d.update(0.016); burned = ball.mass === m0 - 1; }
+    assert.ok(burned, 'сковородка сожгла'); assert.strictEqual(ball.vy, -700, 'подброс вверх');
+    assert.strictEqual(ball.vx, 0, 'вбок не сносит'); assert.strictEqual(ball.onPlatform, null, 'сковородка отпустила'); }
+  // берсерк: сковородка не жжёт — ни урона, ни подброса
+  d.startTower(3); d.state = 'play'; d.hazards.length = 0; for (const it of d.items) it.dead = true;
+  const pan2 = d.platforms.find(p => p.type === 'pan'); dropOn(pan2); assert.ok(untilOn(pan2.id));
+  for (let i = 0; i < 12; i++) d.streakAdd(1); assert.ok(d.isBerserk());
+  { const m0 = ball.mass; steps(190); // 3.04 с — дольше таймера сковородки башни 3 (1.85 с) и короче берсерка (6 с)
+    assert.strictEqual(ball.mass, m0, 'в берсерке масса на сковородке не меняется'); assert.strictEqual(ball.onPlatform, pan2.id, 'и подброса нет'); }
+  // лопасти в неуязвимости не убивают: после удара и «Продолжить» есть 1–1.5 с
+  d.startTower(3); d.state = 'play'; for (const it of d.items) it.dead = true;
+  const bl = d.hazards.find(h => h.type === 'blades'); assert.ok(bl, 'в башне 3 есть лопасти');
+  d.hazards.length = 0; d.hazards.push(bl); // остальные опасности убрать: проверяем только лопасти
+  const inBlades = () => { ball.x = bl.x; ball.y = bl.y; ball.onPlatform = null; ball.vy = 0; d.setCamY(bl.y - 400); };
+  d.run.invuln = 1.5; inBlades(); d.update(0.016); assert.strictEqual(d.state, 'play', 'в неуязвимости лопасти не убивают');
+  d.run.invuln = 0; inBlades(); d.update(0.016); assert.strictEqual(d.state, 'dead'); assert.strictEqual(d.run.reason, 'blades');
+  // «Продолжить»: серия и берсерк смерть не переживают
+  d.startTower(1); d.state = 'play'; d.streakAdd(5); assert.strictEqual(d.streak.n, 5);
+  d.die('fall'); d.continueRun(); assert.strictEqual(d.streak.n, 0, 'серия обнулена');
   console.log('test_game ok');
 })().catch(e => { console.error(e); process.exit(1); });

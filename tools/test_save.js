@@ -1,62 +1,33 @@
-// node tools/test_save.js — сохранения v2: загрузка/слияние/миграция/запись; earned/spent только растут
+// node tools/test_save.js — v4: миграции v1–v3 (возврат потраченного), потолки веток, слияние по лучшему, снимок без ссылок
 const assert = require('assert');
-const { fakeYaGames } = require('./test_sdk');
 const noop = () => {};
 const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addColorStop: noop }) : noop, set: () => true });
-const EMPTY = { v: 3, best: 0, earned: 0, spent: 0, up: { jumps: 0, magnet: 0 }, floor: 0, startFloor: 1, skin: 'none' };
-
 (async () => {
-  { // пусто везде → нули; миграция старых ключей прототипа; локаль v1 перезаписывается v2
-    const g = require('./_env')(ctx); const d = g.dbg(); await d.YG.init();
-    const s = await d.loadSave(); assert.deepStrictEqual(s, EMPTY); assert.strictEqual(d.coins(), 0);
-    g.store.set('teft_best', '42'); g.store.set('teft_coins', '7'); g.store.delete('teft_save');
-    const s2 = await d.loadSave(); assert.strictEqual(s2.best, 42); assert.strictEqual(s2.earned, 7); assert.strictEqual(d.coins(), 7);
-    assert.ok(!g.store.has('teft_best'), 'старые ключи удалены');
-    const expected = { v: 3, best: 42, earned: 7, spent: 0, up: { jumps: 0, magnet: 0 }, floor: 0, startFloor: 1, skin: 'none' };
-    assert.deepStrictEqual(JSON.parse(g.store.get('teft_save')), expected, 'резерв переписан в v2');
-    assert.deepStrictEqual(JSON.parse(g.store.get('teft_cloud_mock')), expected, 'облако-заглушка записано');
-  }
-  { // облако v1 и локаль v2 расходятся → максимум по каждому полю, включая уровни; оба хранилища переписаны в v3
-    const log = []; const g = require('./_env')(ctx, { YaGames: fakeYaGames(log, { cloud: { v: 1, best: 10, coins: 3 } }) });
-    const d = g.dbg(); await d.YG.init();
-    g.store.set('teft_save', JSON.stringify({ v: 2, best: 4, earned: 20, spent: 5, up: { jumps: 1, magnet: 0 } }));
-    const s = await d.loadSave(); await g.flush();
-    const merged = { v: 3, best: 10, earned: 20, spent: 5, up: { jumps: 1, magnet: 0 }, floor: 0, startFloor: 1, skin: 'none' };
-    assert.deepStrictEqual(s, merged); assert.strictEqual(d.coins(), 15);
-    assert.deepStrictEqual(JSON.parse(g.store.get('teft_save')), merged);
-    assert.ok(log.includes('setData'), 'облако дописано (было v1)');
-    assert.deepStrictEqual(await d.YG.getData(), merged);
-    // persist пишет оба хранилища, одинаковый снимок в облако не шлёт
-    d.save.best = 55; d.save.earned = 30; d.save.up.magnet = 2; d.persist(); await g.flush();
-    const snap = { v: 3, best: 55, earned: 30, spent: 5, up: { jumps: 1, magnet: 2 }, floor: 0, startFloor: 1, skin: 'none' };
-    assert.deepStrictEqual(JSON.parse(g.store.get('teft_save')), snap);
-    assert.deepStrictEqual(await d.YG.getData(), snap);
-    const n = log.filter(x => x === 'setData').length;
-    d.persist(); await g.flush();
-    assert.strictEqual(log.filter(x => x === 'setData').length, n, 'одинаковый снимок в облако не шлётся');
-    d.save.spent = 6; d.persist(); await g.flush();
-    assert.strictEqual(log.filter(x => x === 'setData').length, n + 1);
-  }
-  { // мусор в хранилищах не роняет загрузку; баланс не уходит в минус; уровни зажимаются
-    const g = require('./_env')(ctx); const d = g.dbg(); await d.YG.init();
-    g.store.set('teft_save', '{oops'); g.store.set('teft_cloud_mock', '"str"');
-    const s = await d.loadSave(); assert.deepStrictEqual(s, EMPTY);
-    assert.deepStrictEqual(d.migrate({ best: '12', coins: -5, junk: 1 }), { v: 3, best: 12, earned: 0, spent: 0, up: { jumps: 0, magnet: 0 }, floor: 0, startFloor: 1, skin: 'none' });
-    assert.deepStrictEqual(d.migrate({ earned: 10, spent: 30, up: { jumps: 9, magnet: -1 } }), { v: 3, best: 0, earned: 10, spent: 30, up: { jumps: 2, magnet: 0 }, floor: 0, startFloor: 1, skin: 'none' });
-    g.store.set('teft_save', JSON.stringify({ v: 3, earned: 10, spent: 30 })); g.store.delete('teft_cloud_mock');
-    await d.loadSave(); assert.strictEqual(d.coins(), 0, 'spent > earned → баланс 0, не минус');
-    assert.deepStrictEqual(d.mergeSaves({ best: 1, earned: 9, spent: 2, up: { jumps: 0, magnet: 1 } }, { best: 5, earned: 2, spent: 4, up: { jumps: 1, magnet: 0 } }),
-      { v: 3, best: 5, earned: 9, spent: 4, up: { jumps: 1, magnet: 1 }, floor: 0, startFloor: 1, skin: 'none' });
-    assert.deepStrictEqual(d.UP_MAX, { jumps: 2, magnet: 3 });
-    // v3: этажи и скин — миграция, зажим стартового этажа, слияние
-    assert.deepStrictEqual(d.migrate({ v: 2, best: 1, earned: 2, spent: 0 }).floor, 0);
-    const m3 = d.migrate({ floor: 5, startFloor: 9, skin: 'crown' });
-    assert.strictEqual(m3.floor, 5); assert.strictEqual(m3.startFloor, 6, 'startFloor ≤ floor + 1'); assert.strictEqual(m3.skin, 'crown');
-    assert.strictEqual(d.migrate({ floor: 2, startFloor: 0, skin: 'hat' }).startFloor, 1); assert.strictEqual(d.migrate({ skin: 'hat' }).skin, 'none', 'неизвестный скин → none');
-    const mg = d.mergeSaves({ floor: 2, startFloor: 3, skin: 'chef' }, { floor: 4, startFloor: 1, skin: 'none' });
-    assert.deepStrictEqual([mg.floor, mg.startFloor, mg.skin], [4, 3, 'chef']);
-    assert.strictEqual(d.mergeSaves({ floor: 1, startFloor: 2, skin: 'none' }, { floor: 0, startFloor: 5, skin: 'glasses' }).startFloor, 2, 'зажим после слияния');
-    assert.deepStrictEqual(d.SKIN_ORDER, ['none', 'chef', 'glasses', 'crown', 'bow', 'mustache']);
-  }
+  const g = require('./_env')(ctx); const d = g.dbg();
+  const up0 = { meat: 0, crust: 0, appetite: 0, spice: 0, nerve: 0, grit: 0, repel: 0, charge: 0 };
+  // мусор и старые версии
+  assert.deepStrictEqual(d.migrate(null), { v: 4, earned: 0, spent: 0, up: up0, skins: [], skin: 'none', tower: 1, log: {}, cp: 0 });
+  assert.deepStrictEqual(d.migrate({ v: 1, best: 300, coins: 77 }).earned, 77);
+  const m3 = d.migrate({ v: 3, best: 5, earned: 500, spent: 360, up: { jumps: 2, magnet: 1 }, floor: 4, startFloor: 5, skin: 'crown' });
+  assert.strictEqual(m3.earned, 500); assert.strictEqual(m3.spent, 0, 'потраченное на старые апгрейды возвращается'); assert.deepStrictEqual(m3.up, up0);
+  assert.strictEqual(m3.skin, 'crown'); assert.strictEqual(m3.tower, 1); assert.deepStrictEqual(m3.log, {}); assert.strictEqual(m3.best, undefined);
+  // v4: потолки, мусор в log и skins, cp
+  const m4 = d.migrate({ v: 4, earned: 900, spent: 1000, up: { meat: 30, nerve: 9, grit: -1, repel: 99, charge: 7, bogus: 3 }, skins: ['chef', 'nope', 'none'], skin: 'bow', tower: 3, log: { 1: { r: 'S', t: 90 }, 2: { r: 'X', t: 1 }, zz: { r: 'A', t: 5 } }, cp: 2 });
+  assert.strictEqual(m4.spent, 900, 'spent не больше earned'); assert.deepStrictEqual(m4.up, { meat: 30, crust: 0, appetite: 0, spice: 0, nerve: 2, grit: 0, repel: 15, charge: 3 });
+  assert.deepStrictEqual(m4.skins, ['chef']); assert.strictEqual(m4.skin, 'bow'); assert.strictEqual(m4.tower, 3); assert.deepStrictEqual(m4.log, { 1: { r: 'S', t: 90 } }); assert.strictEqual(m4.cp, 2);
+  // слияние
+  const a = d.migrate({ v: 4, earned: 100, spent: 40, up: { meat: 2 }, skins: ['chef'], skin: 'chef', tower: 4, log: { 1: { r: 'A', t: 100 }, 2: { r: 'S', t: 80 } }, cp: 1 });
+  const b = d.migrate({ v: 4, earned: 90, spent: 60, up: { meat: 1, spice: 3 }, skins: ['crown'], skin: 'crown', tower: 3, log: { 1: { r: 'A', t: 90 }, 3: { r: 'C', t: 200 } }, cp: 2 });
+  const m = d.mergeSaves(a, b);
+  assert.strictEqual(m.earned, 100); assert.strictEqual(m.spent, 60); assert.deepStrictEqual(m.up, Object.assign({}, up0, { meat: 2, spice: 3 }));
+  assert.deepStrictEqual(m.skins.sort(), ['chef', 'crown']); assert.strictEqual(m.skin, 'crown', 'скин — больший индекс в SKIN_ORDER');
+  assert.strictEqual(m.tower, 4); assert.deepStrictEqual(m.log, { 1: { r: 'A', t: 90 }, 2: { r: 'S', t: 80 }, 3: { r: 'C', t: 200 } }, 'по башне лучший рейтинг, при равном — меньшее время');
+  assert.strictEqual(m.cp, 1, 'чекпоинт из сохранения с большей башней');
+  assert.strictEqual(d.mergeSaves(a, Object.assign({}, b, { tower: 4 })).cp, 2, 'при равной башне — максимум');
+  // снимок не делит ссылки с save; coins()
+  await d.YG.init(); await d.loadSave(); d.save.earned = 50; d.save.spent = 20; assert.strictEqual(d.coins(), 30);
+  d.save.log[1] = { r: 'B', t: 10 }; d.persist(); const snap = JSON.parse(g.store.get('teft_save'));
+  assert.strictEqual(snap.v, 4); assert.deepStrictEqual(snap.log, { 1: { r: 'B', t: 10 } }); assert.strictEqual(snap.earned, 50);
+  assert.deepStrictEqual(d.RANK, ['D', 'C', 'B', 'A', 'S']);
   console.log('test_save ok');
 })().catch(e => { console.error(e); process.exit(1); });
