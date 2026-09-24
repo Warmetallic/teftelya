@@ -102,16 +102,20 @@ function chunk(x, y, rx, ry) { // кусок фарша (частицы урон
   g.addColorStop(0, '#e89a6c'); g.addColorStop(0.5, '#c0583a'); g.addColorStop(1, '#833218');
   ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, 7); ctx.fill();
 }
+// Тефа сама показывает жизни (спека v2.1.1 §3.2): укусы, лицо, мигание последнего куска, заживление; ободка больше нет
 function drawTefaBall() {
-  const x = ball.x, y = ball.y - camY, bz = isBerserk(), r = ball.r * (bz ? 1.6 : 1);
+  const bz = isBerserk(), r = ball.r * (bz ? 1.6 : 1);
+  const x = ball.x, y = ball.y - camY + ball.r - r; // берсерк крупнее от нижней точки: низ Тефы остаётся на платформе
   const st = tower ? platformById(tower.platforms, ball.onPlatform) : null;
   if (st) { ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(x, st.y - camY + 6, r * 0.9, 8, 0, 0, 7); ctx.fill(); } // тень на платформе
   const pose = { sx: 1 + ball.sq, sy: 1 - ball.sq, tilt: ball.tilt, face: ball.face, mouth: ball.mouth, blink: ball.blink > 0, hot: ball.hot, berserk: bz,
-    alpha: run && run.invuln > 0 && Math.floor(tGame * 12) % 2 === 0 ? 0.45 : 1 };
-  ctx.save(); ctx.strokeStyle = 'rgba(255,230,200,0.35)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(x, y - r * 0.08, r * 1.27, r * 1.1, 0, 0, 7); ctx.stroke(); ctx.restore(); // светлый ободок по силуэту (тело шире, чем выше), иначе прячется под телом: Тефа не сливается с тёмной кухней
+    alpha: run && run.invuln > 0 && Math.floor(tGame * 12) % 2 === 0 ? 0.45 : 1,
+    hp: { cur: ball.mass, max: massMax() },
+    tint: ball.mass === 1 ? 0.5 + 0.5 * Math.sin(tGame * Math.PI * 3) : 0, // последний кусок мигает ≈ 1.5 раза в секунду
+    heal: ball.healT > 0 ? 1 - ball.healT / HEAL_T : 0 };
   drawTefa(ctx, x, y, r, pose);
-  const cm = chargesMax(); // заряды над головой
-  for (let i = 0; i < cm; i++) { ctx.fillStyle = i < ball.charges ? '#f6c343' : 'rgba(255,255,255,0.2)'; ctx.beginPath(); ctx.arc(x - (cm - 1) * 7 + i * 14, y - r * 1.16 - 14, 4, 0, 7); ctx.fill(); }
+  const cm = chargesMax(), top = y - r * 1.16 - 14 - (bz ? r * 0.55 : 0); // заряды над головой; в берсерке выше пламени
+  for (let i = 0; i < cm; i++) { ctx.fillStyle = i < ball.charges ? '#f6c343' : 'rgba(255,255,255,0.2)'; ctx.beginPath(); ctx.arc(x - (cm - 1) * 7 + i * 14, top, 4, 0, 7); ctx.fill(); }
 }
 function drawHUD() {
   const mm = massMax();

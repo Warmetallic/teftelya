@@ -16,7 +16,7 @@ function chargesMax() { return 3 + ((save.up && save.up.charge) || 0); }
 // лечение (спека v2.1.1 §5): чекпоинт, «Продолжить» и съеденная в берсерке муха или капля масла; еда не лечит
 function heal(n) {
   const m0 = ball.mass; ball.mass = Math.min(massMax(), ball.mass + n);
-  if (ball.mass > m0) burst(ball.x, ball.y - ball.r * 0.5, '#ffe08a', 10, 160, 0.5, 3);
+  if (ball.mass > m0) { ball.healT = HEAL_T; burst(ball.x, ball.y - ball.r * 0.5, '#ffe08a', 10, 160, 0.5, 3); } // укус зарастает на Тефе
   return ball.mass - m0;
 }
 function newRun() { return { time: 0, runCoins: 0, bankedCoins: 0, deaths: 0, usedContinue: 0, usedDouble: false, foodEaten: 0, foodTotal: 0, cp: 0, lastLandId: 0, campT: 0, flyCd: 0, invuln: 0, reason: '', rating: null, bonus: 0, progress: 0, finished: false }; }

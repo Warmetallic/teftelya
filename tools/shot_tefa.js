@@ -1,13 +1,19 @@
-// node tools/shot_tefa.js — shots/tefa_port.png: порт drawTefa в размерах 26/54/86 и позах рядом; сравнивать глазами с shots/design_tefa_round4.png (вариант A)
-// Размер листа против брифа увеличен (900×420 → 1000×560): при 86 px тело шире брифовой ячейки, а подписи нижнего ряда уезжали за край.
+// node tools/shot_tefa.js — shots/tefa_port.png: drawTefa из игры в состояниях жизней и эффектах (радиус как в игре ×1.6)
+// рядом с игровым размером; сравнивать глазами с shots/design_tefa_round5_hp.png (стиль A) и design_tefa_round4.png (A)
 const fs = require('fs'), path = require('path'), { createCanvas } = require('canvas');
 const OUT = path.join(__dirname, '..', 'shots'); fs.mkdirSync(OUT, { recursive: true });
-const real = createCanvas(1000, 560), ctx = real.getContext('2d');
-const g = require('./_env')(ctx, { width: 1000, height: 560 }); const d = g.dbg();
-ctx.fillStyle = '#2a201b'; ctx.fillRect(0, 0, 1000, 560);
+const Wd = 1100, Hd = 760, real = createCanvas(Wd, Hd), ctx = real.getContext('2d');
+const g = require('./_env')(ctx, { width: Wd, height: Hd }); const d = g.dbg();
+ctx.fillStyle = '#2a201b'; ctx.fillRect(0, 0, Wd, Hd);
 const plate = (x, y, w) => { ctx.fillStyle = '#e9e4da'; ctx.beginPath(); ctx.ellipse(x, y + 8, w / 2, 16, 0, 0, 7); ctx.fill(); };
-const poses = [['r=86', 86, {}], ['r=54', 54, {}], ['r=26', 26, {}], ['сквош', 54, { sx: 1.25, sy: 0.75 }], ['наклон+взгляд', 54, { tilt: 0.3, face: 1 }],
-  ['рот+моргание', 54, { mouth: 1, blink: true }], ['ожог', 54, { hot: 0.8 }], ['берсерк', 54, { berserk: true }], ['без флажка', 54, { flag: false }]];
-poses.forEach(([name, r, pose], i) => { const x = 120 + (i % 5) * 190, y = 160 + Math.floor(i / 5) * 230; plate(x, y + r, 150); d.drawTefa(ctx, x, y, r, pose);
-  ctx.fillStyle = '#fff'; ctx.font = '600 14px sans-serif'; ctx.textAlign = 'center'; ctx.fillText(name, x, y + r + 40); });
+const label = (s, x, y) => { ctx.fillStyle = '#fff'; ctx.font = '600 14px sans-serif'; ctx.textAlign = 'center'; ctx.fillText(s, x, y); };
+const rad = m => d.radiusFor(m), K = 1.6;
+const cells = [
+  ['полная', 4, {}], ['минус кусок', 3, {}], ['два укуса', 2, {}], ['последний кусок', 1, { tint: 1 }],
+  ['шкала полна', 4, { charged: true }], ['берсерк', 4, { berserk: true }], ['лечение 0.5', 3, { heal: 0.5 }], ['еда + моргание', 2, { mouth: 0.8, blink: true }],
+];
+cells.forEach(([name, m, pose], i) => { const x = 140 + (i % 4) * 270, y = 150 + Math.floor(i / 4) * 280, r = rad(m) * K; plate(x, y + r, r * 3);
+  d.drawTefa(ctx, x, y, r, Object.assign({ hp: { cur: m, max: 4 } }, pose)); label(name, x, y + r + 44); });
+[4, 3, 2, 1].forEach((m, i) => { const x = 140 + i * 110, y = 680, r = rad(m); plate(x, y + r, r * 3); d.drawTefa(ctx, x, y, r, { hp: { cur: m, max: 4 }, tint: m === 1 ? 1 : 0 }); });
+label('в игровом размере 1:1', 700, 690);
 fs.writeFileSync(path.join(OUT, 'tefa_port.png'), real.toBuffer('image/png')); console.log('shots/tefa_port.png');
