@@ -14,6 +14,7 @@ const ctx = new Proxy({}, { get: (t, k) => k === 'fillText' ? s => texts.push(St
     d.drawWorld(); for (let i = 0; i < 30; i++) d.update(0.016); // предупреждение налива, потом капли и пятна
     for (const h of d.hazards) { h.y = d.ball.y; if (h.type === 'knife') h.phase = 'wind'; }
     for (const p of d.platforms) if (p.type === 'pan') p.hotT = 1.5;
+    d.drawPlatform({ id: 900, type: 'cheese', x: 240, y: d.camY + 400, w: 120, crumbleT: 0.2 }); d.drawPlatform({ id: 901, type: 'cheese', x: 240, y: d.camY + 500, w: 120, gone: true }); // сыр целый, крошится и пропавший
     d.drawBg(); d.drawWorld(); d.drawHUD(); d.pausedScreen(true); d.pausedScreen(false);
     d.YG.adStub = { kind: 'rewarded', until: 0 }; d.adStubScreen(); d.YG.adStub = null; d.adStubScreen();
   }

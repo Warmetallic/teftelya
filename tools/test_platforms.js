@@ -1,4 +1,4 @@
-// node tools/test_platforms.js — посадка сверху с учётом пройденного пути, стояние и сход с края, поднос везёт, сковородка жжёт
+// node tools/test_platforms.js — посадка сверху с учётом пройденного пути, стояние и сход с края, поднос везёт, сковородка жжёт, сыр крошится
 const assert = require('assert');
 const noop = () => {};
 const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addColorStop: noop }) : noop, set: () => true });
@@ -36,6 +36,16 @@ const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addCol
   assert.strictEqual(burns, 1, 'один ожог за ~2.08 с'); assert.ok(pan.hotT < 0.2, 'таймер сброшен');
   assert.ok(d.panHeat(pan, tp) >= 0 && d.panHeat(pan, tp) <= 1);
   ball.onPlatform = null; pan.hotT = 1; d.updatePlatforms(0.25, P, tp); assert.ok(pan.hotT < 1, 'остывает без Тефы');
+  // сыр: посадка запускает крошение, через 0.5 с он пропадает и Тефа падает, пропавший не ловит, через 3 с отрастает
+  const cheese = { id: 4, type: 'cheese', x: 240, y: -480, w: 120 }, P2 = [cheese]; let crumbled = 0;
+  put(240, -480 - 34, 0); d.landOn(cheese);
+  for (let i = 0; i < 20; i++) for (const e of d.updatePlatforms(0.016, P2, tp)) if (e.type === 'crumble') crumbled++;
+  assert.strictEqual(crumbled, 0, 'полсекунды держит'); assert.strictEqual(ball.onPlatform, 4);
+  for (let i = 0; i < 20; i++) for (const e of d.updatePlatforms(0.016, P2, tp)) if (e.type === 'crumble') crumbled++;
+  assert.strictEqual(crumbled, 1, 'раскрошился один раз'); assert.ok(cheese.gone); assert.strictEqual(ball.onPlatform, null, 'Тефа падает');
+  put(240, -480 - 34 + 10, 300); assert.strictEqual(d.tryLand(P2, -520), null, 'пропавший сыр не ловит');
+  for (let i = 0; i < 190; i++) d.updatePlatforms(0.016, P2, tp); assert.ok(!cheese.gone, 'через 3 с отрос');
+  put(240, -480 - 34 + 10, 300); assert.strictEqual(d.tryLand(P2, -520), cheese, 'и снова держит');
   assert.strictEqual(d.platformById(P, 2), pan); assert.strictEqual(d.platformById(P, null), null); assert.strictEqual(d.platformById(P, 99), null);
   console.log('test_platforms ok');
 })().catch(e => { console.error(e); process.exit(1); });

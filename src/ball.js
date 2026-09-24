@@ -17,10 +17,12 @@ const ball = {
 };
 function radiusFor(m) { return MASS_R0 + MASS_RK * (clamp(m, 1, MASS_RCAP) - 1); }
 // прыжок к точке (tx, ty): вершина дуги низа Тефы на AIM_MARGIN выше ty; горизонталь рассчитана так, чтобы на спуске
-// низ пересёк уровень ty ровно над tx — игрок тапает туда, куда хочет ПРИЗЕМЛИТЬСЯ
+// низ пересёк уровень ty ровно над tx — игрок тапает туда, куда хочет ПРИЗЕМЛИТЬСЯ. Спуск считается от реальной высоты
+// цели: для цели на том же уровне или ниже дуга зажата в JUMP_MIN_H, и падать до неё дольше, чем AIM_MARGIN
 function aimJump(bx, by, r, tx, ty) {
-  const dy = clamp(by + r - ty + AIM_MARGIN, JUMP_MIN_H, JUMP_MAX_H);
-  const vy = -Math.sqrt(2 * GRAV * dy), tUp = -vy / GRAV, tDown = Math.sqrt(2 * AIM_MARGIN / GRAV);
+  const rise = by + r - ty; // на сколько точка тапа выше низа Тефы; ниже нуля — цель ниже
+  const dy = clamp(rise + AIM_MARGIN, JUMP_MIN_H, JUMP_MAX_H);
+  const vy = -Math.sqrt(2 * GRAV * dy), tUp = -vy / GRAV, tDown = Math.sqrt(2 * Math.max(0, dy - rise) / GRAV);
   const t = tUp + tDown;
   const vx = clamp((tx - bx) / t, -VX_MAX, VX_MAX);
   return { vx, vy, t, dy };

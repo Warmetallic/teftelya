@@ -126,7 +126,8 @@ function updateRun(dt) {
   const prevBottom = ball.y + ball.r, wasOn = ball.onPlatform;
   if (ball.onPlatform === null) { ball.vy += GRAV * dt; ball.x += ball.vx * dt; ball.y += ball.vy * dt; }
   if (ball.x < ball.r) { ball.x = ball.r; ball.vx = Math.abs(ball.vx) * 0.6; } else if (ball.x > W - ball.r) { ball.x = W - ball.r; ball.vx = -Math.abs(ball.vx) * 0.6; }
-  for (const e of updatePlatforms(dt, tower.platforms, tp)) if (e.type === 'burn') {
+  for (const e of updatePlatforms(dt, tower.platforms, tp)) {
+    if (e.type === 'crumble') { burst(e.p.x, e.p.y, '#f6c343', 16, 200, 0.6, 4); continue; } // сыр раскрошился
     if (isBerserk()) continue; // спека §4.4: в берсерке Тефа не горит — ни урона, ни подброса; таймер сковородки уже сброшен в platforms.js
     damage(1, 'pan', e.p.x, e.p.y + 40);
     if (!ball.alive) return;

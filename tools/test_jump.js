@@ -16,6 +16,9 @@ const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addCol
   assert.ok(Math.abs(f.minB - (-260 - AIM_MARGIN)) < 3, 'вершина низа на AIM_MARGIN выше точки тапа: ' + f.minB);
   assert.ok(Math.abs(f.x - 300) < 4, 'на уровне тапа — над точкой тапа: ' + f.x);
   f = fly(240, -100, r, 120, -200); assert.ok(Math.abs(f.x - 120) < 4, 'влево тоже: ' + f.x);
+  // цель на том же уровне и ниже: спуск считается от реальной высоты цели, приземление над точкой тапа
+  f = fly(100, -r, r, 400, 0); assert.ok(Math.abs(f.x - 400) < 4, 'тот же уровень: ' + f.x);
+  f = fly(100, -r, r, 300, 60); assert.ok(Math.abs(f.x - 300) < 4, 'цель ниже: ' + f.x);
   // зажимы высоты
   assert.strictEqual(aimJump(240, 0, r, 240, 40).dy, JUMP_MIN_H, 'тап ниже — минимальный прыжок');
   assert.strictEqual(aimJump(240, 0, r, 240, -900).dy, JUMP_MAX_H, 'слишком высоко — максимальный');
