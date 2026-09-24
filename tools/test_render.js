@@ -6,6 +6,7 @@ const ctx = new Proxy({}, { get: (t, k) => k === 'fillText' ? s => texts.push(St
 (async () => {
   for (const size of [[480, 854], [1280, 720]]) {
     const g = require('./_env')(ctx, { width: size[0], height: size[1] }); const d = g.dbg();
+    d.drawTefa(ctx, 100, 100, 40, { sx: 1.1, sy: 0.9, tilt: 0.2, face: 0.5, mouth: 0.5, blink: true, hot: 0.5, berserk: true, alpha: 0.5 }); // Тефа не падает на proxy-контексте
     await d.YG.init(); await d.loadSave(); d.reset();
     d.state = 'title'; d.drawBg(); d.drawWorld(); d.titleScreen(); d.loadingScreen();
     d.state = 'play'; d.ball.mass = 9; d.popText(240, 0, '+5', '#fff', true);
