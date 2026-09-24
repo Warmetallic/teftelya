@@ -39,7 +39,12 @@ const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addCol
   assert.strictEqual(d.state, 'finish'); assert.strictEqual(d.run.rating.letter, 'S'); assert.strictEqual(d.run.bonus, 40); assert.strictEqual(d.run.runCoins, 50);
   assert.strictEqual(d.save.log[1].r, 'S'); assert.strictEqual(d.save.tower, 2); assert.strictEqual(d.save.cp, 0); assert.strictEqual(d.YG.log.at(-1), 'stop');
   assert.strictEqual(JSON.parse(g.store.get('teft_save')).tower, 2);
+  // монеты: удвоение после финиша добавляет ровно столько же; смерть → продолжить → смерть банкует один раз
+  { const c0 = d.coins(); d.doubleCoins(); assert.strictEqual(d.coins(), c0 + 50, '×2 добавляет столько же, сколько было'); assert.strictEqual(d.run.runCoins, 100); assert.ok(d.run.usedDouble); }
   d.nextTower(); assert.strictEqual(d.tower.tp.N, 2); assert.strictEqual(d.state, 'play'); assert.strictEqual(d.run.deaths, 0);
+  { d.startTower(1); d.state = 'play'; const cA = d.coins(); d.setRunCoins(30); d.die('oil'); assert.strictEqual(d.coins(), cA + 30);
+    d.continueRun(); d.die('oil'); assert.strictEqual(d.coins(), cA + 30, 'после продолжения те же монеты не банкуются повторно');
+    d.continueRun(); d.setRunCoins(45); d.die('oil'); assert.strictEqual(d.coins(), cA + 45, 'банкуется только прирост'); }
   // таблица рейтинга и награда
   const tp = d.towerParams(1), R = r => d.ratingFor(Object.assign({ deaths: 0, time: 10, foodEaten: 10, foodTotal: 10, usedContinue: 0 }, r), tp).letter;
   assert.strictEqual(R({}), 'S'); assert.strictEqual(R({ deaths: 1 }), 'A'); assert.strictEqual(R({ deaths: 1, time: 999 }), 'B'); assert.strictEqual(R({ deaths: 1, time: 999, foodEaten: 1 }), 'C'); assert.strictEqual(R({ usedContinue: 1 }), 'D');

@@ -24,6 +24,7 @@ function placeAt(p) {
 // башня N с нуля; fromCp > 0 — старт с чекпоинта сохранения (новая сессия: считается одной смертью)
 function startTower(N, fromCp = 0) {
   tower = buildTower(N); run = newRun(); run.foodTotal = tower.items.length;
+  if (fromCp && !tower.platforms.some(p => p.cp === fromCp)) fromCp = 0; // битый чекпоинт из сохранения
   resetStreak(); resetFlies(); resetFx();
   ball.mass = massMax() - 1; ball.r = radiusFor(ball.mass);
   run.cp = fromCp; if (fromCp) run.deaths = 1;
@@ -70,8 +71,8 @@ function die(reason) {
 }
 // «Продолжить» за rewarded: на последней платформе, масса не меньше CONTINUE_MIN_MASS; рейтинг башни станет D
 function continueRun() {
+  ball.mass = Math.max(ball.mass, CONTINUE_MIN_MASS); ball.r = radiusFor(ball.mass); // масса и радиус до посадки: placeAt сажает Тефу по ball.r
   placeAt(platformById(tower.platforms, run.lastLandId) || cpPlatform(run.cp));
-  ball.mass = Math.max(ball.mass, CONTINUE_MIN_MASS); ball.r = radiusFor(ball.mass);
   resetFlies(); run.invuln = INVULN_CONT; run.usedContinue++; camShake = 0; tGame = 0; state = 'play';
 }
 // «С чекпоинта» бесплатно: смерти уже посчитаны в die(); капли масла и мухи сброшены
@@ -80,7 +81,7 @@ function restartFromCp() {
   resetStreak(); resetFlies(); resetFx(); for (const h of tower.hazards) if (h.type === 'oil') h.drops = [];
   camY = ball.y - H * 0.6; tGame = 0; state = 'play';
 }
-function restartTower() { startTower(tower.tp.N, 0); state = 'play'; }
+function restartTower() { startTower(tower.tp.N, 0); save.cp = 0; state = 'play'; } // чекпоинт сбрасывается вместе с башней; запишет ближайшая смерть или финиш
 function nextTower() { startTower(save.tower, 0); state = 'play'; }
 function doubleCoins() { save.earned += run.runCoins; run.runCoins *= 2; run.bankedCoins = run.runCoins; run.usedDouble = true; persist(); }
 // три проверки → буква; «Продолжить» → D

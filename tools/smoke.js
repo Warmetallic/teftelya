@@ -45,9 +45,30 @@ async function runFlow(opts) {
   // вторая смерть: «Продолжить» больше нет; «Заново» строит башню с нуля
   d.die('fall'); steps(g, 60); assert.ok(!btn(d, 'continue')); const rs = btn(d, 'restart'); g.tap(rs.x, rs.y); await g.flush(); g.step();
   assert.strictEqual(d.state, 'play'); assert.strictEqual(d.run.deaths, 0); assert.strictEqual(d.ball.onPlatform, 0);
+  // межстраничная по интервалу: сразу после рекламы её нет, после forceAdReady есть, следом снова нет
+  const inters = () => d.YG.log.filter(x => x === 'inter').length; const n0 = inters();
+  d.die('fall'); steps(g, 60); { const b = btn(d, 'restart'); g.tap(b.x, b.y); } await g.flush(); g.step();
+  assert.strictEqual(d.state, 'play'); assert.strictEqual(inters(), n0, 'интервал 180 с не истёк после рекламы перед башней 2');
+  d.die('fall'); steps(g, 60); d.forceAdReady(); { const b = btn(d, 'restart'); g.tap(b.x, b.y); }
+  assert.ok(d.adBusy, 'во время межстраничной ввод заблокирован'); g.tap(240, 300); await g.flush(); g.step();
+  assert.strictEqual(inters(), n0 + 1); assert.strictEqual(d.state, 'play'); assert.strictEqual(d.YG.log.at(-1), 'start');
+  d.die('fall'); steps(g, 60); { const b = btn(d, 'restart'); g.tap(b.x, b.y); } await g.flush(); g.step();
+  assert.strictEqual(inters(), n0 + 1, 'интервал 180 с соблюдён');
   // пауза по скрытию вкладки: возврат по тапу без прыжка; клавиатура прыгает
   const ch = d.ball.charges; g.hide(); assert.ok(d.paused); g.show(); assert.ok(d.awaitTap); g.tap(240, 300); assert.ok(!d.awaitTap); assert.strictEqual(d.ball.charges, ch, 'тап после паузы — не прыжок');
   g.key('ArrowLeft'); assert.strictEqual(d.ball.charges, ch - 1);
+  const ss = d.YG.log.filter(x => x === 'start' || x === 'stop'); // GameplayAPI: ни двух start подряд, ни двух stop
+  for (let i = 1; i < ss.length; i++) assert.notStrictEqual(ss[i], ss[i - 1], 'start/stop чередуются');
+  return d;
+}
+// награды не дали: «Продолжить» не воскрешает
+async function runNoReward(opts) {
+  const g = require('./_env')(ctx, Object.assign({ dist }, opts)); const d = g.dbg();
+  await g.boot();
+  const play = btn(d, 'play'); g.tap(play.x, play.y); await g.flush();
+  d.die('blades'); steps(g, 60);
+  const cont = btn(d, 'continue'); assert.ok(cont); g.tap(cont.x, cont.y); await g.flush(); g.step();
+  assert.strictEqual(d.state, 'dead', 'награды нет → остаёмся на экране смерти'); assert.ok(!d.ball.alive);
   return d;
 }
 (async () => {
@@ -55,5 +76,7 @@ async function runFlow(opts) {
   const log = []; const d2 = await runFlow({ YaGames: fakeYaGames(log), lang: 'en-US' });
   assert.strictEqual(d2.lang, 'en');
   for (const k of ['ready', 'start', 'stop', 'inter', 'reward', 'setData']) assert.ok(log.includes(k), 'реальный API вызван: ' + k);
+  const log3 = []; const d3 = await runNoReward({ YaGames: fakeYaGames(log3, { noReward: true }) });
+  assert.ok(log3.includes('reward'), 'rewarded показан'); assert.strictEqual(d3.run.usedContinue, 0, 'без награды продолжение не потрачено');
   console.log('smoke ok' + (dist ? ' (dist)' : ''));
 })().catch(e => { console.error(e); process.exit(1); });

@@ -29,7 +29,7 @@ function drawPlatform(p) {
     ctx.fillStyle = '#c9c2b4'; ctx.beginPath(); ctx.ellipse(p.x, y + 8, p.w / 2 - 30, 9, 0, 0, 7); ctx.fill();
     if (p.cp) { ctx.fillStyle = '#8ff0a4'; ctx.beginPath(); ctx.arc(p.x + p.w / 2 - 10, y + 2, 5, 0, 7); ctx.fill(); } // метка чекпоинта
   } else if (p.type === 'pan') {
-    const heat = panHeat(p);
+    const heat = panHeat(p, tower.tp);
     ctx.fillStyle = '#2a2624'; ctx.beginPath(); ctx.ellipse(p.x, y + 8, p.w / 2, 16, 0, 0, 7); ctx.fill();
     ctx.fillStyle = `rgba(255,${(90 - heat * 60) | 0},20,${0.15 + heat * 0.6})`; ctx.beginPath(); ctx.ellipse(p.x, y + 8, p.w / 2 - 14, 9, 0, 0, 7); ctx.fill();
     ctx.strokeStyle = '#3d3734'; ctx.lineWidth = 8; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(p.x + p.w / 2, y + 8); ctx.lineTo(p.x + p.w / 2 + 40, y + 2); ctx.stroke(); // ручка

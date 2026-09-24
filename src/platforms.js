@@ -36,5 +36,7 @@ function updatePlatforms(dt, platforms, tp) {
   if (standing) { if (!overPlatform(standing)) ball.onPlatform = null; else { ball.y = standing.y - ball.r; ball.vy = 0; } }
   return ev;
 }
-function panHeat(p) { return p.type === 'pan' ? clamp((p.hotT || 0) / PAN_TIME, 0, 1) : 0; }
+// доля до ожога для рендера: делим на реальный таймер, а не на базовый —
+// при жаре башни и «Корочке» шкала должна совпадать с тем, когда сковородка правда сожжёт
+function panHeat(p, tp) { return p.type === 'pan' ? clamp((p.hotT || 0) / panTime(tp), 0, 1) : 0; }
 expose({ PAN_TIME, PAN_MIN, panTime, platformById, overPlatform, landOn, tryLand, updatePlatforms, panHeat });
