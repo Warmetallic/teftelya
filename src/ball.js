@@ -1,11 +1,20 @@
 'use strict';
-// ---------- мягкое тело тефтели: N точек на пружинах вокруг центра ----------
-const N = 26;
-// ---------- прыжок в точку (v2): физика дуги и новые поля тела; мягкое тело ниже живёт до задачи 8 ----------
+// ---------- тело Тефы: физика прыжка в точку, масса и радиус, сквош и наклон трансформацией ----------
 const GRAV = 1500;
 const JUMP_MIN_H = 100, JUMP_MAX_H = 280; // высота дуги (px) от низа Тефы до точки тапа с запасом
 const VX_MAX = 420;                       // px/с — предел горизонтальной скорости прыжка
 const AIM_MARGIN = 24;                    // низ Тефы поднимается на столько выше точки тапа, чтобы сесть на платформу, а не пролететь сквозь
+const MASS_R0 = 26, MASS_RK = 4, MASS_RCAP = 8; // радиус 26 + 4·(масса−1); для радиуса масса не больше 8
+const ball = {
+  x: W / 2, y: 0, vx: 0, vy: 0,
+  mass: 3, r: 34,
+  charges: 3, onPlatform: null, // id платформы, на которой стоит; null — в воздухе
+  sq: 0, sqv: 0,                // сквош: > 0 сплющена, < 0 вытянута
+  tilt: 0, tiltv: 0,            // наклон, рад
+  face: 0, mouth: 0, blink: 0, hot: 0,
+  alive: true,
+};
+function radiusFor(m) { return MASS_R0 + MASS_RK * (clamp(m, 1, MASS_RCAP) - 1); }
 // прыжок к точке (tx, ty): вершина дуги низа Тефы на AIM_MARGIN выше ty; горизонталь рассчитана так, чтобы на спуске
 // низ пересёк уровень ty ровно над tx — игрок тапает туда, куда хочет ПРИЗЕМЛИТЬСЯ
 function aimJump(bx, by, r, tx, ty) {
@@ -15,54 +24,13 @@ function aimJump(bx, by, r, tx, ty) {
   const vx = clamp((tx - bx) / t, -VX_MAX, VX_MAX);
   return { vx, vy, t, dy };
 }
-const ball = {
-  x: W / 2, y: 0, vx: 0, vy: 0,
-  mass: 1, r: 26,
-  pts: [],          // {ox, oy, vx, vy} — смещения точек от центра
-  jumps: 4,         // заряды прыжка
-  regen: 0,         // таймер восстановления заряда
-  face: 0,          // куда смотрят глаза, -1..1
-  mouth: 0,         // 0 закрыт .. 1 открыт
-  blink: 0,
-  alive: true,
-  charges: 3, onPlatform: null, sq: 0, sqv: 0, tilt: 0, tiltv: 0, hot: 0,
-};
-function radiusFor(m) { return 26 + 13 * Math.sqrt(Math.max(0, m - 1)); }
-function heavy() { return clamp((ball.mass - 1) / 15, 0, 1); } // 0 маленькая .. 1 огромная
-function initBody() {
-  ball.pts = [];
-  for (let i = 0; i < N; i++) {
-    const a = i / N * Math.PI * 2;
-    ball.pts.push({ ox: Math.cos(a) * ball.r, oy: Math.sin(a) * ball.r, vx: 0, vy: 0 });
-  }
-}
-// deform: fn(angle, dirx, diry) → {x, y} импульс для каждой точки
-function deform(fn) {
-  for (let i = 0; i < N; i++) {
-    const a = i / N * Math.PI * 2, dx = Math.cos(a), dy = Math.sin(a);
-    const im = fn(a, dx, dy); ball.pts[i].vx += im.x; ball.pts[i].vy += im.y;
-  }
-}
-function squash(amount) { deform((a, dx, dy) => ({ x: dx * amount * 0.8, y: -dy * amount * 1.3 })); } // сплющить
-function pulse(amount) { deform((a, dx, dy) => ({ x: dx * amount, y: dy * amount })); }
-function jolt(px, py, amount) { // тычок со стороны точки px,py
-  const ang = Math.atan2(py - ball.y, px - ball.x);
-  deform((a, dx, dy) => { const d = Math.cos(a - ang); return d > 0 ? { x: -dx * amount * d, y: -dy * amount * d } : { x: 0, y: 0 }; });
-}
+function squash(a) { ball.sqv += a * 0.006; }   // > 0 — сплющить (посадка), < 0 — вытянуть (прыжок)
+function pulse(a) { ball.sqv -= a * 0.004; }    // вытянуть (еда)
+function jolt(px, py, a) { ball.tiltv += (px < ball.x ? 1 : -1) * a * 0.012; } // тычок со стороны точки
 function updateBody(dt) {
-  // жёсткость и демпфирование падают с массой: большая тефтеля колышется лениво и дольше
-  const k = lerp(260, 120, heavy());
-  const damp = lerp(9, 5.5, heavy());
-  const nk = 40;
-  const lagx = clamp(-ball.vx * 0.04, -16, 16), lagy = clamp(-ball.vy * 0.012, -7, 7);
-  for (let i = 0; i < N; i++) {
-    const p = ball.pts[i], a = i / N * Math.PI * 2;
-    const dx = Math.cos(a), dy = Math.sin(a);
-    const tx = dx * ball.r + lagx * (dy * dy), ty = dy * ball.r + lagy * Math.abs(dy);
-    let ax = (tx - p.ox) * k - p.vx * damp, ay = (ty - p.oy) * k - p.vy * damp;
-    const prev = ball.pts[(i + N - 1) % N], next = ball.pts[(i + 1) % N];
-    ax += ((prev.ox + next.ox) / 2 - p.ox) * nk; ay += ((prev.oy + next.oy) / 2 - p.oy) * nk;
-    p.vx += ax * dt; p.vy += ay * dt; p.ox += p.vx * dt; p.oy += p.vy * dt;
-  }
+  ball.sqv += (-ball.sq * 220 - ball.sqv * 9) * dt; ball.sq = clamp(ball.sq + ball.sqv * dt, -0.45, 0.45);
+  const tt = clamp(ball.vx / 900, -0.35, 0.35);
+  ball.tiltv += ((tt - ball.tilt) * 160 - ball.tiltv * 8) * dt; ball.tilt += ball.tiltv * dt;
+  ball.r = lerp(ball.r, radiusFor(ball.mass), 1 - Math.pow(0.01, dt));
 }
-expose({ ball, aimJump, GRAV, JUMP_MIN_H, JUMP_MAX_H, VX_MAX, AIM_MARGIN });
+expose({ ball, aimJump, radiusFor, GRAV, JUMP_MIN_H, JUMP_MAX_H, VX_MAX, AIM_MARGIN });

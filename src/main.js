@@ -2,14 +2,12 @@
 // ---------- точка входа: загрузка, ввод, пауза, реклама между забегами, цикл ----------
 const AD_INTERVAL = 180; // секунд между межстраничными показами — свой лимит поверх лимитов Яндекса
 let booted = false, paused = false, awaitTap = false, adBusy = false;
-let restarts = 0, lastAdAt = 0, sessionT = 0; // lastAdAt = 0: первые AD_INTERVAL секунд сессии без межстраничной — осознанная отсрочка
-let shopReturn = 'title'; // куда возвращаться из магазина: title | dead
-
+let plays = 0, lastAdAt = 0, sessionT = 0; // lastAdAt = 0: первые AD_INTERVAL секунд сессии без межстраничной — осознанная отсрочка
 async function boot() {
   await YG.init();
   setLang(YG.lang);
   await loadSave();
-  reset(save.startFloor); state = 'title';
+  startTower(save.tower, save.cp); state = 'title';
   YG.onPause(pauseGame); YG.onResume(resumeGame);
   booted = true;
   draw();       // титул на экране — игра готова к взаимодействию
@@ -29,7 +27,6 @@ function resumeGame() {
 document.addEventListener('visibilitychange', () => { if (document.hidden) pauseGame(); else resumeGame(); });
 window.addEventListener('blur', pauseGame);
 window.addEventListener('focus', resumeGame);
-// --- переходы между забегами с рекламой ---
 // общий каркас показа рекламы: блокируем ввод и цикл, глушим звук; если вкладку скрыли во время рекламы — после неё пауза
 async function showAd(fn) {
   adBusy = true; muteAudio();
@@ -37,67 +34,50 @@ async function showAd(fn) {
   if (document.hidden) pauseGame();
   return r;
 }
-async function restart() {
-  restarts++;
-  if (restarts > 1 && sessionT - lastAdAt >= AD_INTERVAL) {
-    const r = await showAd(() => YG.showInterstitial());
-    if (r.shown) lastAdAt = sessionT;
-  }
-  reset(save.startFloor); state = 'play'; YG.gameplayStart();
+// старт забега: 'start' с титула, 'cp' с чекпоинта, 'restart' заново, 'next' следующая башня. Межстраничная — не на первом старте сессии и не чаще AD_INTERVAL
+async function goPlay(kind) {
+  plays++;
+  if (plays > 1 && sessionT - lastAdAt >= AD_INTERVAL) { const r = await showAd(() => YG.showInterstitial()); if (r.shown) lastAdAt = sessionT; }
+  if (kind === 'cp') restartFromCp(); else if (kind === 'restart') restartTower(); else if (kind === 'next') nextTower(); else state = 'play';
+  YG.gameplayStart();
 }
 async function tryContinue() {
-  if (usedContinue) return;
+  if (run.usedContinue) return;
   const r = await showAd(() => YG.showRewarded());
   if (r.rewarded) { lastAdAt = sessionT; continueRun(); YG.gameplayStart(); }
 }
 async function tryDouble() {
-  if (usedDouble || runCoins < DOUBLE_MIN_COINS) return;
+  if (run.usedDouble || run.runCoins < DOUBLE_MIN_COINS) return;
   const r = await showAd(() => YG.showRewarded());
   if (r.rewarded) { lastAdAt = sessionT; doubleCoins(); }
 }
-// --- магазин: меню, GameplayAPI не трогаем ---
-function openShop(from) { shopReturn = from; state = 'shop'; flashCard(null); }
-function closeShop() { state = shopReturn; }
 // --- ввод ---
 function onTap(x, y) {
   if (!booted || adBusy || paused) return;
   audio();
   if (awaitTap) { awaitTap = false; YG.gameplayStart(); return; } // первый тап после паузы — не прыжок
-  if (state === 'title') {
-    const b = hitButton(x, y);
-    if (b && b.id === 'shop') { openShop('title'); return; }
-    if (b && (b.id === 'floor-' || b.id === 'floor+')) { setStartFloor(save.startFloor + (b.id === 'floor+' ? 1 : -1)); reset(save.startFloor); return; }
-    state = 'play'; YG.gameplayStart(); jump(x < ball.x ? -1 : 1); return;
-  }
-  if (state === 'dead') {
-    if (tGame < 0.6) return;
-    const b = hitButton(x, y); if (!b) return;
-    if (b.id === 'again') restart();
-    else if (b.id === 'continue') tryContinue();
-    else if (b.id === 'double') tryDouble();
-    else if (b.id === 'shop') openShop('dead');
-    return;
-  }
-  if (state === 'shop') {
-    const b = hitButton(x, y); if (!b) return;
-    if (b.id === 'back') closeShop();
-    else if (b.id.startsWith('buy:')) { const id = b.id.slice(4); if (buy(id)) flashCard(id); }
-    return;
-  }
-  if (state === 'play' && ball.alive) jump(clamp(x, 0, W) < ball.x ? -1 : 1); // тап по боковой зоне = у края поля
+  if (state === 'play') { if (ball.alive) jumpTo(clamp(x, 0, W), y + camY); return; } // тап по боковой зоне = у края поля
+  if (state !== 'title' && tGame < 0.6) return;
+  const b = hitButton(x, y); if (!b) return;
+  if (b.id === 'play') goPlay('start');
+  else if (b.id === 'continue') tryContinue();
+  else if (b.id === 'cp') goPlay('cp');
+  else if (b.id === 'restart') goPlay('restart');
+  else if (b.id === 'double') tryDouble();
+  else if (b.id === 'next') goPlay('next');
 }
 cv.addEventListener('pointerdown', e => { e.preventDefault(); const [x, y] = toGame(e); onTap(x, y); });
 cv.addEventListener('contextmenu', e => e.preventDefault());
 window.addEventListener('keydown', e => {
   if (e.repeat) return;
   const left = e.code === 'ArrowLeft' || e.code === 'KeyA', right = e.code === 'ArrowRight' || e.code === 'KeyD';
-  const up = e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW' || e.code === 'Enter', esc = e.code === 'Escape';
-  if (!left && !right && !up && !esc) return;
+  const up = e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW' || e.code === 'Enter';
+  if (!left && !right && !up) return;
   e.preventDefault();
-  if (state === 'shop') { if ((esc || e.code === 'Space' || e.code === 'Enter') && !paused && !adBusy) closeShop(); return; }
-  if (state === 'dead') { if (up) { const b = buttons.find(b => b.id === 'again'); if (b) onTap(b.x, b.y); } return; }
-  if (esc) return;
-  onTap(left ? ball.x - 10 : right ? ball.x + 10 : ball.x + (ball.vx >= 0 ? 10 : -10), 0);
+  if (!booted || adBusy || paused) return;
+  if (awaitTap) { onTap(W / 2, H / 2); return; }
+  if (state === 'play') { if (ball.alive) jumpTo(left ? ball.x - 170 : right ? ball.x + 170 : ball.x, ball.y - (up ? 300 : 150)); return; }
+  if (up) { const id = state === 'title' ? 'play' : state === 'dead' ? (run.cp > 0 ? 'cp' : 'restart') : 'next'; const b = buttons.find(b => b.id === id); if (b) onTap(b.x, b.y); }
 });
 // --- кадр ---
 function draw() {
@@ -108,8 +88,8 @@ function draw() {
   ctx.restore();
   if (state === 'play') drawHUD();
   if (state === 'title') titleScreen();
-  if (state === 'dead') resultsScreen(tGame > 0.6);
-  if (state === 'shop') shopScreen();
+  if (state === 'dead') deadScreen(tGame > 0.6);
+  if (state === 'finish') finishScreen(tGame > 0.6);
   if (paused || awaitTap) pausedScreen(awaitTap && !paused);
   adStubScreen();
 }
@@ -123,12 +103,8 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
-expose({
-  get paused() { return paused; }, get awaitTap() { return awaitTap; }, get adBusy() { return adBusy; },
-  forceAdReady() { lastAdAt = -1e9; }, pauseGame, resumeGame,
-  openShop, closeShop, get shopReturn() { return shopReturn; },
-});
+expose({ get paused() { return paused; }, get awaitTap() { return awaitTap; }, get adBusy() { return adBusy; }, forceAdReady() { lastAdAt = -1e9; }, pauseGame, resumeGame, goPlay });
 // старт загрузки: в продакшене сразу при загрузке скрипта; тесты ставят CFG.manualBoot и зовут startBoot() сами
-function startBoot() { if (!DBG.boot) DBG.boot = boot().catch(e => { console.error('boot failed', e); booted = true; state = 'title'; YG.ready(); }); return DBG.boot; }
+function startBoot() { if (!DBG.boot) DBG.boot = boot().catch(e => { console.error('boot failed', e); booted = true; if (!tower) startTower(1, 0); state = 'title'; YG.ready(); }); return DBG.boot; }
 expose({ startBoot });
 if (!CFG.manualBoot) startBoot();

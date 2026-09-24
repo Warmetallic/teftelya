@@ -190,6 +190,27 @@ function tefaFace(c, x, y, r, pose) {
     c.beginPath(); c.moveTo(x - mw, y + my - r * 0.01); c.quadraticCurveTo(x, y + my + r * 0.21, x + mw, y + my - r * 0.01); c.stroke();
   }
 }
+// кэш тела: зерно из сотен кляксов слишком дорого рисовать каждый кадр — тело печётся один раз на радиус и масштаб экрана
+const tefaCache = new Map(); // `${rd}:${pool}:${k}` → canvas
+const TEFA_CACHE_MAX = 48;
+function tefaBodyCached(c, rd, pool) {
+  const canCache = typeof document !== 'undefined' && typeof document.createElement === 'function';
+  if (!canCache) { tefaBody(c, 0, 0, rd, pool); return; } // headless-стенд и node-canvas рисуют напрямую
+  const k = Math.min(3, Math.max(1, Math.ceil((view.scale || 1) * (view.dpr || 1))));
+  const rr = Math.max(1, Math.round(rd)), key = rr + ':' + (pool ? 1 : 0) + ':' + k;
+  let cv = tefaCache.get(key);
+  if (!cv) {
+    const size = Math.ceil(rr * 3.2 * k);
+    cv = document.createElement('canvas'); cv.width = size; cv.height = size;
+    const cc = cv.getContext('2d'); if (!cc) { tefaBody(c, 0, 0, rd, pool); return; }
+    cc.setTransform(k, 0, 0, k, size / 2, size / 2);
+    tefaBody(cc, 0, 0, rr, pool);
+    if (tefaCache.size >= TEFA_CACHE_MAX) tefaCache.delete(tefaCache.keys().next().value);
+    tefaCache.set(key, cv);
+  }
+  const half = rr * 1.6 * (rd / rr);
+  c.drawImage(cv, -half, -half, half * 2, half * 2);
+}
 // (x, y) — центр столкновений, r — радиус столкновений; поза задаётся трансформацией контекста
 function drawTefa(c, x, y, r, pose = {}) {
   const sx = pose.sx === undefined ? 1 : pose.sx, sy = pose.sy === undefined ? 1 : pose.sy;
@@ -202,10 +223,10 @@ function drawTefa(c, x, y, r, pose = {}) {
     gl.addColorStop(0, 'rgba(255,200,80,0.45)'); gl.addColorStop(1, 'rgba(255,200,80,0)');
     c.fillStyle = gl; c.beginPath(); c.arc(0, 0, r * 1.7, 0, TEFA_TAU); c.fill();
   }
-  tefaBody(c, 0, 0, rd, pose.flag !== false); // flag !== false — лужица соуса у низа
+  tefaBodyCached(c, rd, pose.flag !== false); // flag !== false — лужица соуса у низа
   const hot = clamp(pose.hot || 0, 0, 1);
   if (hot > 0) { tefaSil(c, 0, 0, rd); c.fillStyle = `rgba(70,20,10,${hot * 0.55})`; c.fill(); } // ожог о сковородку
   tefaFace(c, 0, 0, rd, pose);
   c.restore();
 }
-expose({ drawTefa, TEFA_VARIANT });
+expose({ drawTefa, TEFA_VARIANT, get tefaCacheSize() { return tefaCache.size; } });
