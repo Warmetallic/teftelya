@@ -404,14 +404,18 @@ function tefaFace(c, x, y, r, pose, mood) {
 // ---------- кэш: зерно из сотен клякс слишком дорого рисовать каждый кадр ----------
 // картинка печётся один раз на радиус (шаг 4 px) и масштаб экрана; тело — ещё на лужицу, уровень жизней и красный тон
 const tefaCache = new Map(); // `${tag}:${rr}:${k}` → canvas; tag: `body:${pool}:${lvl}:${tint}` или `raw`
-const TEFA_CACHE_MAX = 16;   // на телефоне с dpr 3 кэш с k = 3 и шагом радиуса 2 px доходил до 60 МБ; уровни жизней добавили ключей
-function tefaCached(c, rd, tag, paint) { // paint(cc, r) рисует картинку с центром в (0, 0) для радиуса r
+const TEFA_CACHE_MAX = 20;   // на телефоне с dpr 3 кэш с k = 3 и шагом радиуса 2 px доходил до 60 МБ; сейчас k ≤ 2, ключей на сессию
+                             // около 15 (уровни жизней × радиусы масс, сырой фарш, берсерк); вытесняется давно неиспользованная картинка
+// rb — радиус, под который картинка печётся (целевой радиус массы, pose.bake); rd — радиус, в котором она рисуется сейчас:
+// пока радиус плавно догоняет массу после удара или лечения, картинка масштабируется, а не перепекается
+function tefaCached(c, rd, rb, tag, paint) { // paint(cc, r) рисует картинку с центром в (0, 0) для радиуса r
   const canCache = typeof document !== 'undefined' && typeof document.createElement === 'function';
   if (!canCache) { paint(c, rd); return; } // headless-стенд и node-canvas рисуют напрямую
   const k = Math.min(2, Math.max(1, Math.ceil((view.scale || 1) * (view.dpr || 1))));
-  const rr = Math.max(4, Math.round(rd / 4) * 4), key = tag + ':' + rr + ':' + k;
+  const rr = Math.max(4, Math.round(rb / 4) * 4), key = tag + ':' + rr + ':' + k;
   let cv = tefaCache.get(key);
-  if (!cv) {
+  if (cv) { tefaCache.delete(key); tefaCache.set(key, cv); } // свежая картинка — в конец очереди на вытеснение
+  else {
     const size = Math.ceil(rr * 3.2 * k);
     cv = document.createElement('canvas'); cv.width = size; cv.height = size;
     const cc = cv.getContext('2d'); if (!cc) { paint(c, rd); return; }
@@ -420,25 +424,26 @@ function tefaCached(c, rd, tag, paint) { // paint(cc, r) рисует карти
     if (tefaCache.size >= TEFA_CACHE_MAX) tefaCache.delete(tefaCache.keys().next().value);
     tefaCache.set(key, cv);
   }
-  const half = rr * 1.6 * (rd / rr);
+  const half = rd * 1.6; // картинка шириной 3.2·rr под радиус rr, растянута под rd
   c.drawImage(cv, -half, -half, half * 2, half * 2);
 }
-function tefaBodyCached(c, rd, pool, lvl, tint) { tefaCached(c, rd, 'body:' + (pool ? 1 : 0) + ':' + lvl + ':' + tint, (cc, r) => tefaBodyHp(cc, 0, 0, r, pool, lvl, tint)); }
+function tefaBodyCached(c, rd, rb, pool, lvl, tint) { tefaCached(c, rd, rb, 'body:' + (pool ? 1 : 0) + ':' + lvl + ':' + tint, (cc, r) => tefaBodyHp(cc, 0, 0, r, pool, lvl, tint)); }
 // заживление 0.3 с тоже из кэша: тело нового уровня мимо ещё открытой части укуса B, в кольце между B0 и B — сырой фарш
-function tefaHealCached(c, rd, pool, lvl, heal) {
+function tefaHealCached(c, rd, rb, pool, lvl, heal) {
   const B0 = tefaBite(0, 0, rd, lvl), B = tefaBite(0, 0, rd, lvl, heal); // был укус B0, сейчас B
   c.save(); tefaClipOutBites(c, 0, 0, rd, [B]);
-  tefaBodyCached(c, rd, pool, lvl, 0);
-  tefaHealFill(c, 0, 0, rd, B0, B, () => tefaCached(c, rd, 'raw', (cc, r) => tefaRawMince(cc, 0, 0, r, 11)));
+  tefaBodyCached(c, rd, rb, pool, lvl, 0);
+  tefaHealFill(c, 0, 0, rd, B0, B, () => tefaCached(c, rd, rb, 'raw', (cc, r) => tefaRawMince(cc, 0, 0, r, 11)));
   c.restore();
 }
 // (x, y) — центр столкновений, r — радиус столкновений; поза задаётся трансформацией контекста.
 // pose: sx, sy, tilt, face, mouth, blink, hot 0..1, berserk, alpha, flag (лужица соуса; по умолчанию есть),
 //   hp { cur, max } — жизни (по умолчанию полная), tint 0..1 — красное мигание последнего куска,
-//   charged — шкала суперсилы полна, heal 0..1 — укус зарастает (0 и 1 — заживления нет)
+//   charged — шкала суперсилы полна, heal 0..1 — укус зарастает (0 и 1 — заживления нет),
+//   bake — целевой радиус (как r), под который печётся кэш тела, пока r его догоняет; по умолчанию r
 function drawTefa(c, x, y, r, pose = {}) {
   const sx = pose.sx === undefined ? 1 : pose.sx, sy = pose.sy === undefined ? 1 : pose.sy;
-  const rd = r * TEFA_FIT; // радиус в мерках инструмента
+  const rd = r * TEFA_FIT, rb = (pose.bake || r) * TEFA_FIT; // радиус в мерках инструмента; rb — под него печётся кэш
   const hp = pose.hp || { cur: 1, max: 1 }, lvl = tefaHpLevel(hp.cur, hp.max), pool = pose.flag !== false;
   const heal = pose.heal > 0 && pose.heal < 1 && lvl < 3 ? pose.heal : 0; // заживает укус № lvl: следующий после нынешних
   const tint = lvl === 3 ? clamp(pose.tint || 0, 0, 1) : 0;
@@ -450,10 +455,10 @@ function drawTefa(c, x, y, r, pose = {}) {
   if (pose.berserk) tefaBerserkAura(c, 0, 0, rd);
   if (pose.charged) tefaChargeGlow(c, 0, 0, rd);
   if (tint) tefaAlarm(c, 0, 0, rd, tint);
-  if (heal) tefaHealCached(c, rd, pool, lvl, heal);
+  if (heal) tefaHealCached(c, rd, rb, pool, lvl, heal);
   else {
-    tefaBodyCached(c, rd, pool, lvl, 0);
-    if (tint) { c.globalAlpha = a0 * tint; tefaBodyCached(c, rd, pool, lvl, 1); c.globalAlpha = a0; } // смесь с красной версией = мигание
+    tefaBodyCached(c, rd, rb, pool, lvl, 0);
+    if (tint) { c.globalAlpha = a0 * tint; tefaBodyCached(c, rd, rb, pool, lvl, 1); c.globalAlpha = a0; } // смесь с красной версией = мигание
   }
   const hot = clamp(pose.hot || 0, 0, 1);
   if (hot > 0 || pose.charged) { // ожог и золотой кант ложатся на тело мимо укусов

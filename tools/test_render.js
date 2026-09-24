@@ -82,6 +82,19 @@ const ctx = new Proxy({}, { get: (t, k) => k === 'fillText' ? s => texts.push(St
   assert.ok(d.tefaCacheSize - cache0 <= 2, 'заживление добавляет в кэш не больше двух картинок');
   ops = 0; d.drawTefa(cctx, 100, 100, 40, healPose(0.6));
   assert.ok(ops < 3000, 'кадр заживления из кэша, без зерна: ' + ops + ' операций');
+  // тело печётся под целевой радиус массы (pose.bake), а не под радиус, который плавно догоняет массу после удара:
+  // промежуточные радиусы не пекут новых тел (финальное ревью v2.1.1: каждое перепекание — рывок в 10+ мс)
+  d.drawTefa(cctx, 100, 100, 38, { hp: { cur: 3, max: 4 }, bake: 34 }); const baked = d.tefaCacheSize;
+  for (const r of [37, 36, 35, 34.2]) { ops = 0; d.drawTefa(cctx, 100, 100, r, { hp: { cur: 3, max: 4 }, bake: 34 }); assert.ok(ops < 300, 'радиус ' + r + ': тело из кэша, ' + ops + ' операций'); }
+  assert.strictEqual(d.tefaCacheSize, baked, 'пока радиус догоняет массу, кэш не растёт');
+  // вытесняется давно неиспользованная картинка: тело, которое рисуется каждый кадр, не перепекается, сколько бы
+  // других размеров ни прошло через кэш
+  let rebakes = 0; d.drawTefa(cctx, 100, 100, 38, { hp: { cur: 4, max: 4 }, bake: 38 }); // частое тело испечено заранее
+  for (let k = 0; k < 24; k++) {
+    d.drawTefa(cctx, 100, 100, 20 + 4 * k, { hp: { cur: 4, max: 4 }, bake: 20 + 4 * k });
+    ops = 0; d.drawTefa(cctx, 100, 100, 38, { hp: { cur: 4, max: 4 }, bake: 38 }); if (ops > 3000) rebakes++;
+  }
+  assert.strictEqual(rebakes, 0, 'частое тело не вытесняется из кэша');
   delete document.createElement;
   console.log('test_render ok');
 })().catch(e => { console.error(e); process.exit(1); });
