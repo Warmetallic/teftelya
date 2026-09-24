@@ -39,8 +39,22 @@ const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addCol
     if (N === 1) assert.ok(P.filter(p => p.type === 'tray').every(p => p.speed >= 40 && p.speed <= 70), 'поднос в башне 1 медленный: 40–70 px/с');
     if (N === 1) { assert.ok(!P.some(p => p.type === 'cheese'), 'сыра нет в башне 1'); assert.strictEqual(t.hazards.length, 0, 'в башне 1 опасностей в раскладке нет'); }
     if (N === 2) assert.ok(!t.hazards.some(h => h.type === 'blades'), 'лопасти не раньше башни 3');
-    // нож висит поперёк пропасти: в его ряду нет ни одной платформы, удар до уровня ряда никого на ступени не заденет
-    for (const h of t.hazards) if (h.type === 'knife') assert.ok(!P.some(p => p.y === h.y), 'башня ' + N + ': нож в пустом ряду');
+    // нож висит в пустоте пропасти, на линии полёта (плейтест 2026-09-24: нож лежал на площадке отдыха и бил стоящую на ней
+    // Тефу, удар сбрасывал её в пропасть): картинка ножа за весь ход — от рукояти в замахе до кончика в ударе — не задевает
+    // платформ, а стоящая Тефа любой массы на любой точке платформы не попадает под удар (условие удара — hazards.js)
+    for (const h of t.hazards) if (h.type === 'knife') {
+      const top = h.by - 14 - 40, tip = h.y - 80 + 84;
+      for (const p of P) {
+        if (Math.abs(p.y - h.y) > 6 * d.ROW_H) continue;
+        const x0 = (p.type === 'tray' ? p.x0 : p.x) - p.w / 2, x1 = (p.type === 'tray' ? p.x1 : p.x) + p.w / 2;
+        assert.ok(h.x + 10 < x0 || h.x - 10 > x1 || p.y + 18 < top || p.y - 8 > tip, 'башня ' + N + ': нож не лежит на платформе');
+        for (const m of [1, 4, 8]) {
+          const R = d.radiusFor(m), y = p.y - R;
+          for (let x = x0; x <= x1; x += 5) for (let ky = h.by; ky <= h.y - 80; ky += 2)
+            assert.ok(!(Math.abs(x - h.x) < R + 8 && Math.abs(y - (ky + 40)) < R + 40), 'башня ' + N + ': нож не бьёт стоящую Тефу');
+        }
+      }
+    }
     // со второй башни в каждой башне с пропастью есть нож: первый гарантирован, игрок знакомится с ним сразу
     const hasGap = t.path.some((id, i) => i > 0 && byId.get(id).rest && byId.get(id).row - byId.get(t.path[i - 1]).row >= 3);
     if (N >= 2 && hasGap) assert.ok(t.hazards.some(h => h.type === 'knife'), 'башня ' + N + ': есть нож');

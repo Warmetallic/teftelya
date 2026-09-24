@@ -6,6 +6,10 @@
 const ROW_H = 120;          // шаг рядов, px
 const CP_EVERY = 20;        // чекпоинт каждые 20 рядов
 const KNIFE_CYCLE = 2.1;    // нож: пауза 1.2 + замах 0.6 + удар 0.3
+// нож в пропасти (плейтест 2026-09-24: в среднем ряду он висел на площадке отдыха и бил стоящую на ней Тефу): нижняя точка
+// удара на KNIFE_LOW над тарелкой, с которой прыгают, ход вверх KNIFE_TRAVEL — ни стоящая внизу Тефа массы до 8, ни площадка
+// над пропастью в два ряда (360 px) не попадают под нож, а полёт через пропасть проходит сквозь его ход
+const KNIFE_LOW = 195, KNIFE_TRAVEL = 80;
 const X_MIN = 70, X_MAX = 410; // центры обычных платформ; итоговый центр ещё зажимается по ширине, чтобы края были в [20, 460]
 const EDGE = 20;          // платформа не подходит к краю поля ближе 20 px
 const BLADES_R = 36;        // радиус лопастей миксера, px (столкновение — hazards.js)
@@ -62,11 +66,11 @@ function buildTower(N) {
     }
     return p;
   };
-  const knife = (x, ky) => hazards.push({ id: hid++, type: 'knife', x, y: ky, t: R() * KNIFE_CYCLE, phase: 'rest', by: ky - 150 });
-  const gap = (cur, e) => { // e пустых рядов, за ними площадка отдыха; нож поперёк полёта в среднем пустом ряду, дуга еды в пустоте
+  const knife = (x, baseY) => { const low = baseY - KNIFE_LOW; hazards.push({ id: hid++, type: 'knife', x, y: low + 80, t: R() * KNIFE_CYCLE, phase: 'rest', by: low - KNIFE_TRAVEL }); };
+  const gap = (cur, e) => { // e пустых рядов, за ними площадка отдыха; нож поперёк полёта в пустоте, дуга еды в пустоте
     const q = walk(rest(cur.row + e + 1, cur.x + rr(-150, 150)));
-    const kx = (cur.x + q.x) / 2, ky = -(cur.row + Math.ceil((e + 1) / 2)) * ROW_H;
-    if (N >= 2) { if (R() < tp.pKnife) knife(kx, ky); else knifeSlots.push([kx, ky]); }
+    const kx = (cur.x + q.x) / 2; // на линии полёта: посередине между тарелкой старта и площадкой
+    if (N >= 2) { if (R() < tp.pKnife) knife(kx, cur.y); else knifeSlots.push([kx, cur.y]); }
     if (R() < 0.5) arc(cur, q, ri(3, 5));
     return q;
   };

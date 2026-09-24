@@ -18,7 +18,7 @@ const play = async (g, d) => { await up(g, d, 6); steps(g, 10); };
 const hazards = async (g, d) => {
   const bl = d.hazards.find(h => h.type === 'blades'); await up(g, d, bl ? Math.max(1, Math.round((-bl.y - 60) / d.ROW_H) - 2) : 18);
   d.spawnFly(true); d.flies[0].warnT = 0; d.flies[0].x = 60; d.flies[0].y = d.ball.y - 60;
-  const kn = d.hazards.find(h => h.type === 'knife'); if (kn) { kn.x = 330; kn.y = d.ball.y - 220; kn.by = kn.y - 150; kn.t = 1.8; }
+  const kn = d.hazards.find(h => h.type === 'knife'); if (kn) { const base = d.ball.y + d.ball.r; kn.x = 330; kn.y = base - 115; kn.by = base - 275; kn.t = 1.8; } // как в пропасти над тарелкой Тефы (tower.js KNIFE_LOW)
   d.resetPours(1e9); d.startPour(d.ball.x + 80); steps(g, 8); }; // один налив сцены, плановые выключены
 const berserk = async (g, d) => { await up(g, d, 4); d.powerAdd(d.POWER_FULL); d.tryActivatePower(); d.spawnFly(false); d.flies[0].warnT = 0; d.flies[0].x = 380; d.flies[0].y = d.ball.y - 40; steps(g, 12); };
 // шкала полна: шкалу добиваем настоящей едой, чтобы сработало событие — Тефа светится, над ней «Тапни по Тефе!»
