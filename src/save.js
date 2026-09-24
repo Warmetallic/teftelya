@@ -1,70 +1,78 @@
 'use strict';
-// ---------- сохранения: облако Яндекса + локальный резерв, при загрузке максимум по полям ----------
-// v3 — монотонный журнал: earned/spent, уровни апгрейдов и пройденные этажи только растут, скин упорядочен по открытию.
-// Поэтому слияние «максимум по полям» корректно: игрок никогда не теряет, а баланс не уходит в минус
-// (на каждом устройстве spent ≤ earned, значит max(earned) − max(spent) ≥ 0).
-const SAVE_VERSION = 3;
+// ---------- сохранения v4: облако Яндекса + локальный резерв, слияние «лучшее по полям» ----------
+// Реестр монет монотонный (earned/spent только растут), уровни веток только растут, летопись — лучший рейтинг по башне,
+// поэтому слияние «максимум/лучшее по полям» никогда не отнимает у игрока и не уводит баланс в минус.
+const SAVE_VERSION = 4;
 const SAVE_KEY = 'teft_save';
-const UP_MAX = { jumps: 2, magnet: 3 };   // максимальные уровни апгрейдов; каталог и цены — в upgrades.js
-const SKIN_ORDER = ['none', 'chef', 'glasses', 'crown', 'bow', 'mustache']; // порядок открытия скинов (каталог — в skins.js)
-const save = { v: SAVE_VERSION, best: 0, earned: 0, spent: 0, up: { jumps: 0, magnet: 0 }, floor: 0, startFloor: 1, skin: 'none' };
+const UP_MAX = { meat: null, crust: null, appetite: null, spice: null, nerve: 2, grit: 2, repel: 15, charge: 3 }; // null — без потолка (спека §6)
+const SKIN_ORDER = ['none', 'chef', 'glasses', 'crown', 'bow', 'mustache']; // порядок открытия скинов; каталог — v2.3
+const RANK = ['D', 'C', 'B', 'A', 'S'];
+const save = { v: SAVE_VERSION, earned: 0, spent: 0, up: _emptyUp(), skins: [], skin: 'none', tower: 1, log: {}, cp: 0 };
+function _emptyUp() { const o = {}; for (const k of Object.keys(UP_MAX)) o[k] = 0; return o; }
 function coins() { return Math.max(0, save.earned - save.spent); }
 const _int = v => Math.max(0, Math.floor(+v || 0));
-const _clampStart = (start, floor) => Math.min(Math.max(1, start), floor + 1);
-// приводит объект любой версии (или мусор) к текущей схеме; v1 {coins} → earned = coins, spent = 0; v2 → этажи и скин по умолчанию
+const _rank = r => Math.max(0, RANK.indexOf(r));
+// приводит объект любой версии (или мусор) к схеме v4. v1 {coins} → earned; v1–v3: spent = 0 (старые апгрейды удалены — монеты возвращаются)
 function migrate(obj) {
-  const o = { v: SAVE_VERSION, best: 0, earned: 0, spent: 0, up: { jumps: 0, magnet: 0 }, floor: 0, startFloor: 1, skin: 'none' };
-  if (obj && typeof obj === 'object') {
-    o.best = _int(obj.best);
-    if (obj.earned !== undefined || obj.spent !== undefined) { o.earned = _int(obj.earned); o.spent = _int(obj.spent); }
-    else o.earned = _int(obj.coins);
-    const up = obj.up && typeof obj.up === 'object' ? obj.up : {};
-    for (const k of Object.keys(UP_MAX)) o.up[k] = Math.min(UP_MAX[k], _int(up[k]));
-    o.floor = _int(obj.floor);
-    o.startFloor = _clampStart(_int(obj.startFloor) || 1, o.floor);
-    o.skin = SKIN_ORDER.includes(obj.skin) ? obj.skin : 'none';
+  const o = { v: SAVE_VERSION, earned: 0, spent: 0, up: _emptyUp(), skins: [], skin: 'none', tower: 1, log: {}, cp: 0 };
+  if (!obj || typeof obj !== 'object') return o;
+  o.earned = obj.earned !== undefined || obj.spent !== undefined ? _int(obj.earned) : _int(obj.coins);
+  o.skin = SKIN_ORDER.includes(obj.skin) ? obj.skin : 'none';
+  if (_int(obj.v) < 4) return o;
+  o.spent = Math.min(o.earned, _int(obj.spent));
+  const up = obj.up && typeof obj.up === 'object' ? obj.up : {};
+  for (const k of Object.keys(UP_MAX)) o.up[k] = UP_MAX[k] === null ? _int(up[k]) : Math.min(UP_MAX[k], _int(up[k]));
+  o.skins = Array.isArray(obj.skins) ? obj.skins.filter(s => SKIN_ORDER.includes(s) && s !== 'none') : [];
+  o.tower = Math.max(1, _int(obj.tower));
+  if (obj.log && typeof obj.log === 'object') for (const k of Object.keys(obj.log)) {
+    const e = obj.log[k], n = _int(k); if (!e || !RANK.includes(e.r) || n < 1 || String(n) !== String(k)) continue;
+    o.log[n] = { r: e.r, t: Math.max(0, +e.t || 0) };
   }
+  o.cp = _int(obj.cp);
   return o;
 }
 function mergeSaves(a, b) {
-  const o = { v: SAVE_VERSION, best: Math.max(a.best || 0, b.best || 0), earned: Math.max(a.earned || 0, b.earned || 0), spent: Math.max(a.spent || 0, b.spent || 0), up: {},
-    floor: Math.max(a.floor || 0, b.floor || 0), startFloor: 1, skin: 'none' };
+  const o = { v: SAVE_VERSION, earned: Math.max(a.earned || 0, b.earned || 0), spent: Math.max(a.spent || 0, b.spent || 0), up: _emptyUp(), skins: [], skin: 'none',
+    tower: Math.max(a.tower || 1, b.tower || 1), log: {}, cp: 0 };
   for (const k of Object.keys(UP_MAX)) o.up[k] = Math.max((a.up && a.up[k]) || 0, (b.up && b.up[k]) || 0);
-  o.startFloor = _clampStart(Math.max(a.startFloor || 1, b.startFloor || 1), o.floor);
+  o.skins = [...new Set([...(a.skins || []), ...(b.skins || [])])];
   o.skin = SKIN_ORDER[Math.max(Math.max(0, SKIN_ORDER.indexOf(a.skin)), Math.max(0, SKIN_ORDER.indexOf(b.skin)))];
+  for (const src of [a.log || {}, b.log || {}]) for (const k of Object.keys(src)) {
+    const e = src[k], cur = o.log[k];
+    if (!cur || _rank(e.r) > _rank(cur.r) || (_rank(e.r) === _rank(cur.r) && e.t < cur.t)) o.log[k] = { r: e.r, t: e.t };
+  }
+  const ta = a.tower || 1, tb = b.tower || 1;
+  o.cp = ta === tb ? Math.max(a.cp || 0, b.cp || 0) : (ta > tb ? a.cp || 0 : b.cp || 0);
   return o;
 }
-function snapshot() { return { v: SAVE_VERSION, best: save.best, earned: save.earned, spent: save.spent, up: { jumps: save.up.jumps, magnet: save.up.magnet }, floor: save.floor, startFloor: save.startFloor, skin: save.skin }; }
+function snapshot() { return migrate(save); } // migrate копирует и нормализует — снимок не делит ссылки с save
 function sameSave(a, b) { return JSON.stringify(migrate(a)) === JSON.stringify(migrate(b)); }
 function _readLocal() {
   const st = YG.storage; if (!st) return null;
   try {
     const raw = st.getItem(SAVE_KEY);
     if (raw) return JSON.parse(raw);
-    // миграция с ключей прототипа (v1)
-    const b = +st.getItem('teft_best') || 0, c = +st.getItem('teft_coins') || 0;
+    const b = +st.getItem('teft_best') || 0, c = +st.getItem('teft_coins') || 0; // ключи прототипа (v1)
     if (b || c) { const o = { v: 1, best: b, coins: c }; st.setItem(SAVE_KEY, JSON.stringify(o)); st.removeItem('teft_best'); st.removeItem('teft_coins'); return o; }
   } catch (e) {}
   return null;
 }
 function _writeLocal(obj) { try { if (YG.storage) YG.storage.setItem(SAVE_KEY, JSON.stringify(obj)); } catch (e) {} }
-let lastSent = '';   // последний снимок, отправленный в облако — чтобы не слать повторно один и тот же
+let lastSent = '';
 async function loadSave() {
   const cloudRaw = await YG.getData(), localRaw = _readLocal();
   const cloud = migrate(cloudRaw), local = migrate(localRaw);
   const merged = mergeSaves(cloud, local);
   Object.assign(save, merged);
-  // переписываем хранилище, если оно пустое, старой версии или отличается от слитого
   if (!localRaw || localRaw.v !== SAVE_VERSION || !sameSave(local, merged)) _writeLocal(merged);
   if (!cloudRaw || cloudRaw.v !== SAVE_VERSION || !sameSave(cloud, merged)) YG.setData(merged);
   lastSent = JSON.stringify(merged);
   return save;
 }
-// вызывать только при смерти, наградах, покупках, пройденном этаже и смене этажа/скина: лимит облака 100 запросов за 5 минут
+// вызывать только при смерти, финише, чекпоинте, наградах и покупках: лимит облака 100 запросов за 5 минут
 function persist() {
-  const snap = snapshot();
-  const json = JSON.stringify(snap);
+  const snap = snapshot(), json = JSON.stringify(snap);
   _writeLocal(snap);
   if (json !== lastSent) { lastSent = json; YG.setData(snap); }
 }
-expose({ save, coins, loadSave, persist, migrate, mergeSaves, UP_MAX, SKIN_ORDER });
+expose({ save, coins, loadSave, persist, migrate, mergeSaves, snapshot, UP_MAX, SKIN_ORDER, RANK });

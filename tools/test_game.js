@@ -48,7 +48,7 @@ const item = (d, kind, trash, x, y) => ({ kind, trash, def: trash ? d.TRASH[kind
   assert.strictEqual(d.run.runCoins, 30); assert.strictEqual(d.coins(), c1 + 15); assert.ok(d.run.usedDouble);
   // рекорд высоты и падение за нижний край
   d.reset(); d.state = 'play'; ball.y = -5000; d.update(0.016); assert.ok(d.run.maxHeight >= 499);
-  ball.y = d.camY + 854 + 200; d.update(0.016); assert.strictEqual(d.state, 'dead'); assert.ok(d.save.best >= 499);
+  ball.y = d.camY + 854 + 200; d.update(0.016); assert.strictEqual(d.state, 'dead');
   // удар о стену быстрее WALL_HIT отрывает мясо, в неуязвимости — нет
   d.reset(); d.state = 'play'; ball.mass = 5; ball.x = ball.r - 5; ball.vx = -400; d.update(0.016);
   assert.strictEqual(ball.mass, 4, 'удар о стену быстрее WALL_HIT отрывает мясо'); assert.ok(ball.vx > 0, 'отскок');
