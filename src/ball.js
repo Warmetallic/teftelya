@@ -27,6 +27,25 @@ function aimJump(bx, by, r, tx, ty) {
   const vx = clamp((tx - bx) / t, -VX_MAX, VX_MAX);
   return { vx, vy, t, dy };
 }
+// как прицельно достать поверхность (tx, ty) из (bx, by): одним прыжком, а если дуга не достаёт — двумя: первый вверх
+// до предела и на полпути вбок, второй у вершины (vy ≥ −30). Так прыгает бот (tools/bot.js), и так генератор проверяет,
+// что лопасти не стоят на пути (tower.js). Возвращает точку для первого тапа
+function jumpPlan(bx, by, r, tx, ty) {
+  const a = aimJump(bx, by, r, tx, ty), rise = by + r - ty;
+  if (rise <= JUMP_MAX_H - AIM_MARGIN && Math.abs(a.vx) < VX_MAX - 1) return { double: false, tx, ty };
+  return { double: true, tx: bx + clamp((tx - bx) * 0.5, -250, 250), ty: by + r - 400 };
+}
+// центры Тефы по кадрам 1/60 с на пути по jumpPlan до посадки на поверхность ty; шаг как в game.js update
+function flightPath(bx, by, r, tx, ty) {
+  const plan = jumpPlan(bx, by, r, tx, ty), pts = [];
+  let x = bx, y = by, a = aimJump(x, y, r, clamp(plan.tx, 0, W), plan.ty), vx = a.vx, vy = a.vy, second = !plan.double;
+  for (let i = 0; i < 600; i++) {
+    if (!second && vy >= -30) { second = true; a = aimJump(x, y, r, clamp(tx, 0, W), ty); vx = a.vx; vy = a.vy; }
+    vy += GRAV / 60; x += vx / 60; y += vy / 60; pts.push([x, y]);
+    if (second && vy > 0 && y + r >= ty) break;
+  }
+  return pts;
+}
 function squash(a) { ball.sqv += a * 0.006; }   // > 0 — сплющить (посадка), < 0 — вытянуть (прыжок)
 function pulse(a) { ball.sqv -= a * 0.004; }    // вытянуть (еда)
 function jolt(px, py, a) { ball.tiltv += (px < ball.x ? 1 : -1) * a * 0.012; } // тычок со стороны точки
@@ -37,4 +56,4 @@ function updateBody(dt) {
   ball.r = lerp(ball.r, radiusFor(ball.mass), 1 - Math.pow(0.01, dt));
   ball.healT = Math.max(0, ball.healT - dt);
 }
-expose({ ball, aimJump, radiusFor, GRAV, JUMP_MIN_H, JUMP_MAX_H, VX_MAX, AIM_MARGIN, HEAL_T });
+expose({ ball, aimJump, jumpPlan, flightPath, radiusFor, GRAV, JUMP_MIN_H, JUMP_MAX_H, VX_MAX, AIM_MARGIN, HEAL_T });

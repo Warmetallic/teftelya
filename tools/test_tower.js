@@ -51,14 +51,19 @@ const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addCol
       assert.ok(b.row > a.row && b.row - a.row <= d.PATH_MAX_ROWS, 'башня ' + N + ': шаг пути ' + a.row + '→' + b.row);
       links++; if (b.row - a.row >= 3 || Math.abs(b.x - a.x) > 260) air++;
     }
-    // лопасти: не чаще раза на 15 рядов; ступень под ними у края, стоящая Тефа массы 8 их не достаёт
+    // лопасти: не чаще раза на 15 рядов (ряд — у ступени пути, к которой они привязаны, h.at); ступень у края; стоящая
+    // Тефа массы 8 не достаёт их ни с одной точки платформ в трёх рядах вокруг (прицельные прыжки проверяет бот ниже)
     const bl = t.hazards.filter(h => h.type === 'blades');
-    const blRows = bl.map(h => (-h.y - 60) / d.ROW_H).sort((a, b) => a - b);
+    if (N >= 3) assert.ok(bl.length >= 1, 'башня ' + N + ': лопасти есть, даже после поиска свободного места');
+    const blRows = bl.map(h => byId.get(h.at).row).sort((a, b) => a - b);
     for (let k = 1; k < blRows.length; k++) assert.ok(blRows[k] - blRows[k - 1] >= 15, 'лопасти не чаще раза на 15 рядов');
-    for (const h of bl) for (const p of P) {
-      if (Math.abs(p.y - (h.y + 60)) > d.ROW_H) continue;
-      if (p.y === h.y + 60) assert.ok(p.x <= 140 || p.x >= 340, 'башня ' + N + ': ступень у лопастей отодвинута к краю');
-      for (const x of p.type === 'tray' ? [p.x0, p.x, p.x1] : [p.x]) assert.ok(Math.hypot(x - h.x, (p.y - r8) - h.y) > r8 + d.BLADES_R, 'башня ' + N + ': стоящая Тефа не достаёт лопасти');
+    for (const h of bl) {
+      const q = byId.get(h.at); assert.ok(t.path.includes(q.id) && (q.x <= 140 || q.x >= 340), 'башня ' + N + ': ступень у лопастей отодвинута к краю');
+      for (const p of P) {
+        if (Math.abs(p.y - h.y) > 3 * d.ROW_H) continue;
+        const x0 = (p.type === 'tray' ? p.x0 : p.x) - p.w / 2, x1 = (p.type === 'tray' ? p.x1 : p.x) + p.w / 2;
+        for (let x = x0; x <= x1; x += 5) assert.ok(Math.hypot(x - h.x, (p.y - r8) - h.y) > r8 + d.BLADES_R, 'башня ' + N + ': стоящая Тефа не достаёт лопасти');
+      }
     }
     assert.ok(t.items.length > 0 && t.items.every(it => d.FOOD_KINDS[it.kind] && !it.dead));
   }
@@ -79,6 +84,17 @@ const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addCol
     bot.climb(null, d, { noHazards: true });
     assert.strictEqual(d.state, 'finish', 'башня ' + N + ' проходима без режима бога'); assert.strictEqual(d.run.deaths, 0);
   }
+  // лопасти не стоят на дугах прицельных прыжков (финальное ревью v2.1.1): бот идёт по пути, как игрок тапает в цель,
+  // в башне оставлены только лопасти — ни одного удара; прицельный тап безопасен, лопасти наказывают неточный прыжок
+  let blHits = 0, blCount = 0;
+  for (let N = 3; N <= 100; N++) {
+    d.startTower(N); d.state = 'play'; d.resetPours(1e9); const stats = { hits: 0 };
+    blCount += d.hazards.filter(h => h.type === 'blades').length;
+    bot.climb(null, d, { keep: ['blades'], stats });
+    assert.strictEqual(d.state, 'finish', 'башня ' + N + ' с лопастями проходима');
+    blHits += stats.hits;
+  }
+  assert.strictEqual(blHits, 0, 'прицельные прыжки не задевают лопасти: ударов ' + blHits + ' на ' + blCount + ' лопастей');
   Math.random = r0;
   // seeded RNG стабилен
   const R = d.mulberry32(7); const a = [R(), R(), R()]; const R2 = d.mulberry32(7); assert.deepStrictEqual(a, [R2(), R2(), R2()]);

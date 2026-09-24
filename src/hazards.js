@@ -2,7 +2,7 @@
 // ---------- опасности: муха (наводится), масло сверху (льёт повар), нож (гильотина в разрыве), лопасти; каждая снимает один кусок ----------
 const FLY_CHASE = 6, FLY_CHASE_MIN = 1.5, FLY_WARN = 0.7, FLY_MAX = 3, FLY_CD = 2, CAMP_T = 3;
 const KNIFE_REST = 1.2, KNIFE_WIND = 0.6, KNIFE_STRIKE = 0.3; // сумма = KNIFE_CYCLE
-const BLADES_R = 36;
+// BLADES_R (радиус лопастей) задаёт tower.js: генератор ищет лопастям место с учётом их размера
 let flies = []; // мухи живут отдельно от раскладки башни: их спавнит политика, а не генератор
 function flyChase() { return Math.max(FLY_CHASE_MIN, FLY_CHASE - 0.3 * ((save.up && save.up.repel) || 0)); }
 function spawnFly(fromLeft) {
@@ -101,7 +101,7 @@ function updatePours(dt, env) {
   splats = splats.filter(s => s.t > 0);
   return ev;
 }
-expose({ FLY_CHASE, FLY_CHASE_MIN, FLY_WARN, FLY_MAX, FLY_CD, CAMP_T, KNIFE_REST, KNIFE_WIND, KNIFE_STRIKE, BLADES_R,
+expose({ FLY_CHASE, FLY_CHASE_MIN, FLY_WARN, FLY_MAX, FLY_CD, CAMP_T, KNIFE_REST, KNIFE_WIND, KNIFE_STRIKE,
   POUR_WARN, POUR_DROPS, POUR_V, SPLAT_T, SPLAT_W, LADLE_Y,
   get flies() { return flies; }, flyChase, spawnFly, resetFlies, flyWanted, knifePhase, knifeY, updateHazards,
   get pours() { return pours; }, get drops() { return drops; }, get splats() { return splats; }, pourInterval, resetPours, delayPours, startPour, updatePours });

@@ -8,6 +8,8 @@ const CP_EVERY = 20;        // чекпоинт каждые 20 рядов
 const KNIFE_CYCLE = 2.1;    // нож: пауза 1.2 + замах 0.6 + удар 0.3
 const X_MIN = 70, X_MAX = 410; // центры обычных платформ; итоговый центр ещё зажимается по ширине, чтобы края были в [20, 460]
 const EDGE = 20;          // платформа не подходит к краю поля ближе 20 px
+const BLADES_R = 36;        // радиус лопастей миксера, px (столкновение — hazards.js)
+const BLADE_GAP = 10, BLADE_NEAR = 90; // зазор до маршрута и стоящей Тефы; не дальше BLADE_NEAR от маршрута, иначе лопасти ни на что не влияют
 const PATH_MAX_ROWS = 4;    // самый большой подъём между соседними платформами пути: 480 px, два прыжка дают ≈ 536
 const FOOD_KINDS = { ketchup: { r: 15, coins: 1, w: 5 }, pasta: { r: 17, coins: 2, w: 4 }, meat: { r: 21, coins: 3, w: 2 } };
 const FOOD_COLOR = { ketchup: '#e3342f', pasta: '#f6c343', meat: '#b5452b' };
@@ -45,7 +47,7 @@ function buildTower(N) {
   const bladesAt = q => {
     if (q.type === 'tray') { q.type = 'plate'; delete q.x0; delete q.x1; delete q.dir; delete q.speed; } // у лопастей поднос не ездит
     q.x = q.x < W / 2 ? Math.min(q.x, 140) : Math.max(q.x, 340);
-    hazards.push({ id: hid++, type: 'blades', x: W / 2, y: q.y - 60, ang: 0, gone: false }); lastBlades = q.row;
+    hazards.push({ id: hid++, type: 'blades', x: W / 2, y: q.y - 60, ang: 0, gone: false, at: q.id }); lastBlades = q.row;
   };
   // фрагменты: начинаются с платформы пути cur, возвращают последнюю платформу пути, выше ряда lim не ставят ничего
   const steps = (cur, k, lim) => { // ступени зигзагом, иногда через ряд
@@ -101,6 +103,41 @@ function buildTower(N) {
     if (top.roof) break;
   }
   if (N >= 2 && !hazards.some(h => h.type === 'knife') && knifeSlots.length) knife(...knifeSlots[0]); // первый нож башни гарантирован
+  placeBlades(platforms, hazards, path);
   return { tp, platforms, hazards, items, path };
 }
-expose({ ROW_H, CP_EVERY, KNIFE_CYCLE, X_MIN, X_MAX, PATH_MAX_ROWS, FOOD_KINDS, FOOD_COLOR, mulberry32, towerParams, buildTower });
+// лопасти не встают на дугу прицельного прыжка и туда, где Тефа стоит (финальное ревью v2.1.1: на месте в середине ряда их
+// задевал обычный прыжок между ступенями зигзага). Проверяются все переходы пути, чей полёт может дотянуться до лопастей
+// (двойной прыжок взлетает до 680 px над платформой; flightPath — как прыгают игрок и бот), для масс 1, 4 и 8, для
+// массы 4 ещё с краёв платформ, и стоящая Тефа на платформах в трёх рядах вокруг. Ищем ближайшее к исходному месту положение с зазором BLADE_GAP везде и не дальше
+// BLADE_NEAR от маршрута; не нашлось — лопасти убираются
+function placeBlades(platforms, hazards, path) {
+  const byId = new Map(platforms.map(p => [p.id, p])), offs = [];
+  for (const dx of [0, 30, -30, 60, -60, 90, -90, 120, -120, 150, -150]) for (const dy of [0, -30, 30, -60, 60, -90, 90, -120, -150]) offs.push([dx, dy]);
+  offs.sort((a, b) => Math.hypot(a[0], a[1]) - Math.hypot(b[0], b[1]));
+  for (let k = hazards.length - 1; k >= 0; k--) {
+    const h = hazards[k]; if (h.type !== 'blades') continue;
+    const pts = [], near = [];
+    for (const m of [1, 4, 8]) {
+      const r = radiusFor(m), sh = m === 4 ? [-0.25, 0, 0.25] : [0];
+      for (let j = 1; j < path.length; j++) {
+        const a = byId.get(path[j - 1]), b = byId.get(path[j]);
+        if (h.y < b.y - 800 || h.y > a.y + 200) continue; // этот переход до лопастей не долетает
+        for (const sa of sh) for (const sb of sh) for (const [x, y] of flightPath(a.x + sa * a.w, a.y - r, r, b.x + sb * b.w, b.y)) {
+          pts.push([x, y, r]); if (m === 4) near.push([x, y]);
+        }
+      }
+      for (const p of platforms) {
+        if (Math.abs(p.y - h.y) > 3 * ROW_H) continue;
+        const x0 = (p.type === 'tray' ? p.x0 : p.x) - p.w / 2, x1 = (p.type === 'tray' ? p.x1 : p.x) + p.w / 2;
+        for (let x = x0; x <= x1; x += 10) pts.push([x, p.y - r, r]);
+      }
+    }
+    const ok = (bx, by) => bx >= BLADES_R + 10 && bx <= W - BLADES_R - 10
+      && pts.every(([x, y, r]) => Math.hypot(x - bx, y - by) >= r + BLADES_R + BLADE_GAP)
+      && near.some(([x, y]) => Math.hypot(x - bx, y - by) <= radiusFor(4) + BLADES_R + BLADE_NEAR);
+    const spot = offs.map(([dx, dy]) => [h.x + dx, h.y + dy]).find(([x, y]) => ok(x, y));
+    if (spot) { h.x = spot[0]; h.y = spot[1]; } else hazards.splice(k, 1);
+  }
+}
+expose({ ROW_H, CP_EVERY, KNIFE_CYCLE, X_MIN, X_MAX, PATH_MAX_ROWS, BLADES_R, BLADE_GAP, BLADE_NEAR, placeBlades, FOOD_KINDS, FOOD_COLOR, mulberry32, towerParams, buildTower });
