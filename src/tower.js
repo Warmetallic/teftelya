@@ -3,7 +3,6 @@
 // Все числа черновые (спека §5.1); растут с N, чтобы новые башни требовали прокачки.
 const ROW_H = 120;        // шаг рядов платформ, px
 const REACH_X = 180;      // предел |Δx| между платформами соседних рядов: прыжок в один ряд достаёт всегда (VX_MAX·(tUp+tDown) при dy = ROW_H + AIM_MARGIN ≈ 259)
-const OIL_T = 2.2;        // период капли масла, с
 const KNIFE_CYCLE = 2.1;  // нож: пауза 1.2 + замах 0.6 + удар 0.3
 const CP_EVERY = 20;      // чекпоинт каждые 20 рядов
 const LANE_L = [100, 170], LANE_R = [310, 380], LANE_C = [200, 280]; // диапазоны x центров платформ: дорожки и ряд схождения
@@ -44,9 +43,9 @@ function buildTower(N) {
     if (R() < tp.foodPerRow) { const n = R() < 0.5 ? 2 : 1; for (let k = 0; k < n; k++) items.push(mkFood(R, gp.x + (k ? 40 : -40), y - rr(50, 90))); }
     if (R() < 0.3) items.push(mkFood(R, sp.x, y - rr(50, 90)));
     if (R() < tp.pHaz) {
-      const pool = ['oil']; if (N >= 2) pool.push('knife'); if (N >= 3 && i - lastBlades >= 15) pool.push('blades');
-      const t = pool[Math.floor(R() * pool.length)];
-      if (t === 'oil') hazards.push({ id: hid++, type: 'oil', x: gp.x, y: y - 140, floorY: y, t: R() * OIL_T, drops: [] });
+      const pool = []; if (N >= 2) pool.push('knife'); if (N >= 3 && i - lastBlades >= 15) pool.push('blades'); // масло льют сверху, в раскладке его нет
+      const t = pool.length ? pool[Math.floor(R() * pool.length)] : null;
+      if (!t) { /* в башне 1 опасностей в раскладке нет */ }
       else if (t === 'knife') hazards.push({ id: hid++, type: 'knife', x: W / 2, y, t: R() * KNIFE_CYCLE, phase: 'rest', by: y - 150 });
       else { // лопасти висят в центре ряда: раздвигаем дорожки (у подноса — весь ход), чтобы стоящая Тефа их не задевала при массе до 8 (r = 54)
         // hypot(240 − 140, 60 − 54) ≈ 100 > 54 + 36 (BLADES_R); REACH_X цел: 140 и 340 против ряда схождения 200–280 — не дальше 140
@@ -58,4 +57,4 @@ function buildTower(N) {
   }
   return { tp, platforms, hazards, items };
 }
-expose({ ROW_H, REACH_X, OIL_T, KNIFE_CYCLE, CP_EVERY, FOOD_KINDS, FOOD_COLOR, mulberry32, towerParams, buildTower });
+expose({ ROW_H, REACH_X, KNIFE_CYCLE, CP_EVERY, FOOD_KINDS, FOOD_COLOR, mulberry32, towerParams, buildTower });

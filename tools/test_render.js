@@ -10,8 +10,9 @@ const ctx = new Proxy({}, { get: (t, k) => k === 'fillText' ? s => texts.push(St
     for (const cur of [4, 3, 2, 1]) for (const extra of [{}, { heal: 0.5 }, { tint: 1 }, { charged: true }, { berserk: true }, { blink: true, mouth: 0.8, face: -1, hot: 0.7 }])
       d.drawTefa(ctx, 100, 100, 40, Object.assign({ hp: { cur, max: 4 } }, extra)); // все состояния жизней с эффектами
     d.startTower(3); d.state = 'title'; d.drawBg(); d.drawWorld(); d.titleScreen(); d.loadingScreen();
-    d.state = 'play'; d.spawnFly(true); d.popText(240, 0, '+5', '#fff', true); for (let i = 0; i < 30; i++) d.update(0.016);
-    for (const h of d.hazards) { h.y = d.ball.y; if (h.type === 'oil') h.drops.push({ y: h.y + 30, splat: 0, dead: false }, { y: h.floorY, splat: 0.3, dead: false }); if (h.type === 'knife') h.phase = 'wind'; }
+    d.state = 'play'; d.spawnFly(true); d.popText(240, 0, '+5', '#fff', true); d.resetPours(100); d.startPour(200); for (let i = 0; i < 30; i++) d.update(0.016);
+    d.drawWorld(); for (let i = 0; i < 30; i++) d.update(0.016); // предупреждение налива, потом капли и пятна
+    for (const h of d.hazards) { h.y = d.ball.y; if (h.type === 'knife') h.phase = 'wind'; }
     for (const p of d.platforms) if (p.type === 'pan') p.hotT = 1.5;
     d.drawBg(); d.drawWorld(); d.drawHUD(); d.pausedScreen(true); d.pausedScreen(false);
     d.YG.adStub = { kind: 'rewarded', until: 0 }; d.adStubScreen(); d.YG.adStub = null; d.adStubScreen();

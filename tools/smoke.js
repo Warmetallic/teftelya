@@ -77,7 +77,7 @@ async function runClimbNoGod() {
   const g = require('./_env')(ctx, { dist }); const d = g.dbg();
   await g.boot();
   const play = btn(d, 'play'); g.tap(play.x, play.y); await g.flush();
-  d.hazards.length = 0;                             // масло снято: проверяем путь генератора, а не уклонение от капель
+  d.hazards.length = 0; d.resetPours(1e9);         // опасности и масло сняты: проверяем путь генератора, а не уклонение
   const rnd0 = Math.random; Math.random = () => 1;  // муха по серии не влетает; тап каждый кадр — лени тоже нет
   for (let i = 0; i < 20000 && d.state === 'play'; i++) {
     const p = d.platforms.find(q => q.id === d.ball.onPlatform);

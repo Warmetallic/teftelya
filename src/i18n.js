@@ -3,7 +3,7 @@
 const STR = {
   ru: {
     title: 'Тефтеля', tower: 'Башня', play: 'Играть', 'theme.kitchen': 'Кухня', roof: 'Крыша',
-    hint1: 'Тап — прыжок в точку тапа.', hint2: 'Еда заряжает силу. Полная шкала — тапни по Тефе.', hint3: 'Сковородка жжёт, мухи кусают, лопасти убивают.',
+    hint1: 'Тап — прыжок в точку тапа.', hint2: 'Еда заряжает силу. Полная шкала — тапни по Тефе.', hint3: 'Сковородка жжёт, мухи кусают, масло льют сверху.',
     fell: 'Шлёп!', runCoins: 'Собрано за забег', total: 'Всего',
     continueAd: 'Продолжить', doubleAd: 'Монеты ×2', forAd: 'за рекламу', fromCp: 'С чекпоинта', restart: 'Заново', next: 'Следующая башня',
     paused: 'Пауза', tapToContinue: 'Тапни, чтобы продолжить', adStub: 'Реклама (заглушка)', loading: 'Загрузка…',
@@ -13,7 +13,7 @@ const STR = {
   },
   en: {
     title: 'Meatball', tower: 'Tower', play: 'Play', 'theme.kitchen': 'Kitchen', roof: 'Roof',
-    hint1: 'Tap where you want to land.', hint2: 'Food charges your power. Full bar — tap Tefa.', hint3: 'Pans burn, flies bite, blades kill.',
+    hint1: 'Tap where you want to land.', hint2: 'Food charges your power. Full bar — tap Tefa.', hint3: 'Pans burn, flies bite, oil pours from above.',
     fell: 'Splat!', runCoins: 'Coins this run', total: 'Total',
     continueAd: 'Continue', doubleAd: 'Coins ×2', forAd: 'watch ad', fromCp: 'From checkpoint', restart: 'Restart', next: 'Next tower',
     paused: 'Paused', tapToContinue: 'Tap to continue', adStub: 'Ad (stub)', loading: 'Loading…',
@@ -23,7 +23,7 @@ const STR = {
   },
   tr: {
     title: 'Köfte', tower: 'Kule', play: 'Oyna', 'theme.kitchen': 'Mutfak', roof: 'Çatı',
-    hint1: 'İnmek istediğin yere dokun.', hint2: 'Yemek gücü doldurur. Çubuk dolunca Tefa\'ya dokun.', hint3: 'Tava yakar, sinek ısırır, bıçaklar öldürür.',
+    hint1: 'İnmek istediğin yere dokun.', hint2: 'Yemek gücü doldurur. Çubuk dolunca Tefa\'ya dokun.', hint3: 'Tava yakar, sinek ısırır, yukarıdan yağ dökülür.',
     fell: 'Pat!', runCoins: 'Bu turda toplanan', total: 'Toplam',
     continueAd: 'Devam et', doubleAd: 'Para ×2', forAd: 'reklam izle', fromCp: 'Kontrol noktasından', restart: 'Baştan', next: 'Sonraki kule',
     paused: 'Duraklatıldı', tapToContinue: 'Devam etmek için dokun', adStub: 'Reklam (taslak)', loading: 'Yükleniyor…',

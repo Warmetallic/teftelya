@@ -71,13 +71,16 @@ const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addCol
   assert.strictEqual(d.damage(1, 'oil', ball.x, ball.y), false, 'в берсерке урона нет'); assert.strictEqual(d.coinsFor('ketchup'), 2);
   d.spawnFly(true); d.flies[0].warnT = 0; d.flies[0].x = ball.x; d.flies[0].y = ball.y; ball.mass = 2; d.update(0.016);
   assert.strictEqual(d.flies.length, 0); assert.strictEqual(ball.mass, 3, 'муха съедена: +1 масса');
+  // масло: капля попадает — кусок; в берсерке съедена — кусок назад (спека v2.1.1 §5)
+  d.startTower(1); d.state = 'play'; d.resetPours(1e9); d.drops.push({ x: ball.x, y: ball.y - 5, dead: false }); d.update(0.016); assert.strictEqual(ball.mass, 3, 'капля ранит');
+  d.run.invuln = 0; d.powerAdd(d.POWER_FULL); d.tryActivatePower(); d.drops.push({ x: ball.x, y: ball.y - 5, dead: false }); d.update(0.016); assert.strictEqual(ball.mass, 4, 'в берсерке капля лечит');
   // лень: 3 с на платформе → муха прилетает
   d.startTower(1); d.state = 'play'; d.resetFlies(); steps(200); assert.strictEqual(d.flies.length, 1, 'муха за лень');
   // god-режим для smoke: урон и падение не убивают, Тефа возвращается на последнюю платформу
   d.startTower(1); d.state = 'play'; d.setGod(true); assert.strictEqual(d.damage(9, 'knife', 0, 0), false);
   ball.onPlatform = null; ball.y = d.camY + 2000; d.update(0.016); assert.strictEqual(d.state, 'play'); assert.strictEqual(ball.onPlatform, 0); d.setGod(false);
   // ожог сковородки: урон и подброс строго вверх, без бокового сноса
-  d.startTower(3); d.state = 'play'; d.hazards.length = 0; for (const it of d.items) it.dead = true; // масло и еда не должны мешать таймеру сковородки
+  d.startTower(3); d.state = 'play'; d.hazards.length = 0; d.resetPours(1e9); for (const it of d.items) it.dead = true; // опасности, масло и еда не должны мешать таймеру сковородки
   const pan = d.platforms.find(p => p.type === 'pan'); assert.ok(pan, 'в башне 3 есть сковородка');
   dropOn(pan); assert.ok(untilOn(pan.id), 'Тефа стоит на сковородке');
   { const m0 = ball.mass; let burned = false;
@@ -85,13 +88,13 @@ const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addCol
     assert.ok(burned, 'сковородка сожгла'); assert.strictEqual(ball.vy, -700, 'подброс вверх');
     assert.strictEqual(ball.vx, 0, 'вбок не сносит'); assert.strictEqual(ball.onPlatform, null, 'сковородка отпустила'); }
   // берсерк: сковородка не жжёт — ни урона, ни подброса
-  d.startTower(3); d.state = 'play'; d.hazards.length = 0; for (const it of d.items) it.dead = true;
+  d.startTower(3); d.state = 'play'; d.hazards.length = 0; d.resetPours(1e9); for (const it of d.items) it.dead = true;
   const pan2 = d.platforms.find(p => p.type === 'pan'); dropOn(pan2); assert.ok(untilOn(pan2.id));
   d.powerAdd(d.POWER_FULL); assert.ok(d.tryActivatePower());
   { const m0 = ball.mass; steps(190); // 3.04 с — дольше таймера сковородки башни 3 (1.85 с) и короче берсерка (6 с)
     assert.strictEqual(ball.mass, m0, 'в берсерке масса на сковородке не меняется'); assert.strictEqual(ball.onPlatform, pan2.id, 'и подброса нет'); }
   // лопасти снимают один кусок, как любая опасность; в неуязвимости — ничего (спека v2.1.1 §7.1)
-  d.startTower(3); d.state = 'play'; for (const it of d.items) it.dead = true;
+  d.startTower(3); d.state = 'play'; d.resetPours(1e9); for (const it of d.items) it.dead = true;
   const bl = d.hazards.find(h => h.type === 'blades'); assert.ok(bl, 'в башне 3 есть лопасти');
   d.hazards.length = 0; d.hazards.push(bl); // остальные опасности убрать: проверяем только лопасти
   const inBlades = () => { ball.x = bl.x; ball.y = bl.y; ball.onPlatform = null; ball.vy = 0; d.setCamY(bl.y - 400); };

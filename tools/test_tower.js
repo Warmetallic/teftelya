@@ -29,7 +29,7 @@ const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addCol
       for (const q of prev) assert.ok(cur.some(p => Math.abs(q.x - p.x) <= d.REACH_X), 'вниз: башня ' + N + ' ряд ' + i);
       for (const p of cur) assert.ok(p.x - p.w / 2 >= 20 && p.x + p.w / 2 <= 460, 'платформа в поле');
     }
-    if (N === 1) { assert.ok(!t.platforms.some(p => p.type === 'tray'), 'подносов нет в башне 1'); assert.ok(!t.hazards.some(h => h.type !== 'oil'), 'в башне 1 только масло'); }
+    if (N === 1) { assert.ok(!t.platforms.some(p => p.type === 'tray'), 'подносов нет в башне 1'); assert.strictEqual(t.hazards.length, 0, 'в башне 1 опасностей в раскладке нет: масло льют сверху'); }
     if (N === 2) assert.ok(!t.hazards.some(h => h.type === 'blades'), 'лопасти не раньше башни 3');
     assert.ok(!t.platforms.some(p => p.type === 'pan' && p.row < 3), 'сковородок нет в рядах 1–2');
     const bl = t.hazards.filter(h => h.type === 'blades').map(h => -h.y / d.ROW_H).sort((a, b) => a - b);
@@ -55,7 +55,8 @@ const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addCol
   }
   // хотя бы в одной из первых 10 башен есть каждый тип
   const all = []; for (let N = 1; N <= 10; N++) all.push(d.buildTower(N));
-  for (const ty of ['oil', 'knife', 'blades']) assert.ok(all.some(t => t.hazards.some(h => h.type === ty)), 'есть ' + ty);
+  for (const ty of ['knife', 'blades']) assert.ok(all.some(t => t.hazards.some(h => h.type === ty)), 'есть ' + ty);
+  assert.ok(!all.some(t => t.hazards.some(h => h.type === 'oil')), 'масла в раскладке нет');
   for (const ty of ['pan', 'tray']) assert.ok(all.some(t => t.platforms.some(p => p.type === ty)), 'есть ' + ty);
   // seeded RNG стабилен
   const R = d.mulberry32(7); const a = [R(), R(), R()]; const R2 = d.mulberry32(7); assert.deepStrictEqual(a, [R2(), R2(), R2()]);

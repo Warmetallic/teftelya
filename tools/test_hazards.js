@@ -1,4 +1,4 @@
-// node tools/test_hazards.js — муха (предупреждение, погоня, укус, отставание, съедание), масло, нож, лопасти (кусок, не смерть), политика влёта
+// node tools/test_hazards.js — муха (предупреждение, погоня, укус, отставание, съедание), масло сверху, нож, лопасти (кусок, не смерть), политика влёта
 const assert = require('assert');
 const noop = () => {};
 const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addColorStop: noop }) : noop, set: () => true });
@@ -27,13 +27,38 @@ const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addCol
   const rnd0 = Math.random; Math.random = () => 0; assert.strictEqual(d.flyWanted(0.016, 6, 0, false), true); Math.random = () => 0.999; assert.strictEqual(d.flyWanted(0.016, 6, 0, false), false);
   Math.random = () => 0.002; assert.strictEqual(d.flyWanted(0.016, 6, 0, false, false), false); assert.strictEqual(d.flyWanted(0.016, 6, 0, false, true), true, 'полная шкала удваивает шанс мухи'); Math.random = rnd0;
   d.spawnFly(); d.spawnFly(); d.spawnFly(); assert.strictEqual(d.flyWanted(0.016, 0, 9, false), false, 'не больше FLY_MAX'); d.resetFlies();
-  // масло: капля раз в OIL_T, падает вниз, шлёпается на floorY; попадание — hit
-  const oil = { id: 1, type: 'oil', x: 240, y: -640, floorY: -500, t: 0, drops: [] };
-  ball.x = 240; ball.y = -560; run([oil], Math.ceil(d.OIL_T / 0.016) + 1); assert.ok(oil.drops.length >= 1, 'капля появилась');
-  ev = run([oil], 60); assert.ok(ev.some(e => e.type === 'hit' && e.reason === 'oil'), 'капля попала');
-  ball.x = 100; oil.drops = []; oil.t = d.OIL_T; ev = run([oil], 200); assert.ok(!ev.some(e => e.type === 'hit')); assert.ok(oil.drops.every(dr => dr.y <= -500), 'капли не ниже пола');
-  env.berserk = true; ball.x = 240; ball.y = -560; oil.drops = [{ y: -560, splat: 0, dead: false }]; ev = run([oil], 1);
-  assert.ok(ev.some(e => e.type === 'eaten' && e.what === 'oil'), 'в берсерке капля съедена'); env.berserk = false;
+  // масло сверху: предупреждение POUR_WARN без капель, потом капли от верхнего края экрана; попадание — hit (спека v2.1.1 §7.2)
+  const penv = { tp, berserk: false, camY: -1000, platforms: [] };
+  const pr = n => { const out = []; for (let i = 0; i < n; i++) out.push(...d.updatePours(0.016, penv)); return out; };
+  assert.strictEqual(d.pourInterval(1), 9); assert.strictEqual(d.pourInterval(100), 3, 'не чаще раза в 3 с');
+  d.resetPours(100); ball.x = 240; ball.y = -700; ball.r = 34; ball.onPlatform = null; d.startPour(240);
+  assert.strictEqual(d.pours.length, 1); pr(30); assert.strictEqual(d.drops.length, 0, 'во время предупреждения не капает');
+  pr(10); assert.ok(d.drops.length >= 1, 'капли пошли'); assert.ok(d.drops.every(dr => dr.y <= -1000 + d.LADLE_Y + 6 + 700 * 0.2), 'капли падают от половника у верхнего края экрана');
+  ev = []; for (let i = 0; i < 80 && !ev.some(e => e.type === 'hit'); i++) ev.push(...pr(1));
+  assert.ok(ev.some(e => e.type === 'hit' && e.reason === 'oil'), 'капля попала');
+  // пятно: капля на платформе оставляет пятно, стоящую рядом Тефу оно жжёт, через секунду высыхает
+  const plt = { id: 50, type: 'plate', x: 300, y: -600, w: 140 }; penv.platforms = [plt]; d.resetPours(100);
+  ball.x = 100; ball.y = -900; d.startPour(300); ev = pr(100);
+  assert.ok(!ev.some(e => e.type === 'hit'), 'Тефа в стороне — мимо'); assert.ok(d.splats.length >= 1, 'на платформе пятно');
+  ball.x = 300; ball.y = plt.y - 34; ball.onPlatform = 50;
+  penv.berserk = true; ev = pr(1); assert.ok(!ev.some(e => e.type === 'hit'), 'в берсерке пятно не жжёт'); penv.berserk = false;
+  ev = pr(1); assert.ok(ev.some(e => e.type === 'hit' && e.reason === 'oil'), 'пятно жжёт');
+  pr(80); assert.strictEqual(d.splats.length, 0, 'пятно высохло'); ball.onPlatform = null; penv.platforms = [];
+  // в берсерке капли съедаются, а не ранят
+  penv.berserk = true; d.resetPours(100); ball.x = 240; ball.y = -700; d.startPour(240); ev = [];
+  for (let i = 0; i < 120 && !ev.some(e => e.type === 'eaten'); i++) ev.push(...pr(1));
+  assert.ok(ev.some(e => e.type === 'eaten' && e.what === 'oil'), 'в берсерке капля съедена'); assert.ok(!ev.some(e => e.type === 'hit')); penv.berserk = false;
+  // расписание: налив сам по таймеру; передышка после чекпоинта отодвигает его
+  d.resetPours(0.5); pr(40); assert.ok(d.pours.length + d.drops.length >= 1, 'налив по расписанию');
+  d.resetPours(1); d.delayPours(4); pr(100); assert.strictEqual(d.pours.length + d.drops.length, 0, 'передышка 4 с');
+  // столб целится по ходу Тефы; с башни 6 иногда второй налив в другом столбе на 0.4 с позже
+  const rnd1 = Math.random; Math.random = () => 0.5; // rnd(−100, 100) = 0, второй налив не выпадает: 0.5 ≥ 0.3
+  ball.x = 200; ball.vx = 300; d.resetPours(0); pr(1); assert.strictEqual(d.pours.length, 1); assert.strictEqual(d.pours[0].x, 200 + 300 * 0.3, 'столб по ходу: x + vx·0.3');
+  Math.random = () => 0.1; penv.tp = d.towerParams(6); d.resetPours(0); pr(1); // второй выпадает: влево на 120 + 8 px
+  assert.strictEqual(d.pours.length, 2, 'с башни 6 бывает два столба'); assert.ok(Math.abs(d.pours[1].x - d.pours[0].x) >= 100, 'второй в другом столбе');
+  assert.ok(Math.abs(d.pours[1].warnT - d.pours[0].warnT - 0.4) < 1e-9, 'и на 0.4 с позже');
+  penv.tp = d.towerParams(5); d.resetPours(0); pr(1); assert.strictEqual(d.pours.length, 1, 'до башни 6 столб один');
+  Math.random = rnd1; penv.tp = tp; ball.vx = 0; d.resetPours(100);
   // нож: фазы по кругу; бьёт только в ударе и только под собой
   assert.strictEqual(d.knifePhase(0).phase, 'rest'); assert.strictEqual(d.knifePhase(1.3).phase, 'wind'); assert.strictEqual(d.knifePhase(1.95).phase, 'strike');
   const knife = { id: 2, type: 'knife', x: 240, y: -500, t: 0, phase: 'rest', by: -650 };

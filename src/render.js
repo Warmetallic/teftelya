@@ -42,16 +42,7 @@ function drawPlatform(p) {
 }
 function drawHazard(h) {
   if (h.gone) return; const y = h.y - camY; if (y < -320 || y > H + 320) return;
-  if (h.type === 'oil') {
-    ctx.fillStyle = '#6d6d6d'; ctx.beginPath(); ctx.ellipse(h.x, y, 22, 10, 0, 0, 7); ctx.fill(); // половник
-    ctx.strokeStyle = '#6d6d6d'; ctx.lineWidth = 6; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(h.x + 18, y - 4); ctx.lineTo(h.x + 60, y - 30); ctx.stroke();
-    ctx.fillStyle = '#f2c94c';
-    for (const dr of h.drops) {
-      const dy = dr.y - camY;
-      if (dr.splat > 0) { ctx.globalAlpha = clamp(dr.splat * 2, 0, 1); ctx.beginPath(); ctx.ellipse(h.x, dy + 6, 18, 5, 0, 0, 7); ctx.fill(); ctx.globalAlpha = 1; }
-      else { ctx.beginPath(); ctx.moveTo(h.x, dy - 14); ctx.quadraticCurveTo(h.x + 9, dy, h.x, dy + 8); ctx.quadraticCurveTo(h.x - 9, dy, h.x, dy - 14); ctx.fill(); }
-    }
-  } else if (h.type === 'knife') {
+  if (h.type === 'knife') {
     const ky = knifeY(h) - camY, wind = h.phase === 'wind';
     ctx.fillStyle = '#5a3b22'; rrect(h.x - 7, ky - 40, 14, 40, 4); ctx.fill(); // рукоять
     ctx.fillStyle = wind ? '#ffffff' : '#d8dde3'; ctx.beginPath(); ctx.moveTo(h.x - 8, ky); ctx.lineTo(h.x + 8, ky); ctx.lineTo(h.x + 6, ky + 70); ctx.lineTo(h.x, ky + 84); ctx.lineTo(h.x - 6, ky + 70); ctx.closePath(); ctx.fill();
@@ -62,6 +53,34 @@ function drawHazard(h) {
     for (let i = 0; i < 3; i++) { ctx.rotate(Math.PI * 2 / 3); ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(BLADES_R + 8, -10); ctx.lineTo(BLADES_R + 8, 10); ctx.closePath(); ctx.fill(); }
     ctx.fillStyle = '#4a4a4a'; ctx.beginPath(); ctx.arc(0, 0, 10, 0, 7); ctx.fill();
     ctx.restore();
+  }
+}
+// масло сверху (спека v2.1.1 §7.2): половник повара у верхнего края, красный пунктир столба, горячие капли, шипящие пятна
+function drawPours() {
+  for (const p of pours) {
+    const tilt = p.warnT > 0 ? (1 - clamp(p.warnT / POUR_WARN, 0, 1)) * 0.35 : 0.35; // черпак опрокидывается к столбу за время предупреждения
+    if (p.warnT > 0) { // пунктир: куда польётся
+      ctx.strokeStyle = `rgba(255,70,50,${0.35 + 0.35 * Math.sin(tGame * 20) ** 2})`; ctx.lineWidth = 3; ctx.setLineDash([10, 8]);
+      ctx.beginPath(); ctx.moveTo(p.x, LADLE_Y + 14); ctx.lineTo(p.x, H); ctx.stroke(); ctx.setLineDash([]);
+    }
+    ctx.save(); ctx.translate(p.x, LADLE_Y); ctx.scale(p.x > W / 2 ? -1 : 1, 1); ctx.rotate(-tilt); // черпак над столбом, ручка к середине экрана и вверх: не залезает на счёт и край
+    ctx.strokeStyle = '#8d8d95'; ctx.lineWidth = 7; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(16, -6); ctx.lineTo(56, -16); ctx.stroke();
+    ctx.fillStyle = '#b8bcc4'; ctx.beginPath(); ctx.ellipse(0, 0, 22, 14, 0, 0, Math.PI); ctx.fill(); // чаша
+    ctx.fillStyle = '#ff9a2a'; ctx.beginPath(); ctx.ellipse(0, 0, 20, 6, 0, 0, 7); ctx.fill(); // горячее масло в черпаке
+    ctx.restore();
+  }
+  for (const dr of drops) { // горячая капля: оранжевая со свечением и бликом
+    const y = dr.y - camY, g = ctx.createRadialGradient(dr.x, y, 2, dr.x, y, 18);
+    g.addColorStop(0, 'rgba(255,170,60,0.55)'); g.addColorStop(1, 'rgba(255,120,30,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(dr.x, y, 18, 0, 7); ctx.fill();
+    ctx.fillStyle = '#ff9a2a'; ctx.beginPath(); ctx.moveTo(dr.x, y - 16); ctx.quadraticCurveTo(dr.x + 9, y, dr.x, y + 8); ctx.quadraticCurveTo(dr.x - 9, y, dr.x, y - 16); ctx.fill();
+    ctx.fillStyle = 'rgba(255,240,200,0.8)'; ctx.beginPath(); ctx.ellipse(dr.x - 2.5, y - 2, 2, 4, 0.3, 0, 7); ctx.fill();
+  }
+  for (const s of splats) { // шипящее пятно с пузырьками, гаснет за SPLAT_T
+    const x = s.p.x + s.dx, y = s.p.y - camY, a = clamp(s.t / SPLAT_T, 0, 1);
+    ctx.fillStyle = `rgba(255,140,40,${0.75 * a})`; ctx.beginPath(); ctx.ellipse(x, y + 2, SPLAT_W / 2, 5, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = `rgba(255,230,170,${0.8 * a})`;
+    for (let i = 0; i < 3; i++) { const t = (tGame * 3 + i / 3) % 1; ctx.beginPath(); ctx.arc(x - 10 + i * 10, y - t * 12, 2 + t * 2, 0, 7); ctx.fill(); }
   }
 }
 function drawFly(f) {
@@ -151,6 +170,7 @@ function drawWorld() { // всё внутри поля; вызывающий с�
   for (const h of tower.hazards) drawHazard(h);
   for (const it of tower.items) if (!it.dead) drawItem(it);
   for (const f of flies) drawFly(f);
+  drawPours();
   if (ball.alive || state === 'title' || state === 'finish') drawTefaBall();
   for (const p of particles) {
     ctx.globalAlpha = clamp(p.t / p.life, 0, 1);
@@ -165,4 +185,4 @@ function drawWorld() { // всё внутри поля; вызывающий с�
   }
   ctx.globalAlpha = 1;
 }
-expose({ drawBg, drawWorld, drawHUD, drawPowerMeter, drawPlatform, drawHazard, drawFly });
+expose({ drawBg, drawWorld, drawHUD, drawPowerMeter, drawPlatform, drawHazard, drawFly, drawPours });
