@@ -41,6 +41,14 @@ function drawPlatform(p) {
     ctx.fillStyle = '#f6c343'; rrect(-p.w / 2, -4, p.w, 16, 5); ctx.fill();
     ctx.fillStyle = '#dca531'; rrect(-p.w / 2, 7, p.w, 5, 3); ctx.fill(); // корочка снизу
     ctx.fillStyle = '#c98f22'; for (const [hx, hy, hr] of [[-0.3, 3, 4], [0.05, 1, 3], [0.32, 4, 3.5]]) { ctx.beginPath(); ctx.arc(hx * p.w, hy, hr, 0, 7); ctx.fill(); } // дырки
+    if (p.crumbleT > 0) { // крошится: трещины и крошки сыплются вниз, чтобы и на стоп-кадре было видно
+      const k = 1 - p.crumbleT / CHEESE_T;
+      ctx.strokeStyle = '#8a5f14'; ctx.lineWidth = 1.5; ctx.beginPath();
+      ctx.moveTo(-p.w * 0.12, -4); ctx.lineTo(-p.w * 0.05, 4); ctx.lineTo(-p.w * 0.1, 12); ctx.moveTo(p.w * 0.2, -4); ctx.lineTo(p.w * 0.14, 5); ctx.stroke();
+      ctx.fillStyle = '#f6c343'; ctx.globalAlpha = 1 - 0.6 * k;
+      for (let i = 0; i < 6; i++) ctx.fillRect(((i * 0.37 + 0.1) % 1 - 0.5) * p.w * 0.9 - 2, 14 + k * (18 + i * 5), 4, 4);
+      ctx.globalAlpha = 1;
+    }
     ctx.restore();
   } else { // поднос
     ctx.fillStyle = '#b08d5a'; rrect(p.x - p.w / 2, y - 4, p.w, 18, 6); ctx.fill();
@@ -54,12 +62,15 @@ function drawHazard(h) {
     const ky = knifeY(h) - camY, wind = h.phase === 'wind';
     ctx.fillStyle = '#5a3b22'; rrect(h.x - 7, ky - 40, 14, 40, 4); ctx.fill(); // рукоять
     ctx.fillStyle = wind ? '#ffffff' : '#d8dde3'; ctx.beginPath(); ctx.moveTo(h.x - 8, ky); ctx.lineTo(h.x + 8, ky); ctx.lineTo(h.x + 6, ky + 70); ctx.lineTo(h.x, ky + 84); ctx.lineTo(h.x - 6, ky + 70); ctx.closePath(); ctx.fill();
-    if (wind) { ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 2; ctx.setLineDash([6, 6]); ctx.beginPath(); ctx.moveTo(h.x, ky + 90); ctx.lineTo(h.x, y - 10); ctx.stroke(); ctx.setLineDash([]); } // замах: линия удара
+    ctx.strokeStyle = wind ? '#ff5a36' : 'rgba(255,90,54,0.55)'; ctx.lineWidth = 2; ctx.stroke(); // оранжево-красная кромка: опасно (спека v2.1.1 §8)
+    if (wind) { ctx.strokeStyle = 'rgba(255,90,54,0.7)'; ctx.lineWidth = 2; ctx.setLineDash([6, 6]); ctx.beginPath(); ctx.moveTo(h.x, ky + 90); ctx.lineTo(h.x, y - 10); ctx.stroke(); ctx.setLineDash([]); } // замах: красная линия удара
   } else if (h.type === 'blades') {
     ctx.save(); ctx.translate(h.x, y); ctx.rotate(h.ang);
-    ctx.fillStyle = '#c8ccd2';
-    for (let i = 0; i < 3; i++) { ctx.rotate(Math.PI * 2 / 3); ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(BLADES_R + 8, -10); ctx.lineTo(BLADES_R + 8, 10); ctx.closePath(); ctx.fill(); }
-    ctx.fillStyle = '#4a4a4a'; ctx.beginPath(); ctx.arc(0, 0, 10, 0, 7); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,90,54,0.35)'; ctx.lineWidth = 2; ctx.setLineDash([4, 6]); ctx.beginPath(); ctx.arc(0, 0, BLADES_R + 12, 0, 7); ctx.stroke(); ctx.setLineDash([]); // зона задевания
+    ctx.fillStyle = '#c8ccd2'; ctx.strokeStyle = '#ff5a36'; ctx.lineWidth = 2;
+    for (let i = 0; i < 3; i++) { ctx.rotate(Math.PI * 2 / 3); ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(BLADES_R + 8, -10); ctx.lineTo(BLADES_R + 8, 10); ctx.closePath(); ctx.fill(); ctx.stroke(); }
+    ctx.fillStyle = '#ff5a36'; ctx.beginPath(); ctx.arc(0, 0, 11, 0, 7); ctx.fill(); // оранжево-красная ступица
+    ctx.fillStyle = '#4a4a4a'; ctx.beginPath(); ctx.arc(0, 0, 5, 0, 7); ctx.fill();
     ctx.restore();
   }
 }
@@ -109,18 +120,22 @@ function drawItem(it) {
   const x = it.x, y = it.y - camY; if (y < -40 || y > H + 40) return;
   const wob = Math.sin(tGame * 4 + it.seed) * 3;
   ctx.save(); ctx.translate(x, y + wob);
-  if (it.kind === 'ketchup') {
-    ctx.fillStyle = '#e3342f'; ctx.beginPath();
-    ctx.moveTo(0, -18); ctx.bezierCurveTo(14, -2, 15, 10, 0, 16); ctx.bezierCurveTo(-15, 10, -14, -2, 0, -18); ctx.fill();
-    ctx.fillStyle = 'rgba(255,255,255,0.45)'; ctx.beginPath(); ctx.ellipse(-4, 2, 3, 6, 0.4, 0, 7); ctx.fill();
+  if (it.kind === 'ketchup') { // ломтик помидора с семенами и хвостиком: не путается с красной каплей опасности (спека v2.1.1 §8)
+    ctx.fillStyle = '#d93a2b'; ctx.beginPath(); ctx.arc(0, 0, 15, 0, 7); ctx.fill();
+    ctx.fillStyle = '#f07a5e'; ctx.beginPath(); ctx.arc(0, 0, 11.5, 0, 7); ctx.fill(); // мякоть
+    ctx.fillStyle = '#ffd28a'; for (let i = 0; i < 4; i++) { const a = i * Math.PI / 2 + 0.4; ctx.beginPath(); ctx.ellipse(Math.cos(a) * 6, Math.sin(a) * 6, 3.2, 2, a, 0, 7); ctx.fill(); } // семена в камерах
+    ctx.fillStyle = '#d93a2b'; ctx.beginPath(); ctx.arc(0, 0, 2.5, 0, 7); ctx.fill(); // серединка
+    ctx.fillStyle = '#4caf50'; ctx.beginPath(); ctx.ellipse(-3, -15, 5, 2.2, -0.5, 0, 7); ctx.ellipse(3, -15, 5, 2.2, 0.5, 0, 7); ctx.fill(); // хвостик
   } else if (it.kind === 'pasta') {
     ctx.strokeStyle = '#f6c343'; ctx.lineWidth = 6; ctx.lineCap = 'round'; ctx.beginPath();
     for (let i = 0; i <= 24; i++) { const t = i / 24; const px = -16 + t * 32, py = Math.sin(t * Math.PI * 4) * 8; i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); }
     ctx.stroke(); ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 2; ctx.stroke();
-  } else {
-    ctx.fillStyle = '#b5452b'; ctx.beginPath(); ctx.ellipse(0, 0, 22, 16, -0.3, 0, 7); ctx.fill();
-    ctx.fillStyle = '#f3e0c8'; ctx.beginPath(); ctx.ellipse(6, -4, 7, 4, -0.3, 0, 7); ctx.fill();
-    ctx.strokeStyle = '#f3e0c8'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(-14, 6); ctx.quadraticCurveTo(-4, 2, 4, 9); ctx.stroke();
+  } else { // кусочек мяса на косточке: раньше овал с полосой читался как хмурое лицо
+    ctx.strokeStyle = '#f3e6d0'; ctx.lineWidth = 6; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(4, 4); ctx.lineTo(18, 13); ctx.stroke(); // косточка
+    ctx.fillStyle = '#f3e6d0'; ctx.beginPath(); ctx.arc(20, 10, 4.2, 0, 7); ctx.arc(17, 17, 4.2, 0, 7); ctx.fill(); // головка кости
+    ctx.fillStyle = '#b5452b'; ctx.beginPath(); ctx.ellipse(-5, -3, 16, 13, -0.4, 0, 7); ctx.fill(); // мясо
+    ctx.fillStyle = '#d9705a'; ctx.beginPath(); ctx.ellipse(-9, -7, 7, 4, -0.4, 0, 7); ctx.fill(); // блик
+    ctx.strokeStyle = 'rgba(255,230,210,0.45)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(-5, -3, 9, 0.5, 2.0); ctx.stroke(); // волокна
   }
   ctx.restore();
 }
@@ -148,16 +163,17 @@ function drawTefaBall() {
 // остаток его времени, исчерпана — серая; при лимите больше одного справа остаток берсерков
 function drawPowerMeter() {
   const x = 40, y = 30, w = 140, h = 10, bz = isBerserk(), spent = powerSpent() && !bz, ready = powerReady();
-  ctx.save(); ctx.translate(22, y + 5); // значок-пламя
-  ctx.fillStyle = spent ? 'rgba(255,255,255,0.25)' : ready || bz ? '#ffe08a' : '#ff9a2a';
-  ctx.beginPath(); ctx.moveTo(0, -11); ctx.quadraticCurveTo(9, -2, 6, 5); ctx.quadraticCurveTo(0, 10, -6, 5); ctx.quadraticCurveTo(-9, -2, 0, -11); ctx.fill();
+  // сила золотая, опасность оранжево-красная (спека v2.1.1 §8): значок-молния, а не капля, чтобы шкалу не путали с маслом
+  ctx.save(); ctx.translate(22, y + 5);
+  ctx.fillStyle = spent ? 'rgba(255,255,255,0.25)' : ready || bz ? '#ffe08a' : '#e8b030';
+  ctx.beginPath(); ctx.moveTo(3, -11); ctx.lineTo(-6, 1); ctx.lineTo(-1, 1); ctx.lineTo(-3, 11); ctx.lineTo(6, -2); ctx.lineTo(1, -2); ctx.closePath(); ctx.fill();
   ctx.restore();
   ctx.fillStyle = 'rgba(255,255,255,0.15)'; rrect(x, y, w, h, 5); ctx.fill();
   const frac = bz ? power.berserkT / berserkDur() : spent ? 0 : clamp(power.v / POWER_FULL, 0, 1);
   if (frac > 0) {
     ctx.save();
     if (ready) { ctx.shadowColor = 'rgba(255,220,120,0.9)'; ctx.shadowBlur = 8 + 8 * (0.5 + 0.5 * Math.sin(tGame * 8)); }
-    ctx.fillStyle = bz ? '#ff7a2a' : ready ? '#ffe08a' : '#ff9a2a'; rrect(x, y, w * frac, h, 5); ctx.fill();
+    ctx.fillStyle = bz ? '#fff0b8' : ready ? '#ffe08a' : '#e8b030'; rrect(x, y, w * frac, h, 5); ctx.fill(); // копится, готова, берсерк тает
     ctx.restore();
   }
   if (berserkLimit() > 1) { ctx.fillStyle = '#fff'; ctx.font = '700 14px system-ui, sans-serif'; ctx.textAlign = 'left'; ctx.fillText('×' + (berserkLimit() - power.used), x + w + 8, y + 10); }
@@ -189,8 +205,9 @@ function drawWorld() { // всё внутри поля; вызывающий с�
   for (const t of texts) {
     const k = t.t; ctx.globalAlpha = 1 - k * k; ctx.fillStyle = t.color; ctx.textAlign = 'center';
     ctx.font = `900 ${t.big ? 30 : 22}px system-ui, sans-serif`;
-    ctx.fillText(t.str, t.x, t.y - camY - k * 70);
+    ctx.lineJoin = 'round'; ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(30,14,8,0.6)'; // тёмная обводка: читается и поверх Тефы
+    ctx.strokeText(t.str, t.x, t.y - camY - k * TEXT_RISE); ctx.fillText(t.str, t.x, t.y - camY - k * TEXT_RISE);
   }
   ctx.globalAlpha = 1;
 }
-expose({ drawBg, drawWorld, drawHUD, drawPowerMeter, drawPlatform, drawHazard, drawFly, drawPours });
+expose({ drawBg, drawWorld, drawHUD, drawPowerMeter, drawPlatform, drawHazard, drawFly, drawPours, drawItem });

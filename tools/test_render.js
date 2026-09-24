@@ -1,8 +1,9 @@
 // node tools/test_render.js — рендер и экраны не падают на proxy-контексте; тексты HUD, титула, смерти и финиша; локализация
 const assert = require('assert');
 const noop = () => {};
-const texts = [];
-const ctx = new Proxy({}, { get: (t, k) => k === 'fillText' ? s => texts.push(String(s)) : /Gradient$/.test(k) ? () => ({ addColorStop: noop }) : noop, set: () => true });
+const texts = [], styles = []; // styles: присвоенные цвета заливки и обводки, для проверки языка цветов
+const ctx = new Proxy({}, { get: (t, k) => k === 'fillText' ? s => texts.push(String(s)) : /Gradient$/.test(k) ? () => ({ addColorStop: noop }) : noop,
+  set: (t, k, v) => { if (k === 'fillStyle' || k === 'strokeStyle') styles.push(String(v)); return true; } });
 (async () => {
   for (const size of [[480, 854], [1280, 720]]) {
     const g = require('./_env')(ctx, { width: size[0], height: size[1] }); const d = g.dbg(); await d.YG.init(); await d.loadSave();
@@ -14,6 +15,7 @@ const ctx = new Proxy({}, { get: (t, k) => k === 'fillText' ? s => texts.push(St
     d.drawWorld(); for (let i = 0; i < 30; i++) d.update(0.016); // предупреждение налива, потом капли и пятна
     for (const h of d.hazards) { h.y = d.ball.y; if (h.type === 'knife') h.phase = 'wind'; }
     for (const p of d.platforms) if (p.type === 'pan') p.hotT = 1.5;
+    for (const kind of ['ketchup', 'pasta', 'meat']) d.drawItem({ kind, x: 100, y: d.camY + 300, seed: 0 }); // новые формы еды
     d.drawPlatform({ id: 900, type: 'cheese', x: 240, y: d.camY + 400, w: 120, crumbleT: 0.2 }); d.drawPlatform({ id: 901, type: 'cheese', x: 240, y: d.camY + 500, w: 120, gone: true }); // сыр целый, крошится и пропавший
     d.drawBg(); d.drawWorld(); d.drawHUD(); d.pausedScreen(true); d.pausedScreen(false);
     d.YG.adStub = { kind: 'rewarded', until: 0 }; d.adStubScreen(); d.YG.adStub = null; d.adStubScreen();
@@ -32,6 +34,27 @@ const ctx = new Proxy({}, { get: (t, k) => k === 'fillText' ? s => texts.push(St
   assert.ok(!texts.some(t => /Серия|Streak/.test(t)), 'панели серии нет'); assert.ok(!texts.some(t => t.startsWith('×')), 'при лимите 1 число не пишется');
   d.powerAdd(d.POWER_FULL); d.drawWorld(); d.drawHUD(); d.tryActivatePower(); d.drawWorld(); d.drawHUD(); // полная шкала и берсерк рисуются
   d.startTower(1); d.state = 'play'; d.save.up.fury = 1; texts.length = 0; d.drawHUD(); assert.ok(texts.includes('×2'), 'остаток берсерков'); d.save.up.fury = 0;
+  // всплывающие надписи из одной точки не налезают: следующая встаёт на высоту строки выше (крупная 34 px, мелкая 26)
+  d.resetFx(); d.popText(200, 500, 'Берсерк!', '#fff', true); d.popText(200, 500, '+6', '#fff', true); d.popText(210, 505, '+1', '#fff');
+  assert.deepStrictEqual(d.texts.map(t => t.y), [500, 466, 432]);
+  d.resetFx(); d.popText(240, 500, 'Тапни по Тефе!', '#fff', true); d.popText(330, 500, '+2', '#fff');
+  assert.ok(d.texts[1].y <= 500 - 34, 'широкая надпись мешает соседке по своей ширине, а не только по центру');
+  d.resetFx(); d.popText(200, 500, 'a', '#fff'); d.texts[0].t = 0.5; d.popText(200, 500, 'b', '#fff'); assert.strictEqual(d.texts[1].y, 500, 'старая надпись уже уплыла вверх');
+  d.resetFx(); d.popText(200, 500, 'a', '#fff'); d.texts[0].t = 0.25; d.popText(200, 500, 'b', '#fff'); assert.strictEqual(d.texts[1].y, 500 - 0.25 * 70 - 26, 'новая встаёт над текущим положением всплывающей');
+  // надпись у края целиком в поле: центр сдвигается внутрь по оценке ширины (крупный шрифт до 9.5 px на половину буквы, мелкий до 6.6)
+  d.resetFx(); d.popText(470, 500, 'Тапни по Тефе!', '#fff', true); d.popText(5, 400, '+3', '#fff');
+  assert.ok(d.texts[0].x < 470 && d.texts[0].x + 14 * 9.5 <= 480 - 8, 'крупная надпись не вылезает за правый край: ' + d.texts[0].x);
+  assert.ok(d.texts[1].x - 2 * 6.6 >= 8, 'мелкая надпись не вылезает за левый край: ' + d.texts[1].x);
+  // язык цветов (спека v2.1.1 §8): шкала силы золотая и не берёт оранжевый масла и красный опасности ни в одном состоянии;
+  // у лопастей оранжево-красная ступица, у ножа на замахе оранжево-красная кромка
+  const DANGER = /^#ff(9a2a|5a36|7a2a)$/i;
+  d.startTower(1); d.state = 'play';
+  for (const [name, setup] of [['копится', () => d.powerAdd(10)], ['готова', () => d.powerAdd(d.POWER_FULL)], ['берсерк', () => d.tryActivatePower()]]) {
+    setup(); styles.length = 0; d.drawPowerMeter();
+    assert.ok(styles.length && !styles.some(s => DANGER.test(s)), 'шкала «' + name + '» без цветов опасности: ' + styles.join(' '));
+  }
+  styles.length = 0; d.drawHazard({ type: 'blades', x: 240, y: d.camY + 300, ang: 0 }); assert.ok(styles.includes('#ff5a36'), 'ступица лопастей оранжево-красная');
+  styles.length = 0; d.drawHazard({ type: 'knife', x: 240, y: d.camY + 300, by: d.camY + 150, t: 1.5, phase: 'wind' }); assert.ok(styles.includes('#ff5a36'), 'кромка ножа на замахе оранжево-красная');
   // смерть: причина, кнопки по флагам
   d.startTower(1); d.state = 'play'; d.die('blades'); d.deadScreen(false); assert.strictEqual(d.buttons.length, 0, 'до 0.6 с кнопок нет');
   texts.length = 0; d.deadScreen(true); assert.ok(texts.includes('Шлёп!') && texts.includes('Лопасти')); assert.deepStrictEqual(d.buttons.map(b => b.id), ['continue', 'restart']);
