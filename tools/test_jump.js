@@ -25,7 +25,7 @@ const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addCol
   // зажим горизонтали
   assert.strictEqual(aimJump(0, 0, r, 480, -150).vx, VX_MAX); assert.strictEqual(aimJump(480, 0, r, 0, -150).vx, -VX_MAX);
   // достижимость ряда: |Δx| = 180 при подъёме на ряд (120) не упирается в VX_MAX
-  const a = aimJump(100, -100 - r, r, 280, -220); assert.ok(Math.abs(a.vx) < VX_MAX, 'REACH_X 180 без зажима: ' + a.vx);
+  const a = aimJump(100, -100 - r, r, 280, -220); assert.ok(Math.abs(a.vx) < VX_MAX, 'сдвиг 180 на ряд без зажима: ' + a.vx);
   f = fly(100, -100 - r, r, 280, -220); assert.ok(Math.abs(f.x - 280) < 4, 'ряд выше достижим: ' + f.x);
   // новые поля тела
   assert.strictEqual(d.ball.charges, 3); assert.strictEqual(d.ball.onPlatform, null); assert.strictEqual(d.ball.sq, 0);

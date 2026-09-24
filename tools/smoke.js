@@ -5,18 +5,11 @@ const { fakeYaGames } = require('./test_sdk');
 const noop = () => {};
 const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addColorStop: noop }) : noop, set: () => true });
 const dist = process.argv.includes('--dist');
+const bot = require('./bot');
 const btn = (d, id) => d.buttons.find(b => b.id === id);
 const steps = (g, n) => { for (let i = 0; i < n; i++) g.step(); };
-// поднимается по ближайшей платформе следующего ряда; god-режим: урон и падение не мешают проверить путь генератора
-function climb(g, d, maxFrames = 20000) {
-  d.setGod(true);
-  for (let i = 0; i < maxFrames && d.state === 'play'; i++) {
-    const p = d.platforms.find(q => q.id === d.ball.onPlatform);
-    if (p && !p.roof) { const next = d.platforms.filter(q => q.row === p.row + 1).sort((a, b) => Math.abs(a.x - p.x) - Math.abs(b.x - p.x))[0]; d.jumpTo(next.x, next.y); }
-    g.step();
-  }
-  d.setGod(false);
-}
+// подъём до крыши по безопасному пути генератора; god-режим: урон и падение не мешают проверить поток экранов
+function climb(g, d) { d.setGod(true); bot.climb(g, d); d.setGod(false); }
 async function runFlow(opts) {
   const g = require('./_env')(ctx, Object.assign({ dist }, opts)); const d = g.dbg();
   g.step(); // кадр до загрузки — экран «Загрузка…» не падает
@@ -79,11 +72,7 @@ async function runClimbNoGod() {
   const play = btn(d, 'play'); g.tap(play.x, play.y); await g.flush();
   d.hazards.length = 0; d.resetPours(1e9);         // опасности и масло сняты: проверяем путь генератора, а не уклонение
   const rnd0 = Math.random; Math.random = () => 1;  // муха по серии не влетает; тап каждый кадр — лени тоже нет
-  for (let i = 0; i < 20000 && d.state === 'play'; i++) {
-    const p = d.platforms.find(q => q.id === d.ball.onPlatform);
-    if (p && !p.roof) { const next = d.platforms.filter(q => q.row === p.row + 1).sort((a, b) => Math.abs(a.x - p.x) - Math.abs(b.x - p.x))[0]; d.jumpTo(next.x, next.y); }
-    g.step();
-  }
+  bot.climb(g, d, { noHazards: true });
   Math.random = rnd0;
   assert.strictEqual(d.state, 'finish', 'башня 1 проходима без god');
   assert.strictEqual(d.run.deaths, 0);

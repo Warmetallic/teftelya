@@ -1,5 +1,6 @@
 // node tools/test_game.js — забег: старт, прыжок и заряды, посадка и шкала силы, урон и смерть, лечение, продолжить, чекпоинт, финиш и рейтинг, еда, суперсила, мухи, god-режим
 const assert = require('assert');
+const bot = require('./bot');
 const noop = () => {};
 const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addColorStop: noop }) : noop, set: () => true });
 (async () => {
@@ -15,10 +16,11 @@ const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addCol
   // прыжок тратит заряд; в воздухе ещё два; без зарядов — нет
   assert.ok(d.jumpTo(300, -200)); assert.strictEqual(ball.charges, 2); assert.strictEqual(ball.onPlatform, null); assert.ok(ball.vy < 0);
   assert.ok(d.jumpTo(300, -300)); assert.ok(d.jumpTo(300, -400)); assert.strictEqual(d.jumpTo(300, -500), false, 'заряды кончились');
-  // посадка на платформу ряда 1: заряды полные, шкала и серия для мух +1 за первую посадку, повтор не растит
-  d.startTower(1); d.state = 'play'; const p1 = d.platforms.find(p => p.row === 1);
-  for (const it of d.items) it.dead = true; d.setGod(true); // еда и масло по пути не должны влиять на проверку посадки
-  d.jumpTo(p1.x, p1.y); assert.ok(untilOn(p1.id), 'села на платформу ряда 1'); assert.strictEqual(ball.charges, 3); assert.strictEqual(d.power.v, 1); assert.strictEqual(d.power.flyStreak, 1);
+  // посадка на первую платформу пути: заряды полные, шкала и серия для мух +1 за первую посадку, повтор не растит
+  d.startTower(1); d.state = 'play'; const p1 = d.platforms.find(p => p.id === d.tower.path[1]);
+  for (const it of d.items) it.dead = true; d.resetPours(1e9); d.setGod(true); // еда и масло по пути не должны влиять на проверку посадки
+  { const st = {}; for (let i = 0; i < 300 && ball.onPlatform !== p1.id; i++) { bot.botAct(d, st); d.update(0.016); } }
+  assert.strictEqual(ball.onPlatform, p1.id, 'села на первую платформу пути'); assert.strictEqual(ball.charges, 3); assert.strictEqual(d.power.v, 1); assert.strictEqual(d.power.flyStreak, 1);
   d.jumpTo(p1.x, p1.y); assert.ok(untilOn(p1.id)); assert.strictEqual(d.power.v, 1, 'та же платформа шкалу не растит'); d.setGod(false);
   // урон: −1 масса, неуязвимость, четверть шкалы и серия для мух сняты, отброс; повтор в неуязвимости не проходит; ноль массы — смерть с банком монет
   d.setRunCoins(7); const earned0 = d.save.earned; d.YG.gameplayStart();
