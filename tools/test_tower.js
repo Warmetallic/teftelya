@@ -36,6 +36,23 @@ const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addCol
     for (let k = 1; k < bl.length; k++) assert.ok(bl[k] - bl[k - 1] >= 15, 'лопасти не чаще раза на 15 рядов');
     assert.ok(t.items.length > 0 && t.items.every(it => d.FOOD_KINDS[it.kind] && !it.dead));
   }
+  // ряд с лопастями: дорожки раздвинуты (у подноса — весь ход), стоящая Тефа массы 8 не достаёт лопасти ни на своём ряду, ни на соседних
+  const r8 = d.radiusFor(8);
+  for (let N = 3; N <= 12; N++) {
+    const t = d.buildTower(N);
+    for (const h of t.hazards) {
+      if (h.type !== 'blades') continue;
+      const row = Math.floor(-h.y / d.ROW_H);
+      for (const p of t.platforms) {
+        if (Math.abs(p.row - row) > 1) continue;
+        const xs = p.type === 'tray' ? [p.x0, p.x, p.x1] : [p.x]; // поднос стоит везде на своём ходу
+        for (const x of xs) {
+          if (p.row === row) assert.ok(x <= 140 || x >= 340, 'башня ' + N + ' ряд ' + row + ': дорожка раздвинута, x = ' + x.toFixed(1));
+          assert.ok(Math.hypot(x - h.x, (p.y - r8) - h.y) > r8 + d.BLADES_R, 'башня ' + N + ' ряд ' + p.row + ': стоящая Тефа не достаёт лопасти');
+        }
+      }
+    }
+  }
   // хотя бы в одной из первых 10 башен есть каждый тип
   const all = []; for (let N = 1; N <= 10; N++) all.push(d.buildTower(N));
   for (const ty of ['oil', 'knife', 'blades']) assert.ok(all.some(t => t.hazards.some(h => h.type === ty)), 'есть ' + ty);

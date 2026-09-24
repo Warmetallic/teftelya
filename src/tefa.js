@@ -192,12 +192,12 @@ function tefaFace(c, x, y, r, pose) {
 }
 // кэш тела: зерно из сотен кляксов слишком дорого рисовать каждый кадр — тело печётся один раз на радиус и масштаб экрана
 const tefaCache = new Map(); // `${rd}:${pool}:${k}` → canvas
-const TEFA_CACHE_MAX = 32;
+const TEFA_CACHE_MAX = 12;   // на телефоне с dpr 3 кэш с k = 3 и шагом радиуса 2 px доходил до 60 МБ
 function tefaBodyCached(c, rd, pool) {
   const canCache = typeof document !== 'undefined' && typeof document.createElement === 'function';
   if (!canCache) { tefaBody(c, 0, 0, rd, pool); return; } // headless-стенд и node-canvas рисуют напрямую
-  const k = Math.min(3, Math.max(1, Math.ceil((view.scale || 1) * (view.dpr || 1))));
-  const rr = Math.max(2, Math.round(rd / 2) * 2), key = rr + ':' + (pool ? 1 : 0) + ':' + k; // радиус по шагу 2 px: меньше ключей и памяти на телефоне
+  const k = Math.min(2, Math.max(1, Math.ceil((view.scale || 1) * (view.dpr || 1))));
+  const rr = Math.max(4, Math.round(rd / 4) * 4), key = rr + ':' + (pool ? 1 : 0) + ':' + k; // радиус по шагу 4 px: меньше ключей и памяти на телефоне
   let cv = tefaCache.get(key);
   if (!cv) {
     const size = Math.ceil(rr * 3.2 * k);

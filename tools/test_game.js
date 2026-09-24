@@ -64,5 +64,29 @@ const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addCol
   // god-режим для smoke: урон и падение не убивают, Тефа возвращается на последнюю платформу
   d.startTower(1); d.state = 'play'; d.setGod(true); assert.strictEqual(d.damage(9, 'knife', 0, 0), false);
   ball.onPlatform = null; ball.y = d.camY + 2000; d.update(0.016); assert.strictEqual(d.state, 'play'); assert.strictEqual(ball.onPlatform, 0); d.setGod(false);
+  // ожог сковородки: урон и подброс строго вверх, без бокового сноса
+  d.startTower(3); d.state = 'play'; d.hazards.length = 0; for (const it of d.items) it.dead = true; // масло и еда не должны мешать таймеру сковородки
+  const pan = d.platforms.find(p => p.type === 'pan'); assert.ok(pan, 'в башне 3 есть сковородка');
+  dropOn(pan); assert.ok(untilOn(pan.id), 'Тефа стоит на сковородке');
+  { const m0 = ball.mass; let burned = false;
+    for (let i = 0; i < 400 && !burned; i++) { d.update(0.016); burned = ball.mass === m0 - 1; }
+    assert.ok(burned, 'сковородка сожгла'); assert.strictEqual(ball.vy, -700, 'подброс вверх');
+    assert.strictEqual(ball.vx, 0, 'вбок не сносит'); assert.strictEqual(ball.onPlatform, null, 'сковородка отпустила'); }
+  // берсерк: сковородка не жжёт — ни урона, ни подброса
+  d.startTower(3); d.state = 'play'; d.hazards.length = 0; for (const it of d.items) it.dead = true;
+  const pan2 = d.platforms.find(p => p.type === 'pan'); dropOn(pan2); assert.ok(untilOn(pan2.id));
+  for (let i = 0; i < 12; i++) d.streakAdd(1); assert.ok(d.isBerserk());
+  { const m0 = ball.mass; steps(190); // 3.04 с — дольше таймера сковородки башни 3 (1.85 с) и короче берсерка (6 с)
+    assert.strictEqual(ball.mass, m0, 'в берсерке масса на сковородке не меняется'); assert.strictEqual(ball.onPlatform, pan2.id, 'и подброса нет'); }
+  // лопасти в неуязвимости не убивают: после удара и «Продолжить» есть 1–1.5 с
+  d.startTower(3); d.state = 'play'; for (const it of d.items) it.dead = true;
+  const bl = d.hazards.find(h => h.type === 'blades'); assert.ok(bl, 'в башне 3 есть лопасти');
+  d.hazards.length = 0; d.hazards.push(bl); // остальные опасности убрать: проверяем только лопасти
+  const inBlades = () => { ball.x = bl.x; ball.y = bl.y; ball.onPlatform = null; ball.vy = 0; d.setCamY(bl.y - 400); };
+  d.run.invuln = 1.5; inBlades(); d.update(0.016); assert.strictEqual(d.state, 'play', 'в неуязвимости лопасти не убивают');
+  d.run.invuln = 0; inBlades(); d.update(0.016); assert.strictEqual(d.state, 'dead'); assert.strictEqual(d.run.reason, 'blades');
+  // «Продолжить»: серия и берсерк смерть не переживают
+  d.startTower(1); d.state = 'play'; d.streakAdd(5); assert.strictEqual(d.streak.n, 5);
+  d.die('fall'); d.continueRun(); assert.strictEqual(d.streak.n, 0, 'серия обнулена');
   console.log('test_game ok');
 })().catch(e => { console.error(e); process.exit(1); });

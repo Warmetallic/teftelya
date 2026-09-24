@@ -61,6 +61,22 @@ async function runFlow(opts) {
   for (let i = 1; i < ss.length; i++) assert.notStrictEqual(ss[i], ss[i - 1], 'start/stop чередуются');
   return d;
 }
+// башня 1 проходима без god: путь генератора без урона, смертей и случайностей
+async function runClimbNoGod() {
+  const g = require('./_env')(ctx, { dist }); const d = g.dbg();
+  await g.boot();
+  const play = btn(d, 'play'); g.tap(play.x, play.y); await g.flush();
+  d.hazards.length = 0;                             // масло снято: проверяем путь генератора, а не уклонение от капель
+  const rnd0 = Math.random; Math.random = () => 1;  // муха по серии не влетает; тап каждый кадр — лени тоже нет
+  for (let i = 0; i < 20000 && d.state === 'play'; i++) {
+    const p = d.platforms.find(q => q.id === d.ball.onPlatform);
+    if (p && !p.roof) { const next = d.platforms.filter(q => q.row === p.row + 1).sort((a, b) => Math.abs(a.x - p.x) - Math.abs(b.x - p.x))[0]; d.jumpTo(next.x, next.y); }
+    g.step();
+  }
+  Math.random = rnd0;
+  assert.strictEqual(d.state, 'finish', 'башня 1 проходима без god');
+  assert.strictEqual(d.run.deaths, 0);
+}
 // награды не дали: «Продолжить» не воскрешает
 async function runNoReward(opts) {
   const g = require('./_env')(ctx, Object.assign({ dist }, opts)); const d = g.dbg();
@@ -73,6 +89,7 @@ async function runNoReward(opts) {
 }
 (async () => {
   await runFlow({});
+  await runClimbNoGod();
   const log = []; const d2 = await runFlow({ YaGames: fakeYaGames(log), lang: 'en-US' });
   assert.strictEqual(d2.lang, 'en');
   for (const k of ['ready', 'start', 'stop', 'inter', 'reward', 'setData']) assert.ok(log.includes(k), 'реальный API вызван: ' + k);

@@ -19,7 +19,14 @@ const play = async (g, d) => { await up(g, d, 6); steps(g, 10); };
 // экземпляр каждого типа к камере (правка сцены, не рендера): иначе на скриншоте не видно ни ножа, ни лопастей.
 const hazards = async (g, d) => { await up(g, d, 18); d.spawnFly(true); d.flies[0].warnT = 0; d.flies[0].x = 60; d.flies[0].y = d.ball.y - 60;
   const kn = d.hazards.find(h => h.type === 'knife'); if (kn) { kn.y = d.ball.y - 220; kn.by = kn.y - 150; kn.t = 1.8; }
-  const bl = d.hazards.find(h => h.type === 'blades'); if (bl) { bl.x = 360; bl.y = d.ball.y - 380; }
+  // лопасти генератор вешает в центр ряда и раздвигает дорожки этого ряда — повторяем это на ближайшем ряду-дорожке над Тефой
+  const bl = d.hazards.find(h => h.type === 'blades'), cur = d.platforms.find(p => p.id === d.ball.onPlatform);
+  if (bl && cur) {
+    const row = Math.min(...d.platforms.filter(p => p.lane && p.row > cur.row).map(p => p.row));
+    const lane = d.platforms.filter(p => p.lane && p.row === row);
+    for (const p of lane) { const dx = (p.lane === 'L' ? Math.min(p.x, 140) : Math.max(p.x, 340)) - p.x; p.x += dx; if (p.type === 'tray') { p.x0 += dx; p.x1 += dx; } }
+    bl.x = 240; bl.y = lane[0].y - 60;
+  }
   for (const h of d.hazards) if (h.type === 'knife' && h !== kn) h.t = 1.8;
   steps(g, 8); };
 const berserk = async (g, d) => { await up(g, d, 4); for (let i = 0; i < 12; i++) d.streakAdd(1); d.spawnFly(false); d.flies[0].warnT = 0; d.flies[0].x = 380; d.flies[0].y = d.ball.y - 40; steps(g, 12); };

@@ -73,7 +73,7 @@ function die(reason) {
 function continueRun() {
   ball.mass = Math.max(ball.mass, CONTINUE_MIN_MASS); ball.r = radiusFor(ball.mass); // масса и радиус до посадки: placeAt сажает Тефу по ball.r
   placeAt(platformById(tower.platforms, run.lastLandId) || cpPlatform(run.cp));
-  resetFlies(); run.invuln = INVULN_CONT; run.usedContinue++; camShake = 0; tGame = 0; state = 'play';
+  resetStreak(); resetFlies(); run.invuln = INVULN_CONT; run.usedContinue++; camShake = 0; tGame = 0; state = 'play'; // серия и берсерк смерть не переживают
 }
 // «С чекпоинта» бесплатно: смерти уже посчитаны в die(); капли масла и мухи сброшены
 function restartFromCp() {
@@ -113,9 +113,11 @@ function updateRun(dt) {
   const prevBottom = ball.y + ball.r, wasOn = ball.onPlatform;
   if (ball.onPlatform === null) { ball.vy += GRAV * dt; ball.x += ball.vx * dt; ball.y += ball.vy * dt; }
   if (ball.x < ball.r) { ball.x = ball.r; ball.vx = Math.abs(ball.vx) * 0.6; } else if (ball.x > W - ball.r) { ball.x = W - ball.r; ball.vx = -Math.abs(ball.vx) * 0.6; }
-  for (const e of updatePlatforms(dt, tower.platforms, tp)) if (e.type === 'burn') { // сгорело: урон и подброс; без урона (берсерк/неуязвимость) — только подброс
-    if (!damage(tp.dmg, 'pan', e.p.x, e.p.y + 40)) { ball.onPlatform = null; ball.vy = -700; }
+  for (const e of updatePlatforms(dt, tower.platforms, tp)) if (e.type === 'burn') {
+    if (isBerserk()) continue; // спека §4.4: в берсерке Тефа не горит — ни урона, ни подброса; таймер сковородки уже сброшен в platforms.js
+    damage(tp.dmg, 'pan', e.p.x, e.p.y + 40);
     if (!ball.alive) return;
+    ball.onPlatform = null; ball.vy = -700; ball.vx = 0; // спека §3.2: автопрыжок строго вверх — боковой отброс урона сдувал с узкой сковородки в пропасть
   }
   if (ball.onPlatform === null) {
     const vy = ball.vy, p = tryLand(tower.platforms, prevBottom);
@@ -128,7 +130,7 @@ function updateRun(dt) {
   if (run.flyCd <= 0 && flyWanted(dt, streak.n, run.campT, isBerserk())) { spawnFly(); run.flyCd = FLY_CD; run.campT = 0; }
   for (const e of updateHazards(dt, tower.hazards, { tp, berserk: isBerserk(), invuln: run.invuln })) {
     if (e.type === 'hit') damage(tp.dmg, e.reason, e.x, e.y);
-    else if (e.type === 'kill') { if (!god) { burst(ball.x, ball.y, '#b9542f', 30, 400, 0.8, 6); die(e.reason); } }
+    else if (e.type === 'kill') { if (!god && run.invuln <= 0) { burst(ball.x, ball.y, '#b9542f', 30, 400, 0.8, 6); die(e.reason); } } // после удара и «Продолжить» лопасти не убивают 1–1.5 с
     else if (e.type === 'flyGaveUp') { applyStreak(streakAdd(3)); popText(e.h.x, e.h.y, T('flyGone'), 'rgba(255,255,255,0.7)'); }
     else if (e.type === 'flyEaten') { const gain = coinsFor('meat'); run.runCoins += gain; if (ball.mass < massMax()) ball.mass++; burst(e.h.x, e.h.y, '#2b2b2b', 10, 200, 0.4, 3); popText(e.h.x, e.h.y, '+' + gain, '#ffe08a', true); sfx.eat(); }
     else if (e.type === 'smash') { run.runCoins += 2; burst(e.x, e.y, '#ddd', 14, 300, 0.5, 4); sfx.hit(); }

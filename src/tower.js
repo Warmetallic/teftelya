@@ -32,6 +32,8 @@ function buildTower(N) {
     if (type === 'tray') { p.x0 = x - 40; p.x1 = x + 40; p.dir = 1; p.speed = rr(60, 120) * tp.speedMul; }
     platforms.push(p); return p;
   };
+  // сдвиг платформы дорожки по x; у подноса вместе с центром едут края хода, иначе он увезёт Тефу обратно
+  const shift = (p, dx) => { p.x += dx; if (p.type === 'tray') { p.x0 += dx; p.x1 += dx; } };
   for (let i = 1; i <= tp.rows; i++) {
     const y = -i * ROW_H;
     if (i === tp.rows) { platforms.push({ id: id++, row: i, type: 'plate', x: W / 2, y, w: 360, cp: 0, roof: true }); break; }
@@ -46,7 +48,12 @@ function buildTower(N) {
       const t = pool[Math.floor(R() * pool.length)];
       if (t === 'oil') hazards.push({ id: hid++, type: 'oil', x: gp.x, y: y - 140, floorY: y, t: R() * OIL_T, drops: [] });
       else if (t === 'knife') hazards.push({ id: hid++, type: 'knife', x: W / 2, y, t: R() * KNIFE_CYCLE, phase: 'rest', by: y - 150 });
-      else { hazards.push({ id: hid++, type: 'blades', x: W / 2, y: y - 60, ang: 0, gone: false }); lastBlades = i; }
+      else { // лопасти висят в центре ряда: раздвигаем дорожки (у подноса — весь ход), чтобы стоящая Тефа их не задевала при массе до 8 (r = 54)
+        // hypot(240 − 140, 60 − 54) ≈ 100 > 54 + 36 (BLADES_R); REACH_X цел: 140 и 340 против ряда схождения 200–280 — не дальше 140
+        shift(pl, Math.min(0, 140 - (pl.type === 'tray' ? pl.x1 : pl.x)));
+        shift(pr, Math.max(0, 340 - (pr.type === 'tray' ? pr.x0 : pr.x)));
+        hazards.push({ id: hid++, type: 'blades', x: W / 2, y: y - 60, ang: 0, gone: false }); lastBlades = i;
+      }
     }
   }
   return { tp, platforms, hazards, items };
