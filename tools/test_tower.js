@@ -9,7 +9,7 @@ const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addCol
   assert.notStrictEqual(JSON.stringify(t1.platforms), JSON.stringify(t2.platforms), 'другая башня — другая раскладка');
   // параметры роста
   const p1 = d.towerParams(1), p9 = d.towerParams(9), p50 = d.towerParams(50);
-  assert.strictEqual(p1.rows, 45); assert.strictEqual(p1.dmg, 1); assert.strictEqual(p9.dmg, 2); assert.strictEqual(p50.rows, 160);
+  assert.strictEqual(p1.rows, 45); assert.strictEqual(p50.rows, 160); assert.strictEqual(p9.dmg, undefined, 'урон не растёт с номером башни');
   assert.ok(p9.pHaz > p1.pHaz && p9.heat > p1.heat && p9.flySpeed > p1.flySpeed); assert.strictEqual(p1.par, 45 * 2.4);
   assert.strictEqual(p1.height, 45 * d.ROW_H);
   // структура: старт, крыша, чекпоинты, ряды через ROW_H

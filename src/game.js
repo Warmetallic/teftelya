@@ -1,9 +1,8 @@
 'use strict';
 // ---------- забег по башне: прыжок в точку, урон, смерть, чекпоинты, финиш и рейтинг ----------
-const MASS_BASE = 4;            // максимум массы без прокачки; старт башни с максимума − 1
+const MASS_BASE = 4;            // максимум массы без прокачки; башня начинается с полной массой (спека v2.1.1 §5)
 const INVULN_HIT = 1;           // с неуязвимости после удара
 const INVULN_CONT = 1.5;        // с неуязвимости после «Продолжить»
-const CONTINUE_MIN_MASS = 2;
 const DOUBLE_MIN_COINS = 10;    // «Монеты ×2» предлагаем от этой суммы
 const BONUS_MULT = { S: 2, A: 1.5, B: 1.2, C: 1, D: 0.8 };
 const FOOD_SHARE = 0.8;         // доля еды башни для галочки рейтинга
@@ -14,6 +13,12 @@ let run = null;                 // состояние забега, см. newRun
 let god = false;                // тесты (smoke): без урона и смерти от падения
 function massMax() { return MASS_BASE + ((save.up && save.up.meat) || 0); }
 function chargesMax() { return 3 + ((save.up && save.up.charge) || 0); }
+// лечение (спека v2.1.1 §5): чекпоинт, «Продолжить» и съеденная в берсерке муха или капля масла; еда не лечит
+function heal(n) {
+  const m0 = ball.mass; ball.mass = Math.min(massMax(), ball.mass + n);
+  if (ball.mass > m0) burst(ball.x, ball.y - ball.r * 0.5, '#ffe08a', 10, 160, 0.5, 3);
+  return ball.mass - m0;
+}
 function newRun() { return { time: 0, runCoins: 0, bankedCoins: 0, deaths: 0, usedContinue: 0, usedDouble: false, foodEaten: 0, foodTotal: 0, cp: 0, lastLandId: 0, campT: 0, flyCd: 0, invuln: 0, reason: '', rating: null, bonus: 0, progress: 0, finished: false }; }
 function cpPlatform(k) { return tower.platforms.find(p => k ? p.cp === k : p.start) || tower.platforms[0]; }
 function placeAt(p) {
@@ -26,7 +31,7 @@ function startTower(N, fromCp = 0) {
   tower = buildTower(N); run = newRun(); run.foodTotal = tower.items.length;
   if (fromCp && !tower.platforms.some(p => p.cp === fromCp)) fromCp = 0; // битый чекпоинт из сохранения
   resetStreak(); resetFlies(); resetFx();
-  ball.mass = massMax() - 1; ball.r = radiusFor(ball.mass);
+  ball.mass = massMax(); ball.r = radiusFor(ball.mass);
   run.cp = fromCp; if (fromCp) run.deaths = 1;
   placeAt(cpPlatform(fromCp));
   camY = ball.y - H * 0.6; tGame = 0; camShake = 0;
@@ -48,7 +53,6 @@ function applyStreak(evn) {
 function eat(it) {
   it.dead = true; run.foodEaten++;
   const gain = coinsFor(it.kind); run.runCoins += gain;
-  if (ball.mass < massMax()) ball.mass++;
   ball.mouth = 1; pulse(140);
   burst(it.x, it.y, FOOD_COLOR[it.kind], 12, 260, 0.5, 5); popText(it.x, it.y - 20, '+' + gain, '#ffe08a', isBerserk());
   sfx.eat(); applyStreak(streakAdd(1));
@@ -69,15 +73,15 @@ function die(reason) {
   sfx.die(); camShake = 16; burst(ball.x, ball.y, '#b9542f', 40, 380, 0.9, 6);
   bank(); persist(); YG.gameplayStop();
 }
-// «Продолжить» за rewarded: на последней платформе, масса не меньше CONTINUE_MIN_MASS; рейтинг башни станет D
+// «Продолжить» за rewarded: на последней платформе с полной массой (еда больше не лечит); рейтинг башни станет D
 function continueRun() {
-  ball.mass = Math.max(ball.mass, CONTINUE_MIN_MASS); ball.r = radiusFor(ball.mass); // масса и радиус до посадки: placeAt сажает Тефу по ball.r
+  ball.mass = massMax(); ball.r = radiusFor(ball.mass); // масса и радиус до посадки: placeAt сажает Тефу по ball.r
   placeAt(platformById(tower.platforms, run.lastLandId) || cpPlatform(run.cp));
   resetStreak(); resetFlies(); run.invuln = INVULN_CONT; run.usedContinue++; camShake = 0; tGame = 0; state = 'play'; // серия и берсерк смерть не переживают
 }
 // «С чекпоинта» бесплатно: смерти уже посчитаны в die(); капли масла и мухи сброшены
 function restartFromCp() {
-  ball.mass = massMax() - 1; ball.r = radiusFor(ball.mass); placeAt(cpPlatform(run.cp));
+  ball.mass = massMax(); ball.r = radiusFor(ball.mass); placeAt(cpPlatform(run.cp));
   resetStreak(); resetFlies(); resetFx(); for (const h of tower.hazards) if (h.type === 'oil') h.drops = [];
   camY = ball.y - H * 0.6; tGame = 0; state = 'play';
 }
@@ -100,7 +104,7 @@ function finishTower() {
   ball.onPlatform = tower.platforms.find(p => p.roof).id;
   state = 'finish'; tGame = 0; sfx.big(); camShake = 8; YG.gameplayStop();
 }
-function reachCheckpoint(p) { run.cp = p.cp; save.cp = p.cp; persist(); popText(p.x, p.y - 40, T('checkpoint', p.cp), '#8ff0a4', true); sfx.buy(); }
+function reachCheckpoint(p) { run.cp = p.cp; save.cp = p.cp; heal(massMax()); persist(); popText(p.x, p.y - 40, T('checkpoint', p.cp), '#8ff0a4', true); sfx.buy(); }
 function onLand(p, vy) {
   ball.charges = chargesMax();
   if (vy > 80) { squash(Math.min(vy, 900) * 0.5); crumbs(ball.x, ball.y + ball.r); }
@@ -115,7 +119,7 @@ function updateRun(dt) {
   if (ball.x < ball.r) { ball.x = ball.r; ball.vx = Math.abs(ball.vx) * 0.6; } else if (ball.x > W - ball.r) { ball.x = W - ball.r; ball.vx = -Math.abs(ball.vx) * 0.6; }
   for (const e of updatePlatforms(dt, tower.platforms, tp)) if (e.type === 'burn') {
     if (isBerserk()) continue; // спека §4.4: в берсерке Тефа не горит — ни урона, ни подброса; таймер сковородки уже сброшен в platforms.js
-    damage(tp.dmg, 'pan', e.p.x, e.p.y + 40);
+    damage(1, 'pan', e.p.x, e.p.y + 40);
     if (!ball.alive) return;
     ball.onPlatform = null; ball.vy = -700; ball.vx = 0; // спека §3.2: автопрыжок строго вверх — боковой отброс урона сдувал с узкой сковородки в пропасть
   }
@@ -129,10 +133,9 @@ function updateRun(dt) {
   run.flyCd = Math.max(0, run.flyCd - dt);
   if (run.flyCd <= 0 && flyWanted(dt, streak.n, run.campT, isBerserk())) { spawnFly(); run.flyCd = FLY_CD; run.campT = 0; }
   for (const e of updateHazards(dt, tower.hazards, { tp, berserk: isBerserk(), invuln: run.invuln })) {
-    if (e.type === 'hit') damage(tp.dmg, e.reason, e.x, e.y);
-    else if (e.type === 'kill') { if (!god && run.invuln <= 0) { burst(ball.x, ball.y, '#b9542f', 30, 400, 0.8, 6); die(e.reason); } } // после удара и «Продолжить» лопасти не убивают 1–1.5 с
+    if (e.type === 'hit') damage(1, e.reason, e.x, e.y); // каждая опасность снимает один кусок; сразу убивает только падение
     else if (e.type === 'flyGaveUp') { applyStreak(streakAdd(3)); popText(e.h.x, e.h.y, T('flyGone'), 'rgba(255,255,255,0.7)'); }
-    else if (e.type === 'flyEaten') { const gain = coinsFor('meat'); run.runCoins += gain; if (ball.mass < massMax()) ball.mass++; burst(e.h.x, e.h.y, '#2b2b2b', 10, 200, 0.4, 3); popText(e.h.x, e.h.y, '+' + gain, '#ffe08a', true); sfx.eat(); }
+    else if (e.type === 'eaten') { const gain = coinsFor('meat'); run.runCoins += gain; heal(1); burst(e.x, e.y, e.what === 'fly' ? '#2b2b2b' : '#ff9a2a', 10, 200, 0.4, 3); popText(e.x, e.y, '+' + gain, '#ffe08a', true); sfx.eat(); }
     else if (e.type === 'smash') { run.runCoins += 2; burst(e.x, e.y, '#ddd', 14, 300, 0.5, 4); sfx.hit(); }
     if (!ball.alive) return;
   }
@@ -160,6 +163,6 @@ function update(dt) {
 expose({
   get state() { return state; }, set state(v) { state = v; }, get tower() { return tower; }, get run() { return run; }, get camY() { return camY; },
   get platforms() { return tower ? tower.platforms : []; }, get hazards() { return tower ? tower.hazards : []; }, get items() { return tower ? tower.items : []; },
-  setRunCoins(n) { run.runCoins = n; }, setGod(v) { god = !!v; }, setCamY(v) { camY = v; }, massMax, chargesMax, coinsFor,
+  setRunCoins(n) { run.runCoins = n; }, setGod(v) { god = !!v; }, setCamY(v) { camY = v; }, massMax, chargesMax, coinsFor, heal,
   startTower, jumpTo, damage, die, continueRun, restartFromCp, restartTower, nextTower, finishTower, doubleCoins, ratingFor, bonusCoins, update,
 });

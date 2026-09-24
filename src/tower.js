@@ -12,7 +12,7 @@ const FOOD_COLOR = { ketchup: '#e3342f', pasta: '#f6c343', meat: '#b5452b' };
 function mulberry32(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 function towerParams(N) {
   const rows = Math.min(40 + 5 * N, 160);
-  return { N, rows, height: rows * ROW_H, dmg: 1 + Math.floor((N - 1) / 8), heat: Math.min(0.05 * N, 1.5), speedMul: 1 + 0.03 * N, flySpeed: 220 + 5 * N,
+  return { N, rows, height: rows * ROW_H, heat: Math.min(0.05 * N, 1.5), speedMul: 1 + 0.03 * N, flySpeed: 220 + 5 * N,
     pHaz: Math.min(0.15 + 0.02 * N, 0.6), pPan: Math.min(0.1 + 0.02 * N, 0.5), pTray: N >= 2 ? 0.15 : 0, foodPerRow: Math.max(0.35, 0.8 - 0.01 * N),
     par: rows * 2.4, coinMul: 1 + 0.05 * (N - 1), theme: 'kitchen' };
 }

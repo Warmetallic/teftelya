@@ -1,5 +1,5 @@
 'use strict';
-// ---------- опасности: муха (наводится), масло (капает), нож (гильотина в разрыве), лопасти (смерть) ----------
+// ---------- опасности: муха (наводится), масло (капает), нож (гильотина в разрыве), лопасти; каждая снимает один кусок ----------
 const FLY_CHASE = 6, FLY_CHASE_MIN = 1.5, FLY_WARN = 0.7, FLY_MAX = 3, FLY_CD = 2, CAMP_T = 3;
 const OIL_DROP_V = 420, OIL_R = 8;
 const KNIFE_REST = 1.2, KNIFE_WIND = 0.6, KNIFE_STRIKE = 0.3; // сумма = KNIFE_CYCLE
@@ -28,7 +28,8 @@ function knifeY(h) { // верх лезвия: пауза наверху (by), �
   const { phase, k } = knifePhase(h.t), top = h.by, bottom = h.y - 80;
   return phase === 'rest' ? top : phase === 'wind' ? top - 14 * Math.sin(k * Math.PI) : top + (bottom - top) * Math.sin(k * Math.PI);
 }
-// env: { tp, berserk, invuln }. События: hit {reason,x,y} | kill {reason} | flyGaveUp {h} | flyEaten {h} | smash {h,x,y}
+// env: { tp, berserk, invuln }. События: hit {reason,x,y} | flyGaveUp {h} | eaten {what,x,y} | smash {h,x,y}.
+// В берсерке муха и капля масла съедаются (eaten — game.js лечит на кусок), нож и лопасти ломаются (smash).
 function updateHazards(dt, hazards, env) {
   const ev = [], tp = env.tp, R = ball.r;
   for (const f of flies) {
@@ -37,7 +38,7 @@ function updateHazards(dt, hazards, env) {
     f.chaseT += dt; f.phase += dt * 7;
     const dx = ball.x - f.x, dy = ball.y - f.y, dist = Math.hypot(dx, dy) || 1, sp = tp.flySpeed;
     f.x += (dx / dist) * sp * dt + Math.cos(f.phase) * 60 * dt; f.y += (dy / dist) * sp * dt + Math.sin(f.phase * 1.3) * 60 * dt;
-    if (dist < R + 12) { f.gone = true; ev.push(env.berserk ? { type: 'flyEaten', h: f } : { type: 'hit', reason: 'fly', x: f.x, y: f.y }); continue; }
+    if (dist < R + 12) { f.gone = true; ev.push(env.berserk ? { type: 'eaten', what: 'fly', x: f.x, y: f.y } : { type: 'hit', reason: 'fly', x: f.x, y: f.y }); continue; }
     if (f.chaseT >= flyChase()) { f.gone = true; ev.push({ type: 'flyGaveUp', h: f }); }
   }
   flies = flies.filter(f => !f.gone);
@@ -50,7 +51,7 @@ function updateHazards(dt, hazards, env) {
         if (dr.splat > 0) { dr.splat -= dt; if (dr.splat <= 0) dr.dead = true; continue; }
         dr.y += OIL_DROP_V * dt;
         if (dr.y >= h.floorY) { dr.y = h.floorY; dr.splat = 0.5; continue; }
-        if (Math.hypot(ball.x - h.x, ball.y - dr.y) < R + OIL_R) { dr.dead = true; ev.push(env.berserk ? { type: 'smash', h, x: h.x, y: dr.y } : { type: 'hit', reason: 'oil', x: h.x, y: dr.y }); }
+        if (Math.hypot(ball.x - h.x, ball.y - dr.y) < R + OIL_R) { dr.dead = true; ev.push(env.berserk ? { type: 'eaten', what: 'oil', x: h.x, y: dr.y } : { type: 'hit', reason: 'oil', x: h.x, y: dr.y }); }
       }
       h.drops = h.drops.filter(dr => !dr.dead);
     } else if (h.type === 'knife') {
@@ -62,7 +63,7 @@ function updateHazards(dt, hazards, env) {
     } else if (h.type === 'blades') {
       h.ang += dt * 6 * tp.speedMul;
       if (Math.hypot(ball.x - h.x, ball.y - h.y) < R + BLADES_R) {
-        if (env.berserk) { h.gone = true; ev.push({ type: 'smash', h, x: h.x, y: h.y }); } else ev.push({ type: 'kill', reason: 'blades' });
+        if (env.berserk) { h.gone = true; ev.push({ type: 'smash', h, x: h.x, y: h.y }); } else ev.push({ type: 'hit', reason: 'blades', x: h.x, y: h.y });
       }
     }
   }
