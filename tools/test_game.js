@@ -108,5 +108,20 @@ const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addCol
   d.powerAdd(d.POWER_FULL); assert.ok(d.tryActivatePower()); d.die('fall'); assert.ok(!d.isBerserk(), 'смерть заканчивает берсерк');
   d.continueRun(); assert.strictEqual(d.power.used, 1, 'смерть не возвращает берсерк'); d.powerAdd(d.POWER_FULL); assert.strictEqual(d.power.v, 0, 'лимит исчерпан — шкала не копится');
   d.restartTower(); assert.strictEqual(d.power.used, 0); assert.strictEqual(d.power.v, 0, '«Заново» обнуляет шкалу');
+  // нижняя граница (спека v2.2a §4): смерть, как только низ Тефы ушёл в полосу внизу экрана глубже BAND_SINK; платформа,
+  // прикрытая полосой не глубже BAND_SINK, ещё ловит, более глубокая — нет (раньше под экраном была невидимая полоса спасения)
+  { const bandTop = () => d.camY + 854 - d.BAND_H, fall = (y, vy) => { ball.onPlatform = null; ball.vx = 0; ball.vy = vy; ball.y = y; ball.x = 240; };
+    const clean = () => { d.startTower(1); d.state = 'play'; d.resetPours(1e9); d.hazards.length = 0; d.resetFlies(); for (const it of d.items) it.dead = true; };
+    clean(); fall(bandTop() + d.BAND_SINK - ball.r - 3, 0); d.update(0.016); assert.strictEqual(d.state, 'play', 'низ выше порога — жива');
+    clean(); fall(bandTop() + d.BAND_SINK - ball.r + 3, 0); d.update(0.016); assert.strictEqual(d.state, 'dead', 'низ в полосе глубже порога — смерть'); assert.strictEqual(d.run.reason, 'fall');
+    clean(); const saveP = { id: 9001, type: 'plate', x: 240, y: bandTop() + 8, w: 200, row: -1 }; d.platforms.push(saveP); fall(saveP.y - ball.r - 30, 100);
+    for (let i = 0; i < 60 && d.state === 'play' && ball.onPlatform !== 9001; i++) d.update(0.016);
+    assert.strictEqual(ball.onPlatform, 9001, 'платформа, прикрытая полосой на 8 px, ловит');
+    clean(); const deep = { id: 9002, type: 'plate', x: 240, y: bandTop() + 30, w: 200, row: -1 }; d.platforms.push(deep); fall(deep.y - ball.r - 40, 100);
+    for (let i = 0; i < 60 && d.state === 'play' && ball.onPlatform !== 9002; i++) d.update(0.016);
+    assert.strictEqual(d.state, 'dead', 'на платформу глубже порога не встать: смерть раньше'); }
+  { d.startTower(1); d.state = 'play'; d.resetPours(1e9); d.hazards.length = 0; d.resetFlies(); d.powerAdd(d.POWER_FULL); assert.ok(d.tryActivatePower());
+    ball.onPlatform = null; ball.vx = 0; ball.vy = 0; ball.x = 240; ball.y = d.camY + 854 - d.BAND_H + d.BAND_SINK - ball.r + 3; d.update(0.016);
+    assert.strictEqual(d.state, 'dead', 'в берсерке полоса тоже убивает: от падения сила не спасает'); }
   console.log('test_game ok');
 })().catch(e => { console.error(e); process.exit(1); });

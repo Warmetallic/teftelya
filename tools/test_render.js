@@ -31,7 +31,7 @@ const ctx = new Proxy({}, { get: (t, k) => k === 'fillText' ? s => texts.push(St
   texts.length = 0; d.state = 'title'; d.titleScreen(); assert.ok(texts.includes('Башня 1') && texts.includes('Кухня')); assert.deepStrictEqual(d.buttons.map(b => b.id), ['play']);
   d.save.cp = 1; texts.length = 0; d.titleScreen(); assert.ok(texts.includes('Чекпоинт 1')); d.save.cp = 0;
   // темы (спека v2.2a §5): фон каждой темы рисуется, на титуле её название; при старте башни плашка «Башня N · Тема» на 1.5 с
-  for (let n = 1; n <= 6; n++) { d.startTower(n); d.state = 'title'; d.drawBg(); texts.length = 0; d.titleScreen(); assert.ok(texts.includes(d.T('theme.' + d.themeFor(n).id)), 'на титуле тема башни ' + n); }
+  for (let n = 1; n <= 6; n++) { d.startTower(n); d.state = 'title'; d.drawBg(); d.drawWorld(); d.drawBand(); texts.length = 0; d.titleScreen(); assert.ok(texts.includes(d.T('theme.' + d.themeFor(n).id)), 'на титуле тема башни ' + n); }
   d.startTower(2); d.state = 'play'; texts.length = 0; d.drawHUD(); assert.ok(texts.includes('Башня 2 · Холодильник'), 'плашка темы при старте');
   for (let i = 0; i < 100; i++) d.update(0.016); texts.length = 0; d.drawHUD(); assert.ok(!texts.some(t => t.includes(' · ')), 'через 1.6 с плашки нет');
   for (const [lang, want] of [['en', 'Tower 2 · Fridge'], ['tr', 'Kule 2 · Buzdolabı']]) { d.setLang(lang); d.startTower(2); d.state = 'play'; texts.length = 0; d.drawHUD(); assert.ok(texts.includes(want), lang + ': плашка ' + want); }

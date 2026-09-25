@@ -2,6 +2,9 @@
 // ---------- забег по башне: прыжок в точку, урон, смерть, чекпоинты, финиш и рейтинг ----------
 const MASS_BASE = 4;            // максимум массы без прокачки; башня начинается с полной массой (спека v2.1.1 §5)
 const INVULN_HIT = 1;           // с неуязвимости после удара
+// нижняя граница (спека v2.2a §4): внизу экрана видимая смертельная полоса высотой BAND_H; смерть, как только низ Тефы ушёл
+// в неё глубже BAND_SINK — под экраном больше нет невидимых платформ, на которые можно встать
+const BAND_H = 36, BAND_SINK = 12;
 const BANNER_T = 1.5;           // с — плашка «Башня N · Тема» при старте башни (спека v2.2a §5)
 const INVULN_CONT = 1.5;        // с неуязвимости после «Продолжить»
 const DOUBLE_MIN_COINS = 10;    // «Монеты ×2» предлагаем от этой суммы
@@ -160,7 +163,7 @@ function updateRun(dt) {
   const pe = updatePower(dt); if (pe) onPower(pe);
   const target = ball.y - H * 0.6; if (target < camY) camY = lerp(camY, target, 1 - Math.pow(0.001, dt)); // камера только вверх
   run.progress = Math.max(run.progress, clamp(-ball.y / tp.height, 0, 1));
-  if (ball.y - ball.r > camY + H + 40) { if (god) placeAt(platformById(tower.platforms, run.lastLandId) || cpPlatform(run.cp)); else { die('fall'); return; } }
+  if (ball.y + ball.r > camY + H - BAND_H + BAND_SINK) { if (god) placeAt(platformById(tower.platforms, run.lastLandId) || cpPlatform(run.cp)); else { die('fall'); return; } }
   run.invuln = Math.max(0, run.invuln - dt);
   ball.mouth = Math.max(0, ball.mouth - dt * 3);
   ball.face = lerp(ball.face, clamp(ball.vx / 300, -1, 1), 1 - Math.pow(0.02, dt));
@@ -175,6 +178,6 @@ function update(dt) {
 expose({
   get state() { return state; }, set state(v) { state = v; }, get tower() { return tower; }, get run() { return run; }, get camY() { return camY; },
   get platforms() { return tower ? tower.platforms : []; }, get hazards() { return tower ? tower.hazards : []; }, get items() { return tower ? tower.items : []; },
-  setRunCoins(n) { run.runCoins = n; }, setGod(v) { god = !!v; }, setCamY(v) { camY = v; }, massMax, chargesMax, coinsFor, heal,
+  BAND_H, BAND_SINK, setRunCoins(n) { run.runCoins = n; }, setGod(v) { god = !!v; }, setCamY(v) { camY = v; }, massMax, chargesMax, coinsFor, heal,
   startTower, jumpTo, tryActivatePower, damage, die, continueRun, restartFromCp, restartTower, nextTower, finishTower, doubleCoins, ratingFor, bonusCoins, update,
 });

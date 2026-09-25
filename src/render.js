@@ -247,6 +247,28 @@ function drawHUD() { // жизни показывает сама Тефа; зд�
     ctx.strokeText(s, W / 2, H * 0.3); ctx.fillText(s, W / 2, H * 0.3); ctx.globalAlpha = 1;
   }
 }
+// нижняя смертельная полоса темы (спека v2.2a §4): едет с камерой, верхний край колышется; поверх мира, под надписями и HUD
+function drawBand() {
+  const theme = tower ? tower.tp.theme : 'kitchen', y0 = H - BAND_H, wave = x => Math.sin(x * 0.045 + tGame * 3) * 3;
+  const edge = () => { ctx.beginPath(); ctx.moveTo(-40, H); ctx.lineTo(-40, y0 + wave(-40)); for (let x = -40; x <= W + 40; x += 8) ctx.lineTo(x, y0 + wave(x)); ctx.lineTo(W + 40, H); ctx.closePath(); };
+  const g = ctx.createLinearGradient(0, y0 - 14, 0, H);
+  if (theme === 'fridge') { // иней с сосульками
+    g.addColorStop(0, 'rgba(210,235,255,0.55)'); g.addColorStop(1, 'rgba(160,200,235,0.95)'); edge(); ctx.fillStyle = g; ctx.fill();
+    ctx.fillStyle = 'rgba(235,248,255,0.85)'; for (let x = 6; x < W; x += 18) { ctx.beginPath(); ctx.moveTo(x - 6, y0 + wave(x) + 2); ctx.lineTo(x, y0 - 10 + wave(x)); ctx.lineTo(x + 6, y0 + wave(x) + 2); ctx.fill(); }
+  } else if (theme === 'oven') { // тлеющие угли, приглушённые — не цвет опасности
+    g.addColorStop(0, 'rgba(90,36,20,0.6)'); g.addColorStop(1, 'rgba(40,14,8,0.97)'); edge(); ctx.fillStyle = g; ctx.fill();
+    for (let x = 12; x < W; x += 26) { ctx.fillStyle = `rgba(200,${90 + (x % 50)},50,${0.4 + 0.2 * Math.sin(tGame * 4 + x)})`; ctx.beginPath(); ctx.arc(x, y0 + 12 + (x % 11), 2.5, 0, 7); ctx.fill(); }
+  } else if (theme === 'sink') { // вода с волной
+    g.addColorStop(0, 'rgba(60,130,190,0.7)'); g.addColorStop(1, 'rgba(24,64,110,0.97)'); edge(); ctx.fillStyle = g; ctx.fill();
+    ctx.strokeStyle = 'rgba(210,240,255,0.8)'; ctx.lineWidth = 2; ctx.beginPath(); for (let x = -40; x <= W + 40; x += 8) { const y = y0 + wave(x); x > -40 ? ctx.lineTo(x, y) : ctx.moveTo(x, y); } ctx.stroke();
+  } else if (theme === 'feast') { // тёмная щель под подолом скатерти
+    g.addColorStop(0, 'rgba(6,5,5,0.6)'); g.addColorStop(1, 'rgba(0,0,0,0.98)'); edge(); ctx.fillStyle = g; ctx.fill();
+    ctx.fillStyle = 'rgba(30,58,42,0.95)'; ctx.beginPath(); ctx.moveTo(-40, y0 - 6); for (let x = -40; x <= W + 40; x += 24) ctx.arc(x + 12, y0 - 6, 12, Math.PI, 0, true); ctx.lineTo(W + 40, y0 - 14); ctx.lineTo(-40, y0 - 14); ctx.closePath(); ctx.fill();
+  } else { // кухня: тёмный дым
+    g.addColorStop(0, 'rgba(12,9,8,0.55)'); g.addColorStop(1, 'rgba(8,6,5,0.97)'); edge(); ctx.fillStyle = g; ctx.fill();
+    ctx.fillStyle = 'rgba(40,34,32,0.55)'; for (let x = 10; x < W; x += 34) { ctx.beginPath(); ctx.arc(x, y0 + 2 + wave(x), 12 + (x % 3) * 3, 0, 7); ctx.fill(); }
+  }
+}
 function drawWorld() { // всё внутри поля; вызывающий ставит clip и shake
   if (!tower) return;
   for (const p of tower.platforms) drawPlatform(p);
@@ -261,6 +283,7 @@ function drawWorld() { // всё внутри поля; вызывающий с�
     else { ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x, p.y - camY, p.size, 0, 7); ctx.fill(); }
   }
   ctx.globalAlpha = 1;
+  drawBand();
   for (const t of texts) {
     const k = t.t; ctx.globalAlpha = 1 - k * k; ctx.fillStyle = t.color; ctx.textAlign = 'center';
     ctx.font = `900 ${t.big ? 30 : 22}px system-ui, sans-serif`;
@@ -269,4 +292,4 @@ function drawWorld() { // всё внутри поля; вызывающий с�
   }
   ctx.globalAlpha = 1;
 }
-expose({ drawBg, drawWorld, drawHUD, drawPowerMeter, drawPlatform, drawHazard, drawFly, drawPours, drawItem });
+expose({ drawBg, drawBand, drawWorld, drawHUD, drawPowerMeter, drawPlatform, drawHazard, drawFly, drawPours, drawItem });
