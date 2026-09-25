@@ -30,6 +30,13 @@ const ctx = new Proxy({}, { get: (t, k) => k === 'fillText' ? s => texts.push(St
   // титул: башня, тема, кнопка «Играть»; с чекпоинтом — строка чекпоинта
   texts.length = 0; d.state = 'title'; d.titleScreen(); assert.ok(texts.includes('Башня 1') && texts.includes('Кухня')); assert.deepStrictEqual(d.buttons.map(b => b.id), ['play']);
   d.save.cp = 1; texts.length = 0; d.titleScreen(); assert.ok(texts.includes('Чекпоинт 1')); d.save.cp = 0;
+  // темы (спека v2.2a §5): фон каждой темы рисуется, на титуле её название; при старте башни плашка «Башня N · Тема» на 1.5 с
+  for (let n = 1; n <= 6; n++) { d.startTower(n); d.state = 'title'; d.drawBg(); texts.length = 0; d.titleScreen(); assert.ok(texts.includes(d.T('theme.' + d.themeFor(n).id)), 'на титуле тема башни ' + n); }
+  d.startTower(2); d.state = 'play'; texts.length = 0; d.drawHUD(); assert.ok(texts.includes('Башня 2 · Холодильник'), 'плашка темы при старте');
+  for (let i = 0; i < 100; i++) d.update(0.016); texts.length = 0; d.drawHUD(); assert.ok(!texts.some(t => t.includes(' · ')), 'через 1.6 с плашки нет');
+  for (const [lang, want] of [['en', 'Tower 2 · Fridge'], ['tr', 'Kule 2 · Buzdolabı']]) { d.setLang(lang); d.startTower(2); d.state = 'play'; texts.length = 0; d.drawHUD(); assert.ok(texts.includes(want), lang + ': плашка ' + want); }
+  d.setLang('ru');
+  d.startTower(1);
   // HUD: шкала силы, монеты, башня; панели серии и иконок массы нет; при лимите больше одного — остаток берсерков
   d.state = 'play'; d.setRunCoins(12); d.powerAdd(12); texts.length = 0; d.drawHUD(); assert.ok(texts.includes('● 12') && texts.includes('Башня 1'));
   assert.ok(!texts.some(t => /Серия|Streak/.test(t)), 'панели серии нет'); assert.ok(!texts.some(t => t.startsWith('×')), 'при лимите 1 число не пишется');
@@ -76,6 +83,10 @@ const ctx = new Proxy({}, { get: (t, k) => k === 'fillText' ? s => texts.push(St
   assert.deepStrictEqual(d.buttons.map(b => b.id), ['double', 'next']);
   d.doubleCoins(); texts.length = 0; d.finishScreen(true); assert.deepStrictEqual(d.buttons.map(b => b.id), ['next']); assert.ok(texts.some(t => t.includes('×2')));
   d.startTower(1); d.state = 'play'; d.run.deaths = 1; d.run.foodEaten = d.run.foodTotal; d.finishTower(); texts.length = 0; d.finishScreen(true); assert.ok(texts.includes('A') && texts.some(t => t.startsWith('✗ Без смертей')));
+  // названия тем на трёх языках
+  for (const lang of ['ru', 'en', 'tr']) { d.setLang(lang); for (const id of ['kitchen', 'fridge', 'oven', 'sink', 'feast']) assert.ok(d.T('theme.' + id) && d.T('theme.' + id) !== 'theme.' + id, lang + ': название темы ' + id); }
+  d.setLang('ru');
+  assert.deepStrictEqual(['kitchen', 'fridge', 'oven', 'sink', 'feast'].map(id => d.T('theme.' + id)), ['Кухня', 'Холодильник', 'Духовка', 'Раковина', 'Праздничный стол']);
   // локализация и тексты без гендерных форм
   d.setLang('en'); texts.length = 0; d.finishScreen(true); assert.ok(texts.includes('Tower 1 cleared!'));
   d.setLang('tr'); texts.length = 0; d.deadScreen(true); assert.ok(texts.includes('Pat!'));

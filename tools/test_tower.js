@@ -9,6 +9,11 @@ const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addCol
   const t1 = d.buildTower(1), t1b = d.buildTower(1), t2 = d.buildTower(2);
   assert.strictEqual(JSON.stringify(t1), JSON.stringify(t1b), 'одинаковая раскладка при том же N');
   assert.notStrictEqual(JSON.stringify(t1.platforms), JSON.stringify(t2.platforms), 'другая башня — другая раскладка');
+  // темы по кругу и их уникальности (спека v2.2a §3): башни 1–5 — первый круг, 6–10 — второй; кухня получает доску со второго круга
+  assert.deepStrictEqual([1, 2, 3, 4, 5, 6, 7, 11].map(n => d.themeFor(n).id), ['kitchen', 'fridge', 'oven', 'sink', 'feast', 'kitchen', 'fridge', 'kitchen']);
+  assert.deepStrictEqual([1, 5, 6, 10, 11].map(d.loopOf), [1, 1, 2, 2, 3]);
+  assert.deepStrictEqual([1, 2, 3, 4, 5, 6, 7].map(n => d.uniquesFor(n)), [[], ['shelf'], ['toaster'], ['bowl'], ['spatula'], ['board'], ['shelf']]);
+  for (const n of [1, 2, 6, 9]) { const tp = d.towerParams(n); assert.strictEqual(tp.theme, d.themeFor(n).id); assert.deepStrictEqual(tp.uniques, d.uniquesFor(n)); }
   // параметры роста
   const p1 = d.towerParams(1), p5 = d.towerParams(5), p9 = d.towerParams(9), p50 = d.towerParams(50);
   assert.strictEqual(p1.rows, 45); assert.strictEqual(p50.rows, 160); assert.strictEqual(p9.dmg, undefined, 'урон не растёт с номером башни');

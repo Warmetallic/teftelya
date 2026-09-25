@@ -2,7 +2,7 @@
 // ---------- i18n: ru, tr, остальные языки → en; недостающий ключ ищется в en, потом в ru ----------
 const STR = {
   ru: {
-    title: 'Тефтеля', tower: 'Башня', play: 'Играть', 'theme.kitchen': 'Кухня', roof: 'Крыша',
+    title: 'Тефтеля', tower: 'Башня', play: 'Играть', 'theme.kitchen': 'Кухня', 'theme.fridge': 'Холодильник', 'theme.oven': 'Духовка', 'theme.sink': 'Раковина', 'theme.feast': 'Праздничный стол', roof: 'Крыша',
     hint1: 'Тап — прыжок в точку тапа.', hint2: 'Еда заряжает силу. Полная шкала — тапни по Тефе.', hint3: 'Сковородка жжёт, мухи кусают, масло льют сверху.',
     fell: 'Шлёп!', runCoins: 'Собрано за забег', total: 'Всего',
     continueAd: 'Продолжить', doubleAd: 'Монеты ×2', forAd: 'за рекламу', fromCp: 'С чекпоинта', restart: 'Заново', next: 'Следующая башня',
@@ -12,7 +12,7 @@ const STR = {
     'die.fall': 'В пропасть!', 'die.fly': 'Укус мухи', 'die.blades': 'Лопасти', 'die.pan': 'Ожог на сковородке', 'die.oil': 'Горячее масло', 'die.knife': 'Нож',
   },
   en: {
-    title: 'Meatball', tower: 'Tower', play: 'Play', 'theme.kitchen': 'Kitchen', roof: 'Roof',
+    title: 'Meatball', tower: 'Tower', play: 'Play', 'theme.kitchen': 'Kitchen', 'theme.fridge': 'Fridge', 'theme.oven': 'Oven', 'theme.sink': 'Sink', 'theme.feast': 'Feast table', roof: 'Roof',
     hint1: 'Tap where you want to land.', hint2: 'Food charges your power. Full bar — tap Tefa.', hint3: 'Pans burn, flies bite, oil pours from above.',
     fell: 'Splat!', runCoins: 'Coins this run', total: 'Total',
     continueAd: 'Continue', doubleAd: 'Coins ×2', forAd: 'watch ad', fromCp: 'From checkpoint', restart: 'Restart', next: 'Next tower',
@@ -22,7 +22,7 @@ const STR = {
     'die.fall': 'Into the void!', 'die.fly': 'Fly bite', 'die.blades': 'Blades', 'die.pan': 'Burnt on the pan', 'die.oil': 'Hot oil', 'die.knife': 'Knife',
   },
   tr: {
-    title: 'Köfte', tower: 'Kule', play: 'Oyna', 'theme.kitchen': 'Mutfak', roof: 'Çatı',
+    title: 'Köfte', tower: 'Kule', play: 'Oyna', 'theme.kitchen': 'Mutfak', 'theme.fridge': 'Buzdolabı', 'theme.oven': 'Fırın', 'theme.sink': 'Lavabo', 'theme.feast': 'Bayram sofrası', roof: 'Çatı',
     hint1: 'İnmek istediğin yere dokun.', hint2: 'Yemek gücü doldurur. Çubuk dolunca Tefa\'ya dokun.', hint3: 'Tava yakar, sinek ısırır, yukarıdan yağ dökülür.',
     fell: 'Pat!', runCoins: 'Bu turda toplanan', total: 'Toplam',
     continueAd: 'Devam et', doubleAd: 'Para ×2', forAd: 'reklam izle', fromCp: 'Kontrol noktasından', restart: 'Baştan', next: 'Sonraki kule',

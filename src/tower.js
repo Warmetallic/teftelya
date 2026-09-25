@@ -25,7 +25,7 @@ function towerParams(N) {
     gapMax: N >= 5 ? 3 : 2, wMin: Math.max(80, 101 - N), wMax: Math.max(110, 141 - N),
     mix: N === 1 ? { plate: 0.5, pan: 0.25, tray: 0.25, cheese: 0 } : { plate: 0.5, pan: 0.2, tray: 0.15, cheese: 0.15 },
     frag: { steps, gap: other * 25 / 60, side: other * 15 / 60, fork: other * 20 / 60 },
-    par: rows * 2.4, coinMul: 1 + 0.05 * (N - 1), theme: 'kitchen' };
+    par: rows * 2.4, coinMul: 1 + 0.05 * (N - 1), theme: themeFor(N).id, uniques: uniquesFor(N) };
 }
 function pickKind(R) { let sum = 0; for (const k in FOOD_KINDS) sum += FOOD_KINDS[k].w; let t = R() * sum; for (const k in FOOD_KINDS) { t -= FOOD_KINDS[k].w; if (t <= 0) return k; } return 'ketchup'; }
 function mkFood(R, x, y) { const kind = pickKind(R); return { kind, x, y, r: FOOD_KINDS[kind].r, seed: R() * 10, dead: false }; }

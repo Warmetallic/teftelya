@@ -2,6 +2,7 @@
 // ---------- забег по башне: прыжок в точку, урон, смерть, чекпоинты, финиш и рейтинг ----------
 const MASS_BASE = 4;            // максимум массы без прокачки; башня начинается с полной массой (спека v2.1.1 §5)
 const INVULN_HIT = 1;           // с неуязвимости после удара
+const BANNER_T = 1.5;           // с — плашка «Башня N · Тема» при старте башни (спека v2.2a §5)
 const INVULN_CONT = 1.5;        // с неуязвимости после «Продолжить»
 const DOUBLE_MIN_COINS = 10;    // «Монеты ×2» предлагаем от этой суммы
 const BONUS_MULT = { S: 2, A: 1.5, B: 1.2, C: 1, D: 0.8 };
@@ -20,7 +21,7 @@ function heal(n) {
   return ball.mass - m0;
 }
 // visited — id платформ, на которые Тефа уже садилась в этом забеге: шкала растёт только за первую посадку (спека v2.1.1 §4.1)
-function newRun() { return { time: 0, runCoins: 0, bankedCoins: 0, deaths: 0, usedContinue: 0, usedDouble: false, foodEaten: 0, foodTotal: 0, cp: 0, lastLandId: 0, visited: new Set(), campT: 0, flyCd: 0, invuln: 0, reason: '', rating: null, bonus: 0, progress: 0, finished: false }; }
+function newRun() { return { time: 0, runCoins: 0, bankedCoins: 0, deaths: 0, usedContinue: 0, usedDouble: false, foodEaten: 0, foodTotal: 0, cp: 0, lastLandId: 0, visited: new Set(), campT: 0, flyCd: 0, invuln: 0, reason: '', rating: null, bonus: 0, progress: 0, finished: false, bannerT: 0 }; }
 function cpPlatform(k) { return tower.platforms.find(p => k ? p.cp === k : p.start) || tower.platforms[0]; }
 function placeAt(p) {
   ball.x = p.x; ball.y = p.y - ball.r; ball.vx = 0; ball.vy = 0; ball.onPlatform = p.id; ball.charges = chargesMax();
@@ -29,7 +30,7 @@ function placeAt(p) {
 }
 // башня N с нуля; fromCp > 0 — старт с чекпоинта сохранения (новая сессия: считается одной смертью)
 function startTower(N, fromCp = 0) {
-  tower = buildTower(N); run = newRun(); run.foodTotal = tower.items.length;
+  tower = buildTower(N); run = newRun(); run.foodTotal = tower.items.length; run.bannerT = BANNER_T;
   if (fromCp && !tower.platforms.some(p => p.cp === fromCp)) fromCp = 0; // битый чекпоинт из сохранения
   resetPower(); resetFlies(); resetFx(); resetPours(5); // первый налив масла не раньше 5 с
   ball.mass = massMax(); ball.r = radiusFor(ball.mass);
@@ -122,7 +123,7 @@ function onLand(p, vy) {
   if (p.roof) finishTower();
 }
 function updateRun(dt) {
-  const tp = tower.tp; run.time += dt;
+  const tp = tower.tp; run.time += dt; run.bannerT = Math.max(0, run.bannerT - dt);
   const prevBottom = ball.y + ball.r, wasOn = ball.onPlatform;
   if (ball.onPlatform === null) { ball.vy += GRAV * dt; ball.x += ball.vx * dt; ball.y += ball.vy * dt; }
   if (ball.x < ball.r) { ball.x = ball.r; ball.vx = Math.abs(ball.vx) * 0.6; } else if (ball.x > W - ball.r) { ball.x = W - ball.r; ball.vx = -Math.abs(ball.vx) * 0.6; }
