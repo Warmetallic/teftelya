@@ -1,10 +1,11 @@
 // node tools/test_render.js — рендер и экраны не падают на proxy-контексте; тексты HUD, титула, смерти и финиша; локализация
 const assert = require('assert');
 const noop = () => {};
-const texts = [], styles = [], dashes = [], glows = []; // styles: цвета заливки и обводки; dashes: setLineDash; glows: shadowBlur > 0
+const texts = [], styles = [], dashes = [], glows = [], rects = []; // styles: цвета заливки и обводки; dashes: setLineDash; glows: shadowBlur > 0; rects: fillRect с текущей заливкой
+let fill = '';
 const ctx = new Proxy({}, { get: (t, k) => k === 'fillText' ? s => texts.push(String(s)) : k === 'setLineDash' ? a => dashes.push(a)
-    : /Gradient$/.test(k) ? () => ({ addColorStop: noop }) : noop,
-  set: (t, k, v) => { if (k === 'fillStyle' || k === 'strokeStyle') styles.push(String(v)); if (k === 'shadowBlur' && v > 0) glows.push(v); return true; } });
+    : k === 'fillRect' ? (x, y, w, h) => rects.push({ x, y, w, h, fill }) : /Gradient$/.test(k) ? () => ({ addColorStop: noop }) : noop,
+  set: (t, k, v) => { if (k === 'fillStyle' || k === 'strokeStyle') styles.push(String(v)); if (k === 'fillStyle') fill = String(v); if (k === 'shadowBlur' && v > 0) glows.push(v); return true; } });
 (async () => {
   for (const size of [[480, 854], [1280, 720]]) {
     const g = require('./_env')(ctx, { width: size[0], height: size[1] }); const d = g.dbg(); await d.YG.init(); await d.loadSave();
@@ -116,5 +117,11 @@ const ctx = new Proxy({}, { get: (t, k) => k === 'fillText' ? s => texts.push(St
   }
   assert.strictEqual(rebakes, 0, 'частое тело не вытесняется из кэша');
   delete document.createElement;
+  // высокий телефон 390×844: поле короче экрана, под ним виден фон — полоса продолжается сплошной заливкой своего
+  // нижнего цвета до низа экрана, а не висит над плиткой (финальное ревью v2.2a)
+  { const g3 = require('./_env')(ctx, { width: 390, height: 844 }); const d3 = g3.dbg(); await d3.YG.init(); await d3.loadSave();
+    const b = d3.fieldBounds(); assert.ok(b.y1 > 854 + 50, 'экран выше поля: ' + b.y1);
+    for (let n = 1; n <= 5; n++) { d3.startTower(n); rects.length = 0; d3.drawBg(); const bottom = (d3.BAND_BOTTOM || {})[d3.themeFor(n).id];
+      assert.ok(bottom && rects.some(r => r.fill === bottom && r.y <= 854 + 1 && r.y + r.h >= b.y1 - 1 && r.x <= 0 && r.x + r.w >= 480), 'под полем заливка полосы, башня ' + n); } }
   console.log('test_render ok');
 })().catch(e => { console.error(e); process.exit(1); });

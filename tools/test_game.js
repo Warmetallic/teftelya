@@ -123,7 +123,10 @@ const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addCol
     dropIn(); assert.strictEqual(ball.onPlatform, 9200); assert.strictEqual(ball.charges, d.chargesMax());
     assert.ok(d.jumpTo(240, bowl.y - 200), 'тап принят'); assert.strictEqual(ball.onPlatform, 9200, 'первый тап только отлепляет'); assert.strictEqual(ball.charges, d.chargesMax() - 1, 'и тратит заряд');
     assert.ok(d.jumpTo(240, bowl.y - 200)); assert.strictEqual(ball.onPlatform, null, 'второй тап прыгает'); assert.strictEqual(ball.charges, d.chargesMax() - 2, 'прыжок из миски стоит двух зарядов');
-    dropIn(); d.jumpTo(240, bowl.y - 200); assert.strictEqual(ball.onPlatform, 9200, 'после новой посадки снова липко'); }
+    dropIn(); d.jumpTo(240, bowl.y - 200); assert.strictEqual(ball.onPlatform, 9200, 'после новой посадки снова липко');
+    // появление — не посадка: после смерти в миске «Заново» не липнет, скольжение полки не переносится (финальное ревью v2.2a)
+    dropIn(); assert.ok(ball.stuck); ball.slide = 50; d.die('fly'); d.restartTower(); assert.strictEqual(ball.stuck, false, '«Заново» не липнет'); assert.strictEqual(ball.slide, 0, 'и не скользит');
+    assert.ok(d.jumpTo(ball.x, ball.y - 200)); assert.strictEqual(ball.onPlatform, null, 'первый тап после «Заново» прыгает'); }
   // доска с ножом (спека v2.2a §6.5): в центре доски за полный цикл ножа урона нет, у ножа — удар
   { d.startTower(6); d.state = 'play'; d.resetPours(1e9); d.resetFlies(); for (const it of d.items) it.dead = true;
     const bd = d.platforms.find(p => p.type === 'board'), kn = d.hazards.find(h => h.board === bd.id); d.hazards.length = 0; d.hazards.push(kn);
@@ -152,5 +155,15 @@ const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addCol
   { d.startTower(1); d.state = 'play'; d.resetPours(1e9); d.hazards.length = 0; d.resetFlies(); d.powerAdd(d.POWER_FULL); assert.ok(d.tryActivatePower());
     ball.onPlatform = null; ball.vx = 0; ball.vy = 0; ball.x = 240; ball.y = d.camY + 854 - d.BAND_H + d.BAND_SINK - ball.r + 3; d.update(0.016);
     assert.strictEqual(d.state, 'dead', 'в берсерке полоса тоже убивает: от падения сила не спасает'); }
+  // камера ушла вверх (подброс, двойной прыжок), последняя платформа под полосой: «Продолжить» и спасение god-режима
+  // опускают камеру к Тефе, иначе она умирает снова в следующем кадре (финальное ревью v2.2a)
+  { d.startTower(1); d.state = 'play'; d.resetPours(1e9); d.hazards.length = 0; d.resetFlies(); for (const it of d.items) it.dead = true;
+    const p0 = ball.onPlatform, line = () => d.camY + 854 - d.BAND_H + d.BAND_SINK;
+    d.setCamY(d.camY - 400); d.update(0.016); assert.strictEqual(d.state, 'dead'); assert.strictEqual(d.run.reason, 'fall');
+    d.continueRun(); assert.strictEqual(ball.onPlatform, p0); assert.ok(ball.y + ball.r <= line(), '«Продолжить»: Тефа над полосой');
+    d.update(0.016); assert.strictEqual(d.state, 'play', 'после «Продолжить» не умирает снова');
+    d.setGod(true); d.setCamY(d.camY - 400); d.update(0.016); d.update(0.016); d.setGod(false);
+    assert.ok(ball.y + ball.r <= line(), 'god-спасение: Тефа над полосой'); assert.ok(d.jumpTo(ball.x, ball.y - 200)); d.update(0.016);
+    assert.strictEqual(ball.onPlatform, null, 'после god-спасения прыжок не отменяется'); }
   console.log('test_game ok');
 })().catch(e => { console.error(e); process.exit(1); });

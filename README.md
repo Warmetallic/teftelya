@@ -189,7 +189,7 @@ Canvas-игра без ассетов и зависимостей: исходн�
   `dead` («Шлёп!», причина, «Продолжить»/«Заново»), `finish` (буква рейтинга и три галочки), `desktop` (поле по
   центру на 1280×720), `en_finish`/`tr_dead` (локализация), `banner` (плашка «Башня 2 · Холодильник»),
   `theme_fridge`/`theme_oven`/`theme_sink`/`theme_feast`/`theme_kitchen2` (фон, нижняя полоса и уникальность каждой
-  темы). `node tools/shot_tefa.js` — лист состояний Тефы `shots/tefa_port.png`; `node tools/design_warn.js` — лист
+  темы), `theme_sink_tall` (высокий телефон 390×844: полоса заливает экран под полем до низа). `node tools/shot_tefa.js` — лист состояний Тефы `shots/tefa_port.png`; `node tools/design_warn.js` — лист
   вариантов предупреждений `shots/design_warn_round1.png`; `node tools/design_themes.js` — лист фонов тем
   `shots/design_themes_round1.png`. Агент должен **смотреть на PNG**, а не описывать код: дважды визуал уходил непроверенным и был не тем.
 - `npm run build` — `dist/index.html` + `dist/teftelya.zip`, smoke по собранному файлу. Zip загружается в консоль как есть.
