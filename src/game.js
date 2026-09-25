@@ -50,6 +50,11 @@ function jumpTo(tx, ty) {
   squash(-220); crumbs(ball.x, ball.y + ball.r * 0.8); sfx.jump(ball.mass); ball.blink = 0.08;
   return true;
 }
+// подброс тостером или лопаткой (спека v2.2a §6.2, §6.4): вертикально на LAUNCH_H, заряды полные — дальше игрок подруливает
+function launchUp() {
+  ball.onPlatform = null; ball.vy = -Math.sqrt(2 * GRAV * LAUNCH_H); ball.vx = 0; ball.slide = 0; ball.charges = chargesMax();
+  squash(-260); sfx.jump(ball.mass); run.campT = 0;
+}
 function coinsFor(kind) { return Math.round(FOOD_KINDS[kind].coins * tower.tp.coinMul * (1 + 0.05 * ((save.up && save.up.spice) || 0)) * (isBerserk() ? 2 : 1)); }
 let tapHintShown = false; // подсказка «Тапни по Тефе!» — один раз за сессию
 function onPower(ev) { // события суперсилы: шкала полна, берсерк кончился
@@ -132,6 +137,7 @@ function updateRun(dt) {
   if (ball.x < ball.r) { ball.x = ball.r; ball.vx = Math.abs(ball.vx) * 0.6; } else if (ball.x > W - ball.r) { ball.x = W - ball.r; ball.vx = -Math.abs(ball.vx) * 0.6; }
   for (const e of updatePlatforms(dt, tower.platforms, tp)) {
     if (e.type === 'crumble') { burst(e.p.x, e.p.y, '#f6c343', 16, 200, 0.6, 4); continue; } // сыр раскрошился
+    if (e.type === 'launch') { launchUp(); continue; } // тостер или лопатка подбрасывают — и в берсерке тоже
     if (isBerserk()) continue; // спека §4.4: в берсерке Тефа не горит — ни урона, ни подброса; таймер сковородки уже сброшен в platforms.js
     damage(1, 'pan', e.p.x, e.p.y + 40);
     if (!ball.alive) return;

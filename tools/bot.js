@@ -13,13 +13,24 @@ function nextOnPath(d) {
 function botAct(d, st) {
   const b = d.ball;
   if (b.onPlatform !== null) {
+    const on = d.platforms.find(p => p.id === b.onPlatform);
+    st.on = on; st.planned = false;
+    if (on && on.type === 'spatula') return false; // лопатка подбросит сама: ждём и подруливаем у вершины
     const next = nextOnPath(d); if (!next) return false;
-    st.next = next; st.second = false;
+    st.next = next; st.second = false; st.planned = true;
     const plan = d.jumpPlan(b.x, b.y, b.r, aimX(next), next.y); // один прыжок или два — как считает игра (ball.js)
     st.double = plan.double;
     return d.jumpTo(plan.tx, plan.ty);
   }
   if (st.double && !st.second && st.next && b.vy >= -30) { st.second = true; return d.jumpTo(aimX(st.next), st.next.y); } // второй — у вершины
+  if (!st.planned && st.on && b.vy >= -30) { // подбросило (лопатка, тостер): у вершины прыжок к следующей видимой платформе пути —
+    // камера ушла вверх вслед за подбросом, и ближние платформы под нижней полосой уже не спасают (спека v2.2a §4)
+    const path = d.tower.path, bandTop = d.camY + 854 - d.BAND_H; let i = path.indexOf(st.on.id) + 1, next;
+    while ((next = d.platforms.find(p => p.id === path[i])) && next.y > bandTop - 80) i++;
+    st.planned = true; if (!next) return false;
+    const plan = d.jumpPlan(b.x, b.y, b.r, aimX(next), next.y); st.next = next; st.double = plan.double; st.second = false;
+    return d.jumpTo(plan.tx, plan.ty);
+  }
   return false;
 }
 // подъём до крыши (или до ряда opts.untilRow); g — стенд с кадрами (g.step), без него шаги update(1/60)

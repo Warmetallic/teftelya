@@ -3,6 +3,7 @@
 const GRAV = 1500;
 const JUMP_MIN_H = 100, JUMP_MAX_H = 280; // высота дуги (px) от низа Тефы до точки тапа с запасом
 const VX_MAX = 420;                       // px/с — предел горизонтальной скорости прыжка
+const LAUNCH_H = 420;                     // px — на сколько тостер и лопатка-батут подбрасывают низ Тефы (спека v2.2a §6.2, §6.4)
 const AIM_MARGIN = 24;                    // низ Тефы поднимается на столько выше точки тапа, чтобы сесть на платформу, а не пролететь сквозь
 const MASS_R0 = 26, MASS_RK = 4, MASS_RCAP = 8; // радиус 26 + 4·(масса−1); для радиуса масса не больше 8
 const HEAL_T = 0.3;             // с — сколько зарастает укус при лечении
@@ -28,13 +29,14 @@ function aimJump(bx, by, r, tx, ty) {
   const vx = clamp((tx - bx) / t, -VX_MAX, VX_MAX);
   return { vx, vy, t, dy };
 }
-// как прицельно достать поверхность (tx, ty) из (bx, by): одним прыжком, а если дуга не достаёт — двумя: первый вверх
-// до предела и на полпути вбок, второй у вершины (vy ≥ −30). Так прыгает бот (tools/bot.js), и так генератор проверяет,
-// что лопасти не стоят на пути (tower.js). Возвращает точку для первого тапа
+// как прицельно достать поверхность (tx, ty) из (bx, by): одним прыжком, а если дуга не достаёт — двумя: первый на полпути
+// вбок и вверх до высоты на 120 px выше цели (не ниже JUMP_MIN_H и не выше предела прыжка), второй у вершины (vy ≥ −30).
+// Лишняя высота опасна: камера уходит за Тефой, и цель ниже вершины на ~280 px оказывается под нижней полосой (спека v2.2a §4).
+// Так прыгает бот (tools/bot.js), и так генератор проверяет, что лопасти не стоят на пути (tower.js). Возвращает точку для первого тапа
 function jumpPlan(bx, by, r, tx, ty) {
   const a = aimJump(bx, by, r, tx, ty), rise = by + r - ty;
   if (rise <= JUMP_MAX_H - AIM_MARGIN && Math.abs(a.vx) < VX_MAX - 1) return { double: false, tx, ty };
-  return { double: true, tx: bx + clamp((tx - bx) * 0.5, -250, 250), ty: by + r - 400 };
+  return { double: true, tx: bx + clamp((tx - bx) * 0.5, -250, 250), ty: Math.min(by + r - JUMP_MIN_H, ty - 120) };
 }
 // центры Тефы по кадрам 1/60 с на пути по jumpPlan до посадки на поверхность ty; шаг как в game.js update
 function flightPath(bx, by, r, tx, ty) {
@@ -57,4 +59,4 @@ function updateBody(dt) {
   ball.r = lerp(ball.r, radiusFor(ball.mass), 1 - Math.pow(0.01, dt));
   ball.healT = Math.max(0, ball.healT - dt);
 }
-expose({ ball, aimJump, jumpPlan, flightPath, radiusFor, GRAV, JUMP_MIN_H, JUMP_MAX_H, VX_MAX, AIM_MARGIN, HEAL_T });
+expose({ ball, aimJump, jumpPlan, flightPath, radiusFor, LAUNCH_H, GRAV, JUMP_MIN_H, JUMP_MAX_H, VX_MAX, AIM_MARGIN, HEAL_T });

@@ -108,6 +108,14 @@ const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addCol
   d.powerAdd(d.POWER_FULL); assert.ok(d.tryActivatePower()); d.die('fall'); assert.ok(!d.isBerserk(), 'смерть заканчивает берсерк');
   d.continueRun(); assert.strictEqual(d.power.used, 1, 'смерть не возвращает берсерк'); d.powerAdd(d.POWER_FULL); assert.strictEqual(d.power.v, 0, 'лимит исчерпан — шкала не копится');
   d.restartTower(); assert.strictEqual(d.power.used, 0); assert.strictEqual(d.power.v, 0, '«Заново» обнуляет шкалу');
+  // подброс тостером и лопаткой (спека v2.2a §6.2, §6.4): вертикально на LAUNCH_H, vx = 0, заряды полные
+  { d.startTower(3); d.state = 'play'; d.resetPours(1e9); d.hazards.length = 0; d.resetFlies(); for (const it of d.items) it.dead = true;
+    const sp = { id: 9100, type: 'spatula', x: 240, y: ball.y + ball.r - 360, w: 110, row: 3 }; d.platforms.push(sp);
+    ball.onPlatform = null; ball.x = 240; ball.vx = 0; ball.y = sp.y - ball.r - 20; ball.vy = 100; ball.charges = 1;
+    let top = Infinity, launched = false;
+    for (let i = 0; i < 120 && d.state === 'play'; i++) { d.update(1 / 60); if (ball.vy < -700) launched = true; if (launched) top = Math.min(top, ball.y + ball.r); if (launched && ball.vy > 0) break; }
+    assert.ok(launched, 'лопатка подбросила'); assert.strictEqual(ball.charges, d.chargesMax(), 'после подброса заряды полные'); assert.strictEqual(ball.vx, 0, 'подброс вертикальный');
+    assert.ok(Math.abs(sp.y - top - d.LAUNCH_H) < 12, 'подъём ≈ LAUNCH_H: ' + (sp.y - top).toFixed(0)); }
   // нижняя граница (спека v2.2a §4): смерть, как только низ Тефы ушёл в полосу внизу экрана глубже BAND_SINK; платформа,
   // прикрытая полосой не глубже BAND_SINK, ещё ловит, более глубокая — нет (раньше под экраном была невидимая полоса спасения)
   { const bandTop = () => d.camY + 854 - d.BAND_H, fall = (y, vy) => { ball.onPlatform = null; ball.vx = 0; ball.vy = vy; ball.y = y; ball.x = 240; };

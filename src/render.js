@@ -73,6 +73,19 @@ function drawPlatform(p) {
     ctx.fillStyle = `rgba(255,${(90 - heat * 60) | 0},20,${0.15 + heat * 0.6})`; ctx.beginPath(); ctx.ellipse(p.x, y + 8, p.w / 2 - 14, 9, 0, 0, 7); ctx.fill();
     ctx.strokeStyle = '#3d3734'; ctx.lineWidth = 8; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(p.x + p.w / 2, y + 8); ctx.lineTo(p.x + p.w / 2 + 40, y + 2); ctx.stroke(); // ручка
     if (heat > 0.3) { ctx.fillStyle = `rgba(255,255,255,${(heat - 0.3) * 0.4})`; for (let i = 0; i < 3; i++) { const t = (tGame * 1.5 + i * 0.33) % 1; ctx.beginPath(); ctx.arc(p.x - 20 + i * 20 + Math.sin(t * 6) * 6, y - 10 - t * 40, 6 + t * 6, 0, 7); ctx.fill(); } } // дымок
+  } else if (p.type === 'toaster') { // тостер с прорезями; рычаг светится сильнее к концу отсчёта (спека v2.2a §6.2)
+    const k = clamp((p.toastT || 0) / TOASTER_T, 0, 1), sh = k > 0 ? Math.sin(tGame * 60) * k * 2 : 0;
+    ctx.save(); ctx.translate(p.x + sh, y);
+    ctx.fillStyle = '#c9ccd2'; rrect(-p.w / 2, -30, p.w, 42, 10); ctx.fill(); ctx.fillStyle = '#9aa0a8'; rrect(-p.w / 2, 4, p.w, 8, 4); ctx.fill();
+    ctx.fillStyle = '#3a3a40'; rrect(-p.w / 2 + 14, -28, p.w / 2 - 20, 8, 3); ctx.fill(); rrect(6, -28, p.w / 2 - 20, 8, 3); ctx.fill();
+    ctx.fillStyle = `rgba(255,224,138,${0.45 + 0.55 * k})`; ctx.shadowColor = 'rgba(255,224,138,0.9)'; ctx.shadowBlur = 6 + 12 * k; rrect(p.w / 2, -18, 10, 16, 3); ctx.fill(); ctx.shadowBlur = 0;
+    ctx.restore();
+  } else if (p.type === 'spatula') { // лопатка-батут: стальное полотно с прорезями и деревянная ручка (спека v2.2a §6.4)
+    ctx.save(); ctx.translate(p.x, y);
+    ctx.fillStyle = '#b9bec6'; rrect(-p.w / 2, -4, p.w - 26, 14, 5); ctx.fill(); ctx.fillStyle = '#2b2f36';
+    for (let k = 0, n = Math.max(2, Math.floor((p.w - 40) / 20)); k < n; k++) { rrect(-p.w / 2 + 10 + k * 20, 0, 12, 5, 2); ctx.fill(); }
+    ctx.fillStyle = '#8a5a34'; rrect(p.w / 2 - 30, -1, 40, 9, 4); ctx.fill();
+    ctx.restore();
   } else if (p.type === 'shelf') { // полка холодильника: бледно-голубое стекло с бликом (спека v2.2a §6.1)
     ctx.fillStyle = 'rgba(190,225,255,0.55)'; rrect(p.x - p.w / 2, y - 4, p.w, 12, 4); ctx.fill(); ctx.strokeStyle = 'rgba(120,180,230,0.9)'; ctx.lineWidth = 2; ctx.stroke();
     ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.beginPath(); ctx.moveTo(p.x - p.w / 2 + 8, y - 1); ctx.lineTo(p.x + p.w / 2 - 20, y - 1); ctx.stroke();

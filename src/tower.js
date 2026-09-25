@@ -108,24 +108,39 @@ function buildTower(N) {
     if (top.roof) break;
   }
   if (N >= 2 && !hazards.some(h => h.type === 'knife') && knifeSlots.length) knife(...knifeSlots[0]); // первый нож башни гарантирован
-  placeUniques(N, tp, platforms);
   placeBlades(platforms, hazards, path);
+  placeUniques(N, tp, platforms, hazards, path); // после лопастей: уникальности подстраиваются под опасности, а не наоборот
   return { tp, platforms, hazards, items, path };
 }
 // уникальности темы (спека v2.2a §6–§7): пятая часть обычных платформ башни, за счёт тарелок; старт, чекпоинты, крыша и
 // площадки отдыха не трогаются. Решения берутся из своего потока случайных чисел, поэтому раскладка башни та же, что без
 // уникальностей, — меняются только типы. У каждого типа своё правило, можно ли его сюда поставить
 const UNIQUE_RULES = {
-  shelf: { ok: () => true }, // полка холодильника: скользкая, ставится где угодно
+  shelf: { ok: () => true },                 // полка холодильника: скользкая, ставится где угодно
+  toaster: { ok: (p, hz, path, byId) => !launchBlocked(p, hz) && !afterLaunchBlocked(p, hz, path, byId), launch: true }, // тостер и лопатка подбрасывают: столб полёта над ними
+  spatula: { ok: (p, hz, path, byId) => !launchBlocked(p, hz) && !afterLaunchBlocked(p, hz, path, byId), launch: true }, // свободен от лопастей и ножей
 };
-function placeUniques(N, tp, platforms) {
+// центры Тефы масс 1, 4 и 8 при вертикальном подбросе с платформы p на LAUNCH_H
+const launchColumn = p => { const out = []; for (const m of [1, 4, 8]) { const r = radiusFor(m); for (let y = p.y - r; y >= p.y - r - LAUNCH_H; y -= 8) out.push([p.x, y, r]); } return out; };
+// подброс задевает нож: условие удара как в hazards.js, по всему ходу ножа
+const knifeHitsColumn = (h, col) => col.some(([x, y, r]) => { for (let ky = h.by; ky <= h.y - 80; ky += 4) if (Math.abs(x - h.x) < r + 8 && Math.abs(y - (ky + 40)) < r + 40) return true; return false; });
+// тостер или лопатка на пути: от вершины подброса Тефа летит к одной из следующих платформ пути (так делает и бот) — этот полёт тоже мимо лопастей
+const afterLaunchBlocked = (p, hazards, path, byId) => {
+  const i = path.indexOf(p.id); if (i < 0) return false;
+  for (const m of [1, 4, 8]) { const r = radiusFor(m), ay = p.y - LAUNCH_H - r;
+    for (let j = i + 1; j <= Math.min(path.length - 1, i + 4); j++) { const b = byId.get(path[j]), pts = flightPath(p.x, ay, r, b.x, b.y);
+      if (hazards.some(h => h.type === 'blades' && pts.some(([x, y]) => Math.hypot(x - h.x, y - h.y) < r + BLADES_R + BLADE_GAP))) return true; } }
+  return false;
+};
+const launchBlocked = (p, hazards) => { const col = launchColumn(p); return hazards.some(h => h.type === 'blades' ? col.some(([x, y, r]) => Math.hypot(x - h.x, y - h.y) < r + BLADES_R) : h.type === 'knife' && knifeHitsColumn(h, col)); };
+function placeUniques(N, tp, platforms, hazards, path) {
   const kinds = tp.uniques.filter(u => UNIQUE_RULES[u]); if (!kinds.length) return;
-  const RU = mulberry32(N * 7919 + 99);
+  const RU = mulberry32(N * 7919 + 99), byId = new Map(platforms.map(p => [p.id, p]));
   for (const p of platforms) {
     if (p.type !== 'plate' || p.start || p.cp || p.roof || p.rest) continue;
     if (RU() >= UNIQUE_SHARE / tp.mix.plate) continue;
     const u = kinds[Math.floor(RU() * kinds.length)];
-    if (UNIQUE_RULES[u].ok(p)) p.type = u;
+    if (UNIQUE_RULES[u].ok(p, hazards, path, byId)) p.type = u;
   }
 }
 // лопасти не встают на дугу прицельного прыжка и туда, где Тефа стоит (финальное ревью v2.1.1: на месте в середине ряда их
@@ -135,7 +150,7 @@ function placeUniques(N, tp, platforms) {
 // BLADE_NEAR от маршрута; не нашлось — лопасти убираются
 function placeBlades(platforms, hazards, path) {
   const byId = new Map(platforms.map(p => [p.id, p])), offs = [];
-  for (const dx of [0, 30, -30, 60, -60, 90, -90, 120, -120, 150, -150]) for (const dy of [0, -30, 30, -60, 60, -90, 90, -120, -150]) offs.push([dx, dy]);
+  for (let dx = -210; dx <= 210; dx += 30) for (let dy = -210; dy <= 180; dy += 30) offs.push([dx, dy]); // ближайшие к исходному месту — первыми (сортировка ниже)
   offs.sort((a, b) => Math.hypot(a[0], a[1]) - Math.hypot(b[0], b[1]));
   for (let k = hazards.length - 1; k >= 0; k--) {
     const h = hazards[k]; if (h.type !== 'blades') continue;
