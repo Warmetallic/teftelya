@@ -56,8 +56,8 @@ const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addCol
   assert.ok(it.dead); assert.strictEqual(ball.mass, 2, 'еда не лечит'); assert.strictEqual(d.run.foodEaten, 1); assert.strictEqual(d.run.runCoins, d.coinsFor(it.kind)); assert.strictEqual(d.power.v, 1);
   ball.onPlatform = null; ball.vy = 0; const it3 = d.items[1]; it3.x = ball.x; it3.y = ball.y; d.update(0.016); assert.ok(it3.dead); assert.strictEqual(d.power.v, 3, 'еда в полёте — +2');
   d.save.up.spice = 4; assert.strictEqual(d.coinsFor('meat'), Math.round(3 * 1.2)); d.save.up.spice = 0;
-  // шкала впервые за сессию полна — над Тефой подсказка «Тапни по Тефе!»; в следующий раз её нет (спека v2.1.1 §4.1)
-  const hints = () => d.texts.filter(t => t.str === 'Тапни по Тефе!').length;
+  // шкала впервые за сессию полна — над Тефой подсказка «Жми на молнию!» (кнопка берсерка); в следующий раз её нет (спека v2.1.1 §4.1)
+  const hints = () => d.texts.filter(t => t.str === 'Жми на молнию!').length;
   for (const [k, want, msg] of [[2, 1, 'подсказка при первой полной шкале'], [3, 0, 'за сессию подсказка одна']]) {
     d.startTower(1); d.state = 'play'; d.resetFx(); d.power.v = d.POWER_FULL - 1;
     const food = d.items[k]; food.x = ball.x; food.y = ball.y; d.update(0.016);
@@ -173,5 +173,17 @@ const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addCol
     assert.strictEqual(d.state, 'finish', 'выше крыши — финиш'); assert.ok(f <= 8, 'сразу на линии, а не после посадки: кадр ' + f);
     assert.strictEqual(ball.onPlatform, roof.id); assert.strictEqual(ball.y + ball.r, roof.y, 'под экраном финиша Тефа стоит на крыше');
     assert.ok(Math.abs(ball.x - roof.x) <= roof.w / 2, 'и над ней, а не в воздухе сбоку'); }
+  // камера по посадке (плейтест владельца v2.2a): в полёте не поднимается, пока Тефа ниже верхней части экрана, — двойной
+  // прыжок строго вверх и падение обратно на свою тарелку не убивают; после посадки выше камера плавно догоняет
+  { d.startTower(1); d.state = 'play'; d.resetPours(1e9); d.hazards.length = 0; d.resetFlies(); for (const it of d.items) it.dead = true;
+    const p0 = d.platforms.find(p => p.id === ball.onPlatform); d.platforms.length = 0; d.platforms.push(p0);
+    const cam0 = d.camY; d.jumpTo(ball.x, ball.y - 600); let second = false, top = Infinity;
+    for (let i = 0; i < 400 && d.state === 'play'; i++) { d.update(1 / 60); top = Math.min(top, ball.y); if (!second && ball.vy >= 0) { second = true; d.jumpTo(ball.x, ball.y - 600); } if (second && ball.onPlatform !== null) break; }
+    assert.ok(p0.y - top > 400, 'двойной прыжок высокий: ' + (p0.y - top).toFixed(0));
+    assert.strictEqual(d.state, 'play', 'двойной прыжок вверх и назад на свою тарелку — жива'); assert.strictEqual(ball.onPlatform, p0.id);
+    const hi = { id: 9300, type: 'plate', x: ball.x, y: p0.y - 200, w: 160, row: 1 }; d.platforms.push(hi);
+    d.jumpTo(ball.x, hi.y - 40); for (let i = 0; i < 120 && ball.onPlatform !== hi.id; i++) d.update(1 / 60);
+    assert.strictEqual(ball.onPlatform, hi.id); for (let i = 0; i < 90; i++) d.update(1 / 60);
+    assert.ok(Math.abs(d.camY - (ball.y - 854 * 0.6)) < 3, 'после посадки камера у новой тарелки'); assert.ok(d.camY < cam0); }
   console.log('test_game ok');
 })().catch(e => { console.error(e); process.exit(1); });

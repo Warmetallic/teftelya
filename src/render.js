@@ -255,8 +255,20 @@ function drawPowerMeter() {
   }
   if (berserkLimit() > 1) { ctx.fillStyle = '#fff'; ctx.font = '700 14px system-ui, sans-serif'; ctx.textAlign = 'left'; ctx.fillText('×' + (berserkLimit() - power.used), x + w + 8, y + 10); }
 }
-function drawHUD() { // жизни показывает сама Тефа; здесь шкала силы, монеты, номер башни и прогресс
-  drawPowerMeter();
+// кнопка берсерка (плейтест владельца v2.2a, вместо тапа по Тефе): внизу справа под большим пальцем, только при полной шкале
+const BZ_BTN = { x: W - 72, y: H - 130, r: 46 };
+function drawBzBtn() {
+  const s = 1 + 0.06 * Math.sin(tGame * 6), g = ctx.createRadialGradient(BZ_BTN.x - 12, BZ_BTN.y - 14, 4, BZ_BTN.x, BZ_BTN.y, BZ_BTN.r);
+  g.addColorStop(0, '#fff3c4'); g.addColorStop(0.6, '#ffe08a'); g.addColorStop(1, '#e8b030');
+  ctx.save(); ctx.translate(BZ_BTN.x, BZ_BTN.y); ctx.scale(s, s); ctx.translate(-BZ_BTN.x, -BZ_BTN.y);
+  ctx.shadowColor = 'rgba(255,224,138,0.9)'; ctx.shadowBlur = 18; ctx.fillStyle = g; ctx.beginPath(); ctx.arc(BZ_BTN.x, BZ_BTN.y, BZ_BTN.r, 0, 7); ctx.fill(); ctx.shadowBlur = 0;
+  ctx.strokeStyle = 'rgba(90,45,12,0.55)'; ctx.lineWidth = 3; ctx.stroke();
+  ctx.translate(BZ_BTN.x, BZ_BTN.y); ctx.scale(2.6, 2.6); ctx.fillStyle = '#5a2d0c'; // та же молния, что у шкалы
+  ctx.beginPath(); ctx.moveTo(3, -11); ctx.lineTo(-6, 1); ctx.lineTo(-1, 1); ctx.lineTo(-3, 11); ctx.lineTo(6, -2); ctx.lineTo(1, -2); ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+function drawHUD() { // жизни показывает сама Тефа; здесь шкала силы, кнопка берсерка, монеты, номер башни и прогресс
+  drawPowerMeter(); if (powerReady()) drawBzBtn();
   ctx.textAlign = 'right'; ctx.font = '700 22px system-ui, sans-serif'; ctx.fillStyle = '#ffe08a'; ctx.fillText('● ' + run.runCoins, W - 16, 40);
   ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.font = '600 15px system-ui, sans-serif'; ctx.fillText(T('tower') + ' ' + tower.tp.N, W - 16, 64);
   const x = W - 14, y0 = 110, y1 = H - 110; // прогресс башни с отметками чекпоинтов
@@ -319,4 +331,4 @@ function drawWorld() { // всё внутри поля; вызывающий с�
   }
   ctx.globalAlpha = 1;
 }
-expose({ BAND_BOTTOM, drawBg, drawBand, drawWorld, drawHUD, drawPowerMeter, drawPlatform, drawHazard, drawFly, drawPours, drawItem });
+expose({ BZ_BTN, BAND_BOTTOM, drawBg, drawBand, drawWorld, drawHUD, drawPowerMeter, drawPlatform, drawHazard, drawFly, drawPours, drawItem });

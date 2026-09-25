@@ -33,7 +33,7 @@ const berserk = async (g, d) => { await up(g, d, 4); d.powerAdd(d.POWER_FULL); d
 const knife = async (g, d) => {
   const k = d.hazards.find(h => h.type === 'knife'), start = d.platforms.find(p => Math.abs(p.y - (k.y + 115)) < 1);
   await up(g, d, start.row); d.resetPours(1e9); d.resetFlies(); k.t = 1.35; steps(g, 12); };
-// шкала полна: шкалу добиваем настоящей едой, чтобы сработало событие — Тефа светится, над ней «Тапни по Тефе!»
+// шкала полна: шкалу добиваем настоящей едой, чтобы сработало событие — Тефа светится, над ней «Жми на молнию!», внизу справа кнопка берсерка
 const charged = async (g, d) => { await up(g, d, 4); d.resetPours(1e9); d.power.v = d.POWER_FULL - 1; const it = d.items.find(i => !i.dead); it.x = d.ball.x; it.y = d.ball.y; steps(g, 20); };
 // последний кусок: три укуса, испуганное лицо, красная пульсация
 const lastPiece = async (g, d) => { await up(g, d, 4); d.resetPours(1e9); d.ball.mass = 1; steps(g, 70); };

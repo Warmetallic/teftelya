@@ -13,6 +13,7 @@ const FOOD_SHARE = 0.8;         // доля еды башни для галоч�
 let state = 'title';            // title | play | dead | finish
 let tower = null;               // { tp, platforms, hazards, items } текущей башни
 let roofP = null;               // крыша текущей башни: её линия — финиш
+const CAM_ANCHOR = 0.6, CAM_TOP = 0.1; // доли высоты экрана: где камера держит стоящую Тефу и выше какой линии ведёт летящую
 let camY = 0, tGame = 0, camShake = 0, shakeX = 0, shakeY = 0;
 let run = null;                 // состояние забега, см. newRun()
 let god = false;                // тесты (smoke): без урона и смерти от падения
@@ -33,7 +34,7 @@ function placeAt(p) { // появление — не посадка: миска 
   run.lastLandId = p.id; run.visited.add(p.id); run.campT = 0; run.invuln = 0;
 }
 // появление после смерти или спасения god-режима: камера к Тефе — платформа, ушедшая под полосу, иначе убьёт снова (финальное ревью v2.2a)
-function respawnAt(p) { placeAt(p); camY = ball.y - H * 0.6; }
+function respawnAt(p) { placeAt(p); camY = ball.y - H * CAM_ANCHOR; }
 // башня N с нуля; fromCp > 0 — старт с чекпоинта сохранения (новая сессия: считается одной смертью)
 function startTower(N, fromCp = 0) {
   tower = buildTower(N); roofP = tower.platforms.find(p => p.roof); run = newRun(); run.foodTotal = tower.items.length; run.bannerT = BANNER_T;
@@ -42,7 +43,7 @@ function startTower(N, fromCp = 0) {
   ball.mass = massMax(); ball.r = radiusFor(ball.mass);
   run.cp = fromCp; if (fromCp) run.deaths = 1;
   placeAt(cpPlatform(fromCp));
-  camY = ball.y - H * 0.6; tGame = 0; camShake = 0;
+  camY = ball.y - H * CAM_ANCHOR; tGame = 0; camShake = 0;
 }
 // прыжок к точке мира (tx, ty); false — нет зарядов или не в игре
 function jumpTo(tx, ty) {
@@ -62,9 +63,9 @@ function launchUp() {
   squash(-260); sfx.jump(ball.mass); run.campT = 0;
 }
 function coinsFor(kind) { return Math.round(FOOD_KINDS[kind].coins * tower.tp.coinMul * (1 + 0.05 * ((save.up && save.up.spice) || 0)) * (isBerserk() ? 2 : 1)); }
-let tapHintShown = false; // подсказка «Тапни по Тефе!» — один раз за сессию
+let tapHintShown = false; // подсказка «Жми на молнию!» (кнопка берсерка) — один раз за сессию
 function onPower(ev) { // события суперсилы: шкала полна, берсерк кончился
-  if (ev === 'ready') { tone(520, 880, 0.18, 'triangle', 0.16); if (!tapHintShown) { tapHintShown = true; popText(ball.x, ball.y - ball.r - 50, T('tapTefa'), '#ffe08a', true); } }
+  if (ev === 'ready') { tone(520, 880, 0.18, 'triangle', 0.16); if (!tapHintShown) { tapHintShown = true; popText(ball.x, ball.y - ball.r - 50, T('tapBolt'), '#ffe08a', true); } }
   else if (ev === 'berserkEnd') pulse(-80);
 }
 // суперсила по тапу на Тефу или клавише E (спека v2.1.1 §3.4): только при полной шкале и неисчерпанном лимите
@@ -174,7 +175,10 @@ function updateRun(dt) {
     if (dx * dx + dy * dy < (it.r + ball.r * 0.92) ** 2) eat(it);
   }
   const pe = updatePower(dt); if (pe) onPower(pe);
-  const target = ball.y - H * 0.6; if (target < camY) camY = lerp(camY, target, 1 - Math.pow(0.001, dt)); // камера только вверх
+  // камера только вверх и по посадке (плейтест владельца v2.2a): стоящую Тефу плавно ставит на CAM_ANCHOR высоты экрана, в полёте
+  // стоит, пока Тефа не залетела выше CAM_TOP, — отлететь обратно на свою платформу не смерть, полоса не успела подняться
+  if (ball.onPlatform !== null) { const target = ball.y - H * CAM_ANCHOR; if (target < camY) camY = lerp(camY, target, 1 - Math.pow(0.001, dt)); }
+  const top = ball.y - ball.r - H * CAM_TOP; if (top < camY) camY = top;
   run.progress = Math.max(run.progress, clamp(-ball.y / tp.height, 0, 1));
   if (ball.y + ball.r > camY + H - BAND_H + BAND_SINK) { if (god) respawnAt(platformById(tower.platforms, run.lastLandId) || cpPlatform(run.cp)); else { die('fall'); return; } }
   run.invuln = Math.max(0, run.invuln - dt);
