@@ -173,17 +173,24 @@ const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addCol
     assert.strictEqual(d.state, 'finish', 'выше крыши — финиш'); assert.ok(f <= 8, 'сразу на линии, а не после посадки: кадр ' + f);
     assert.strictEqual(ball.onPlatform, roof.id); assert.strictEqual(ball.y + ball.r, roof.y, 'под экраном финиша Тефа стоит на крыше');
     assert.ok(Math.abs(ball.x - roof.x) <= roof.w / 2, 'и над ней, а не в воздухе сбоку'); }
-  // камера по посадке (плейтест владельца v2.2a): в полёте не поднимается, пока Тефа ниже верхней части экрана, — двойной
-  // прыжок строго вверх и падение обратно на свою тарелку не убивают; после посадки выше камера плавно догоняет
+  // камера (плейтест владельца v2.2a): только вверх, привязка к платформе — в полёте не поднимается, пока вершина прыжка
+  // ниже окна сверху, поэтому двойной прыжок строго вверх и падение на свою тарелку не убивают; всё движение через демпфер —
+  // скорость камеры без скачков, Тефа всегда в кадре, после посадки выше камера плавно подъезжает к новой тарелке
   { d.startTower(1); d.state = 'play'; d.resetPours(1e9); d.hazards.length = 0; d.resetFlies(); for (const it of d.items) it.dead = true;
     const p0 = d.platforms.find(p => p.id === ball.onPlatform); d.platforms.length = 0; d.platforms.push(p0);
+    let prev = d.camY, pv = 0, maxDv = 0, hidden = 0;
+    const step = () => { d.update(1 / 60); const v = (d.camY - prev) * 60; maxDv = Math.max(maxDv, Math.abs(v - pv)); pv = v; prev = d.camY; if (ball.y - ball.r < d.camY - 0.5) hidden++; };
     const cam0 = d.camY; d.jumpTo(ball.x, ball.y - 600); let second = false, top = Infinity;
-    for (let i = 0; i < 400 && d.state === 'play'; i++) { d.update(1 / 60); top = Math.min(top, ball.y); if (!second && ball.vy >= 0) { second = true; d.jumpTo(ball.x, ball.y - 600); } if (second && ball.onPlatform !== null) break; }
+    for (let i = 0; i < 400 && d.state === 'play'; i++) { step(); top = Math.min(top, ball.y); if (!second && ball.vy >= 0) { second = true; d.jumpTo(ball.x, ball.y - 600); } if (second && ball.onPlatform !== null) break; }
     assert.ok(p0.y - top > 400, 'двойной прыжок высокий: ' + (p0.y - top).toFixed(0));
     assert.strictEqual(d.state, 'play', 'двойной прыжок вверх и назад на свою тарелку — жива'); assert.strictEqual(ball.onPlatform, p0.id);
+    assert.strictEqual(hidden, 0, 'Тефа всё время в кадре');
+    for (let i = 0; i < 60; i++) step(); // камера доехала после прыжка
     const hi = { id: 9300, type: 'plate', x: ball.x, y: p0.y - 200, w: 160, row: 1 }; d.platforms.push(hi);
-    d.jumpTo(ball.x, hi.y - 40); for (let i = 0; i < 120 && ball.onPlatform !== hi.id; i++) d.update(1 / 60);
-    assert.strictEqual(ball.onPlatform, hi.id); for (let i = 0; i < 90; i++) d.update(1 / 60);
-    assert.ok(Math.abs(d.camY - (ball.y - 854 * 0.6)) < 3, 'после посадки камера у новой тарелки'); assert.ok(d.camY < cam0); }
+    d.jumpTo(ball.x, hi.y - 40); for (let i = 0; i < 120 && ball.onPlatform !== hi.id; i++) step();
+    assert.strictEqual(ball.onPlatform, hi.id); const c1 = d.camY; step(); assert.ok(Math.abs(d.camY - c1) < 3, 'после посадки камера трогается мягко: ' + (c1 - d.camY).toFixed(1) + ' px за кадр');
+    for (let i = 0; i < 90; i++) step();
+    assert.ok(Math.abs(d.camY - (ball.y - 854 * 0.6)) < 3, 'после посадки камера у новой тарелки'); assert.ok(d.camY < cam0);
+    assert.ok(maxDv < 200, 'скорость камеры без скачков: ' + maxDv.toFixed(0) + ' px/с за кадр'); }
   console.log('test_game ok');
 })().catch(e => { console.error(e); process.exit(1); });

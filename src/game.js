@@ -13,7 +13,20 @@ const FOOD_SHARE = 0.8;         // доля еды башни для галоч�
 let state = 'title';            // title | play | dead | finish
 let tower = null;               // { tp, platforms, hazards, items } текущей башни
 let roofP = null;               // крыша текущей башни: её линия — финиш
-const CAM_ANCHOR = 0.6, CAM_TOP = 0.1; // доли высоты экрана: где камера держит стоящую Тефу и выше какой линии ведёт летящую
+// камера (плейтест владельца v2.2a; приёмы из доклада «Scroll Back», GDC 2015): только вверх. Привязка к платформе, как в
+// Super Mario World: стоящую Тефу держит на anchor высоты экрана, в полёте стоит — отлететь обратно на свою платформу не смерть.
+// Окно сверху по проекции: если вершина прыжка уйдёт выше win экрана, камера заранее поднимается к ней. Всё движение — через
+// демпфер (SmoothDamp, smooth — время, с): разгон и торможение плавные, скорость без скачков. Ползунки: ?camdbg (main.js)
+const CAM = { anchor: 0.6, win: 0.12, smooth: 0.3 };
+let camV = 0, camGoal = 0; // скорость камеры и цель, к которой она едет (цель только поднимается)
+function camReset() { camGoal = camY; camV = 0; }
+function camDamp(dt) { // критически задемпфированная пружина (как Mathf.SmoothDamp), без перелёта цели
+  const w = 2 / Math.max(0.01, CAM.smooth), x = w * dt, e = 1 / (1 + x + 0.48 * x * x + 0.235 * x * x * x);
+  const ch = camY - camGoal, tmp = (camV + w * ch) * dt;
+  camV = (camV - w * tmp) * e; let out = camGoal + (ch + tmp) * e;
+  if ((camGoal - camY > 0) === (out > camGoal)) { out = camGoal; camV = 0; }
+  camY = out;
+}
 let camY = 0, tGame = 0, camShake = 0, shakeX = 0, shakeY = 0;
 let run = null;                 // состояние забега, см. newRun()
 let god = false;                // тесты (smoke): без урона и смерти от падения
@@ -34,7 +47,7 @@ function placeAt(p) { // появление — не посадка: миска 
   run.lastLandId = p.id; run.visited.add(p.id); run.campT = 0; run.invuln = 0;
 }
 // появление после смерти или спасения god-режима: камера к Тефе — платформа, ушедшая под полосу, иначе убьёт снова (финальное ревью v2.2a)
-function respawnAt(p) { placeAt(p); camY = ball.y - H * CAM_ANCHOR; }
+function respawnAt(p) { placeAt(p); camY = ball.y - H * CAM.anchor; camReset(); }
 // башня N с нуля; fromCp > 0 — старт с чекпоинта сохранения (новая сессия: считается одной смертью)
 function startTower(N, fromCp = 0) {
   tower = buildTower(N); roofP = tower.platforms.find(p => p.roof); run = newRun(); run.foodTotal = tower.items.length; run.bannerT = BANNER_T;
@@ -43,7 +56,7 @@ function startTower(N, fromCp = 0) {
   ball.mass = massMax(); ball.r = radiusFor(ball.mass);
   run.cp = fromCp; if (fromCp) run.deaths = 1;
   placeAt(cpPlatform(fromCp));
-  camY = ball.y - H * CAM_ANCHOR; tGame = 0; camShake = 0;
+  camY = ball.y - H * CAM.anchor; camReset(); tGame = 0; camShake = 0;
 }
 // прыжок к точке мира (tx, ty); false — нет зарядов или не в игре
 function jumpTo(tx, ty) {
@@ -175,10 +188,10 @@ function updateRun(dt) {
     if (dx * dx + dy * dy < (it.r + ball.r * 0.92) ** 2) eat(it);
   }
   const pe = updatePower(dt); if (pe) onPower(pe);
-  // камера только вверх и по посадке (плейтест владельца v2.2a): стоящую Тефу плавно ставит на CAM_ANCHOR высоты экрана, в полёте
-  // стоит, пока Тефа не залетела выше CAM_TOP, — отлететь обратно на свою платформу не смерть, полоса не успела подняться
-  if (ball.onPlatform !== null) { const target = ball.y - H * CAM_ANCHOR; if (target < camY) camY = lerp(camY, target, 1 - Math.pow(0.001, dt)); }
-  const top = ball.y - ball.r - H * CAM_TOP; if (top < camY) camY = top;
+  const apex = ball.onPlatform === null && ball.vy < 0 ? ball.y - ball.vy * ball.vy / (2 * GRAV) : ball.y; // вершина текущего полёта
+  if (ball.onPlatform !== null) camGoal = Math.min(camGoal, ball.y - H * CAM.anchor);
+  camGoal = Math.min(camGoal, apex - ball.r - H * CAM.win); camDamp(dt);
+  if (ball.y - ball.r < camY) { camY = ball.y - ball.r; camV = Math.min(camV, ball.vy); } // страховка: Тефа не уходит за верх
   run.progress = Math.max(run.progress, clamp(-ball.y / tp.height, 0, 1));
   if (ball.y + ball.r > camY + H - BAND_H + BAND_SINK) { if (god) respawnAt(platformById(tower.platforms, run.lastLandId) || cpPlatform(run.cp)); else { die('fall'); return; } }
   run.invuln = Math.max(0, run.invuln - dt);
@@ -195,6 +208,6 @@ function update(dt) {
 expose({
   get state() { return state; }, set state(v) { state = v; }, get tower() { return tower; }, get run() { return run; }, get camY() { return camY; },
   get platforms() { return tower ? tower.platforms : []; }, get hazards() { return tower ? tower.hazards : []; }, get items() { return tower ? tower.items : []; },
-  BAND_H, BAND_SINK, setRunCoins(n) { run.runCoins = n; }, setGod(v) { god = !!v; }, setCamY(v) { camY = v; }, massMax, chargesMax, coinsFor, heal,
+  BAND_H, BAND_SINK, setRunCoins(n) { run.runCoins = n; }, setGod(v) { god = !!v; }, setCamY(v) { camY = v; camReset(); }, CAM, massMax, chargesMax, coinsFor, heal,
   startTower, jumpTo, tryActivatePower, damage, die, continueRun, restartFromCp, restartTower, nextTower, finishTower, doubleCoins, ratingFor, bonusCoins, update,
 });

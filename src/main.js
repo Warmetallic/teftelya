@@ -113,3 +113,16 @@ expose({ get paused() { return paused; }, get awaitTap() { return awaitTap; }, g
 function startBoot() { if (!DBG.boot) DBG.boot = boot().catch(e => { console.error('boot failed', e); booted = true; if (!tower) startTower(1, 0); state = 'title'; YG.ready(); }); return DBG.boot; }
 expose({ startBoot });
 if (!CFG.manualBoot) startBoot();
+// ?camdbg — ползунки камеры для подбора ощущения на плейтесте; найденные числа потом переносятся в CAM (game.js)
+function camDebugPanel() {
+  const box = document.createElement('div');
+  box.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:9;background:rgba(0,0,0,.75);color:#fff;font:13px system-ui;padding:8px 10px;border-radius:8px';
+  for (const [k, min, max, step, label] of [['smooth', 0.05, 1, 0.01, 'плавность, с'], ['anchor', 0.4, 0.8, 0.01, 'где стоит Тефа (доля экрана сверху)'], ['win', 0, 0.4, 0.01, 'окно сверху (доля экрана)']]) {
+    const row = document.createElement('label'), inp = document.createElement('input'), val = document.createElement('span');
+    row.style.cssText = 'display:block;margin:2px 0'; inp.type = 'range'; inp.min = min; inp.max = max; inp.step = step; inp.value = CAM[k]; inp.style.verticalAlign = 'middle';
+    const show = () => { val.textContent = ' ' + label + ': ' + CAM[k]; }; inp.oninput = () => { CAM[k] = +inp.value; show(); }; show();
+    row.append(inp, val); box.append(row);
+  }
+  document.body.append(box);
+}
+if (typeof location !== 'undefined' && /camdbg/.test(location.search)) camDebugPanel();
