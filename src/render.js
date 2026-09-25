@@ -60,13 +60,22 @@ function drawHazard(h) {
   if (h.gone) return; const y = h.y - camY; if (y < -320 || y > H + 320) return;
   if (h.type === 'knife') {
     const ky = knifeY(h) - camY, wind = h.phase === 'wind';
+    ctx.save();
+    if (wind) { // замах (вариант A листа design_warn_round1): нож дрожит и вспыхивает красным — сейчас ударит
+      ctx.translate(h.x, ky + 40); ctx.rotate(Math.sin(tGame * 45) * 0.07); ctx.translate(-h.x, -(ky + 40));
+      ctx.shadowColor = 'rgba(255,60,40,0.95)'; ctx.shadowBlur = 16;
+    }
     ctx.fillStyle = '#5a3b22'; rrect(h.x - 7, ky - 40, 14, 40, 4); ctx.fill(); // рукоять
     ctx.fillStyle = wind ? '#ffffff' : '#d8dde3'; ctx.beginPath(); ctx.moveTo(h.x - 8, ky); ctx.lineTo(h.x + 8, ky); ctx.lineTo(h.x + 6, ky + 70); ctx.lineTo(h.x, ky + 84); ctx.lineTo(h.x - 6, ky + 70); ctx.closePath(); ctx.fill();
     ctx.strokeStyle = wind ? '#ff5a36' : 'rgba(255,90,54,0.55)'; ctx.lineWidth = 2; ctx.stroke(); // оранжево-красная кромка: опасно (спека v2.1.1 §8)
-    if (wind) { ctx.strokeStyle = 'rgba(255,90,54,0.7)'; ctx.lineWidth = 2; ctx.setLineDash([6, 6]); ctx.beginPath(); ctx.moveTo(h.x, ky + 90); ctx.lineTo(h.x, y - 10); ctx.stroke(); ctx.setLineDash([]); } // замах: красная линия удара
+    ctx.shadowBlur = 0;
+    if (wind) { ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.fillRect(h.x - 2, ky + 6, 3, 52); } // блик на лезвии
+    ctx.restore();
   } else if (h.type === 'blades') {
     ctx.save(); ctx.translate(h.x, y); ctx.rotate(h.ang);
-    ctx.strokeStyle = 'rgba(255,90,54,0.35)'; ctx.lineWidth = 2; ctx.setLineDash([4, 6]); ctx.beginPath(); ctx.arc(0, 0, BLADES_R + 12, 0, 7); ctx.stroke(); ctx.setLineDash([]); // зона задевания
+    const halo = ctx.createRadialGradient(0, 0, BLADES_R * 0.4, 0, 0, BLADES_R + 24); // зона задевания — красный ореол (вариант A)
+    halo.addColorStop(0, 'rgba(255,90,54,0.35)'); halo.addColorStop(1, 'rgba(255,90,54,0)');
+    ctx.fillStyle = halo; ctx.beginPath(); ctx.arc(0, 0, BLADES_R + 24, 0, 7); ctx.fill();
     ctx.fillStyle = '#c8ccd2'; ctx.strokeStyle = '#ff5a36'; ctx.lineWidth = 2;
     for (let i = 0; i < 3; i++) { ctx.rotate(Math.PI * 2 / 3); ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(BLADES_R + 8, -10); ctx.lineTo(BLADES_R + 8, 10); ctx.closePath(); ctx.fill(); ctx.stroke(); }
     ctx.fillStyle = '#ff5a36'; ctx.beginPath(); ctx.arc(0, 0, 11, 0, 7); ctx.fill(); // оранжево-красная ступица
@@ -74,13 +83,17 @@ function drawHazard(h) {
     ctx.restore();
   }
 }
-// масло сверху (спека v2.1.1 §7.2): половник повара у верхнего края, красный пунктир столба, горячие капли, шипящие пятна
+// масло сверху (спека v2.1.1 §7.2): половник повара у верхнего края, столб красного света, горячие капли, шипящие пятна
 function drawPours() {
   for (const p of pours) {
     const tilt = p.warnT > 0 ? (1 - clamp(p.warnT / POUR_WARN, 0, 1)) * 0.35 : 0.35; // черпак опрокидывается к столбу за время предупреждения
-    if (p.warnT > 0) { // пунктир: куда польётся
-      ctx.strokeStyle = `rgba(255,70,50,${0.35 + 0.35 * Math.sin(tGame * 20) ** 2})`; ctx.lineWidth = 3; ctx.setLineDash([10, 8]);
-      ctx.beginPath(); ctx.moveTo(p.x, LADLE_Y + 14); ctx.lineTo(p.x, H); ctx.stroke(); ctx.setLineDash([]);
+    if (p.warnT > 0) { // куда польётся — столб мягкого красного света от черпака, гаснет книзу и пульсирует (вариант A)
+      const y0 = LADLE_Y + 10, k = 0.75 + 0.25 * Math.sin(tGame * 12) ** 2;
+      const beam = ctx.createLinearGradient(0, y0, 0, H);
+      beam.addColorStop(0, `rgba(255,90,54,${0.42 * k})`); beam.addColorStop(0.55, `rgba(255,90,54,${0.14 * k})`); beam.addColorStop(1, 'rgba(255,90,54,0)');
+      ctx.fillStyle = beam; ctx.fillRect(p.x - 16, y0, 32, H - y0);
+      const core = ctx.createLinearGradient(0, y0, 0, H); core.addColorStop(0, `rgba(255,215,170,${0.55 * k})`); core.addColorStop(0.5, 'rgba(255,215,170,0)');
+      ctx.fillStyle = core; ctx.fillRect(p.x - 3, y0, 6, H - y0);
     }
     ctx.save(); ctx.translate(p.x, LADLE_Y); ctx.scale(p.x > W / 2 ? -1 : 1, 1); ctx.rotate(-tilt); // черпак над столбом, ручка к середине экрана и вверх: не залезает на счёт и край
     ctx.strokeStyle = '#8d8d95'; ctx.lineWidth = 7; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(16, -6); ctx.lineTo(56, -16); ctx.stroke();

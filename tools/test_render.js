@@ -1,9 +1,10 @@
 // node tools/test_render.js — рендер и экраны не падают на proxy-контексте; тексты HUD, титула, смерти и финиша; локализация
 const assert = require('assert');
 const noop = () => {};
-const texts = [], styles = []; // styles: присвоенные цвета заливки и обводки, для проверки языка цветов
-const ctx = new Proxy({}, { get: (t, k) => k === 'fillText' ? s => texts.push(String(s)) : /Gradient$/.test(k) ? () => ({ addColorStop: noop }) : noop,
-  set: (t, k, v) => { if (k === 'fillStyle' || k === 'strokeStyle') styles.push(String(v)); return true; } });
+const texts = [], styles = [], dashes = [], glows = []; // styles: цвета заливки и обводки; dashes: setLineDash; glows: shadowBlur > 0
+const ctx = new Proxy({}, { get: (t, k) => k === 'fillText' ? s => texts.push(String(s)) : k === 'setLineDash' ? a => dashes.push(a)
+    : /Gradient$/.test(k) ? () => ({ addColorStop: noop }) : noop,
+  set: (t, k, v) => { if (k === 'fillStyle' || k === 'strokeStyle') styles.push(String(v)); if (k === 'shadowBlur' && v > 0) glows.push(v); return true; } });
 (async () => {
   for (const size of [[480, 854], [1280, 720]]) {
     const g = require('./_env')(ctx, { width: size[0], height: size[1] }); const d = g.dbg(); await d.YG.init(); await d.loadSave();
@@ -45,6 +46,14 @@ const ctx = new Proxy({}, { get: (t, k) => k === 'fillText' ? s => texts.push(St
   d.resetFx(); d.popText(470, 500, 'Тапни по Тефе!', '#fff', true); d.popText(5, 400, '+3', '#fff');
   assert.ok(d.texts[0].x < 470 && d.texts[0].x + 14 * 9.5 <= 480 - 8, 'крупная надпись не вылезает за правый край: ' + d.texts[0].x);
   assert.ok(d.texts[1].x - 2 * 6.6 >= 8, 'мелкая надпись не вылезает за левый край: ' + d.texts[1].x);
+  // предупреждения об опасности без пунктира (плейтест 2026-09-25, вариант A листа shots/design_warn_round1.png): столб налива —
+  // мягкий свет, нож на замахе вспыхивает, у лопастей красный ореол
+  d.startTower(3); d.state = 'play'; dashes.length = 0; glows.length = 0;
+  d.drawHazard({ type: 'knife', x: 240, y: d.camY + 300, by: d.camY + 150, t: 0.3, phase: 'rest' }); assert.strictEqual(glows.length, 0, 'нож в покое не светится');
+  d.drawHazard({ type: 'knife', x: 240, y: d.camY + 300, by: d.camY + 150, t: 1.5, phase: 'wind' }); assert.ok(glows.length > 0, 'нож на замахе вспыхивает');
+  d.drawHazard({ type: 'blades', x: 240, y: d.camY + 300, ang: 0 });
+  d.resetPours(1e9); d.startPour(200); d.drawPours(); d.resetPours(1e9);
+  assert.ok(!dashes.some(a => a && a.length), 'предупреждения без пунктира');
   // язык цветов (спека v2.1.1 §8): шкала силы золотая и не берёт оранжевый масла и красный опасности ни в одном состоянии;
   // у лопастей оранжево-красная ступица, у ножа на замахе оранжево-красная кромка
   const DANGER = /^#ff(9a2a|5a36|7a2a)$/i;
