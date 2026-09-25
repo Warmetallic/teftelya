@@ -2,12 +2,31 @@
 // ---------- забег по башне: прыжок в точку, урон, смерть, чекпоинты, финиш и рейтинг ----------
 const MASS_BASE = 4;            // максимум массы без прокачки; башня начинается с полной массой (спека v2.1.1 §5)
 const INVULN_HIT = 1;           // с неуязвимости после удара
+// нижняя граница (спека v2.2a §4): внизу экрана видимая смертельная полоса высотой BAND_H; смерть, как только низ Тефы ушёл
+// в неё глубже BAND_SINK — под экраном больше нет невидимых платформ, на которые можно встать
+const BAND_H = 36, BAND_SINK = 12;
+const BANNER_T = 1.5;           // с — плашка «Башня N · Тема» при старте башни (спека v2.2a §5)
 const INVULN_CONT = 1.5;        // с неуязвимости после «Продолжить»
 const DOUBLE_MIN_COINS = 10;    // «Монеты ×2» предлагаем от этой суммы
 const BONUS_MULT = { S: 2, A: 1.5, B: 1.2, C: 1, D: 0.8 };
 const FOOD_SHARE = 0.8;         // доля еды башни для галочки рейтинга
 let state = 'title';            // title | play | dead | finish
 let tower = null;               // { tp, platforms, hazards, items } текущей башни
+let roofP = null;               // крыша текущей башни: её линия — финиш
+// камера (плейтест владельца v2.2a; приёмы из доклада «Scroll Back», GDC 2015): только вверх. Привязка к платформе, как в
+// Super Mario World: стоящую Тефу держит на anchor высоты экрана, в полёте стоит — отлететь обратно на свою платформу не смерть.
+// Окно сверху по проекции: если вершина прыжка уйдёт выше win экрана, камера заранее поднимается к ней. Всё движение — через
+// демпфер (SmoothDamp, smooth — время, с): разгон и торможение плавные, скорость без скачков. Ползунки: ?camdbg (main.js)
+const CAM = { anchor: 0.6, win: 0.12, smooth: 0.3 };
+let camV = 0, camGoal = 0; // скорость камеры и цель, к которой она едет (цель только поднимается)
+function camReset() { camGoal = camY; camV = 0; }
+function camDamp(dt) { // критически задемпфированная пружина (как Mathf.SmoothDamp), без перелёта цели
+  const w = 2 / Math.max(0.01, CAM.smooth), x = w * dt, e = 1 / (1 + x + 0.48 * x * x + 0.235 * x * x * x);
+  const ch = camY - camGoal, tmp = (camV + w * ch) * dt;
+  camV = (camV - w * tmp) * e; let out = camGoal + (ch + tmp) * e;
+  if ((camGoal - camY > 0) === (out > camGoal)) { out = camGoal; camV = 0; }
+  camY = out;
+}
 let camY = 0, tGame = 0, camShake = 0, shakeX = 0, shakeY = 0;
 let run = null;                 // состояние забега, см. newRun()
 let god = false;                // тесты (smoke): без урона и смерти от падения
@@ -20,36 +39,46 @@ function heal(n) {
   return ball.mass - m0;
 }
 // visited — id платформ, на которые Тефа уже садилась в этом забеге: шкала растёт только за первую посадку (спека v2.1.1 §4.1)
-function newRun() { return { time: 0, runCoins: 0, bankedCoins: 0, deaths: 0, usedContinue: 0, usedDouble: false, foodEaten: 0, foodTotal: 0, cp: 0, lastLandId: 0, visited: new Set(), campT: 0, flyCd: 0, invuln: 0, reason: '', rating: null, bonus: 0, progress: 0, finished: false }; }
+function newRun() { return { time: 0, runCoins: 0, bankedCoins: 0, deaths: 0, usedContinue: 0, usedDouble: false, foodEaten: 0, foodTotal: 0, cp: 0, lastLandId: 0, visited: new Set(), campT: 0, flyCd: 0, invuln: 0, reason: '', rating: null, bonus: 0, progress: 0, finished: false, bannerT: 0 }; }
 function cpPlatform(k) { return tower.platforms.find(p => k ? p.cp === k : p.start) || tower.platforms[0]; }
-function placeAt(p) {
-  ball.x = p.x; ball.y = p.y - ball.r; ball.vx = 0; ball.vy = 0; ball.onPlatform = p.id; ball.charges = chargesMax();
+function placeAt(p) { // появление — не посадка: миска не липнет, полка не тащит (спека v2.2a §6.1, §6.3)
+  ball.x = p.x; ball.y = p.y - ball.r; ball.vx = 0; ball.vy = 0; ball.onPlatform = p.id; ball.charges = chargesMax(); ball.stuck = false; ball.slide = 0;
   ball.sq = 0; ball.sqv = 0; ball.tilt = 0; ball.tiltv = 0; ball.mouth = 0; ball.face = 0; ball.hot = 0; ball.alive = true;
   run.lastLandId = p.id; run.visited.add(p.id); run.campT = 0; run.invuln = 0;
 }
+// появление после смерти или спасения god-режима: камера к Тефе — платформа, ушедшая под полосу, иначе убьёт снова (финальное ревью v2.2a)
+function respawnAt(p) { placeAt(p); camY = ball.y - H * CAM.anchor; camReset(); }
 // башня N с нуля; fromCp > 0 — старт с чекпоинта сохранения (новая сессия: считается одной смертью)
 function startTower(N, fromCp = 0) {
-  tower = buildTower(N); run = newRun(); run.foodTotal = tower.items.length;
+  tower = buildTower(N); roofP = tower.platforms.find(p => p.roof); run = newRun(); run.foodTotal = tower.items.length; run.bannerT = BANNER_T;
   if (fromCp && !tower.platforms.some(p => p.cp === fromCp)) fromCp = 0; // битый чекпоинт из сохранения
   resetPower(); resetFlies(); resetFx(); resetPours(5); // первый налив масла не раньше 5 с
   ball.mass = massMax(); ball.r = radiusFor(ball.mass);
   run.cp = fromCp; if (fromCp) run.deaths = 1;
   placeAt(cpPlatform(fromCp));
-  camY = ball.y - H * 0.6; tGame = 0; camShake = 0;
+  camY = ball.y - H * CAM.anchor; camReset(); tGame = 0; camShake = 0;
 }
 // прыжок к точке мира (tx, ty); false — нет зарядов или не в игре
 function jumpTo(tx, ty) {
   if (!ball.alive || state !== 'play') return false;
   if (ball.charges <= 0) { pulse(-60); tone(160, 90, 0.12, 'sine', 0.12); return false; }
+  if (ball.stuck && ball.onPlatform !== null) { // миска: первый тап отлепляет и тратит заряд, прыжка нет (спека v2.2a §6.3)
+    ball.stuck = false; ball.charges--; squash(-120); jolt(tx, ball.y, 120); tone(220, 330, 0.1, 'triangle', 0.12); return true;
+  }
   const a = aimJump(ball.x, ball.y, ball.r, clamp(tx, 0, W), ty);
   ball.charges--; ball.vx = a.vx; ball.vy = a.vy; ball.onPlatform = null; run.campT = 0;
   squash(-220); crumbs(ball.x, ball.y + ball.r * 0.8); sfx.jump(ball.mass); ball.blink = 0.08;
   return true;
 }
+// подброс тостером или лопаткой (спека v2.2a §6.2, §6.4): вертикально на LAUNCH_H, заряды полные — дальше игрок подруливает
+function launchUp() {
+  ball.onPlatform = null; ball.vy = -Math.sqrt(2 * GRAV * LAUNCH_H); ball.vx = 0; ball.slide = 0; ball.charges = chargesMax();
+  squash(-260); sfx.jump(ball.mass); run.campT = 0;
+}
 function coinsFor(kind) { return Math.round(FOOD_KINDS[kind].coins * tower.tp.coinMul * (1 + 0.05 * ((save.up && save.up.spice) || 0)) * (isBerserk() ? 2 : 1)); }
-let tapHintShown = false; // подсказка «Тапни по Тефе!» — один раз за сессию
+let tapHintShown = false; // подсказка «Жми на молнию!» (кнопка берсерка) — один раз за сессию
 function onPower(ev) { // события суперсилы: шкала полна, берсерк кончился
-  if (ev === 'ready') { tone(520, 880, 0.18, 'triangle', 0.16); if (!tapHintShown) { tapHintShown = true; popText(ball.x, ball.y - ball.r - 50, T('tapTefa'), '#ffe08a', true); } }
+  if (ev === 'ready') { tone(520, 880, 0.18, 'triangle', 0.16); if (!tapHintShown) { tapHintShown = true; popText(ball.x, ball.y - ball.r - 50, T('tapBolt'), '#ffe08a', true); } }
   else if (ev === 'berserkEnd') pulse(-80);
 }
 // суперсила по тапу на Тефу или клавише E (спека v2.1.1 §3.4): только при полной шкале и неисчерпанном лимите
@@ -84,14 +113,14 @@ function die(reason) {
 // «Продолжить» за rewarded: на последней платформе с полной массой (еда больше не лечит); рейтинг башни станет D
 function continueRun() {
   ball.mass = massMax(); ball.r = radiusFor(ball.mass); // масса и радиус до посадки: placeAt сажает Тефу по ball.r
-  placeAt(platformById(tower.platforms, run.lastLandId) || cpPlatform(run.cp));
+  respawnAt(platformById(tower.platforms, run.lastLandId) || cpPlatform(run.cp));
   endBerserk(); resetFlies(); resetPours(3); run.invuln = INVULN_CONT; run.usedContinue++; camShake = 0; tGame = 0; state = 'play'; // шкала и потраченный берсерк смерть переживают, серия для мух — нет
 }
 // «С чекпоинта» бесплатно: смерти уже посчитаны в die(); масло и мухи сброшены
 function restartFromCp() {
-  ball.mass = massMax(); ball.r = radiusFor(ball.mass); placeAt(cpPlatform(run.cp));
+  ball.mass = massMax(); ball.r = radiusFor(ball.mass); respawnAt(cpPlatform(run.cp));
   endBerserk(); resetFlies(); resetFx(); resetPours(4);
-  camY = ball.y - H * 0.6; tGame = 0; state = 'play';
+  tGame = 0; state = 'play';
 }
 function restartTower() { startTower(tower.tp.N, 0); save.cp = 0; state = 'play'; } // чекпоинт сбрасывается вместе с башней; запишет ближайшая смерть или финиш
 function nextTower() { startTower(save.tower, 0); state = 'play'; }
@@ -109,7 +138,7 @@ function finishTower() {
   const prev = save.log[N], t = Math.round(run.time * 10) / 10;
   if (!prev || RANK.indexOf(rt.letter) > RANK.indexOf(prev.r) || (rt.letter === prev.r && t < prev.t)) save.log[N] = { r: rt.letter, t };
   save.tower = Math.max(save.tower, N + 1); save.cp = 0; persist();
-  ball.onPlatform = tower.platforms.find(p => p.roof).id;
+  ball.x = clamp(ball.x, roofP.x - roofP.w / 2 + ball.r, roofP.x + roofP.w / 2 - ball.r); ball.y = roofP.y - ball.r; ball.vx = 0; ball.vy = 0; ball.onPlatform = roofP.id; // под экраном финиша Тефа стоит на крыше
   state = 'finish'; tGame = 0; sfx.big(); camShake = 8; YG.gameplayStop();
 }
 function reachCheckpoint(p) { run.cp = p.cp; save.cp = p.cp; heal(massMax()); delayPours(4); persist(); popText(p.x, p.y - 40, T('checkpoint', p.cp), '#8ff0a4', true); sfx.buy(); }
@@ -122,12 +151,13 @@ function onLand(p, vy) {
   if (p.roof) finishTower();
 }
 function updateRun(dt) {
-  const tp = tower.tp; run.time += dt;
+  const tp = tower.tp; run.time += dt; run.bannerT = Math.max(0, run.bannerT - dt);
   const prevBottom = ball.y + ball.r, wasOn = ball.onPlatform;
   if (ball.onPlatform === null) { ball.vy += GRAV * dt; ball.x += ball.vx * dt; ball.y += ball.vy * dt; }
   if (ball.x < ball.r) { ball.x = ball.r; ball.vx = Math.abs(ball.vx) * 0.6; } else if (ball.x > W - ball.r) { ball.x = W - ball.r; ball.vx = -Math.abs(ball.vx) * 0.6; }
   for (const e of updatePlatforms(dt, tower.platforms, tp)) {
     if (e.type === 'crumble') { burst(e.p.x, e.p.y, '#f6c343', 16, 200, 0.6, 4); continue; } // сыр раскрошился
+    if (e.type === 'launch') { launchUp(); continue; } // тостер или лопатка подбрасывают — и в берсерке тоже
     if (isBerserk()) continue; // спека §4.4: в берсерке Тефа не горит — ни урона, ни подброса; таймер сковородки уже сброшен в platforms.js
     damage(1, 'pan', e.p.x, e.p.y + 40);
     if (!ball.alive) return;
@@ -137,6 +167,7 @@ function updateRun(dt) {
     const vy = ball.vy, p = tryLand(tower.platforms, prevBottom);
     if (p) { onLand(p, vy); if (state !== 'play') return; }
   }
+  if (ball.y + ball.r < roofP.y) { finishTower(); return; } // финиш — линия крыши: Тефа выше неё — башня пройдена, садиться не нужно, опасности уже не бьют (плейтест владельца v2.2a)
   run.campT = ball.onPlatform !== null && ball.onPlatform === wasOn ? run.campT + dt : 0;
   const st = platformById(tower.platforms, ball.onPlatform);
   ball.hot = st && st.type === 'pan' ? clamp((st.hotT || 0) / panTime(tp), 0, 1) : Math.max(0, ball.hot - dt * 2);
@@ -157,9 +188,12 @@ function updateRun(dt) {
     if (dx * dx + dy * dy < (it.r + ball.r * 0.92) ** 2) eat(it);
   }
   const pe = updatePower(dt); if (pe) onPower(pe);
-  const target = ball.y - H * 0.6; if (target < camY) camY = lerp(camY, target, 1 - Math.pow(0.001, dt)); // камера только вверх
+  const apex = ball.onPlatform === null && ball.vy < 0 ? ball.y - ball.vy * ball.vy / (2 * GRAV) : ball.y; // вершина текущего полёта
+  if (ball.onPlatform !== null) camGoal = Math.min(camGoal, ball.y - H * CAM.anchor);
+  camGoal = Math.min(camGoal, apex - ball.r - H * CAM.win); camDamp(dt);
+  if (ball.y - ball.r < camY) { camY = ball.y - ball.r; camV = Math.min(camV, ball.vy); } // страховка: Тефа не уходит за верх
   run.progress = Math.max(run.progress, clamp(-ball.y / tp.height, 0, 1));
-  if (ball.y - ball.r > camY + H + 40) { if (god) placeAt(platformById(tower.platforms, run.lastLandId) || cpPlatform(run.cp)); else { die('fall'); return; } }
+  if (ball.y + ball.r > camY + H - BAND_H + BAND_SINK) { if (god) respawnAt(platformById(tower.platforms, run.lastLandId) || cpPlatform(run.cp)); else { die('fall'); return; } }
   run.invuln = Math.max(0, run.invuln - dt);
   ball.mouth = Math.max(0, ball.mouth - dt * 3);
   ball.face = lerp(ball.face, clamp(ball.vx / 300, -1, 1), 1 - Math.pow(0.02, dt));
@@ -174,6 +208,6 @@ function update(dt) {
 expose({
   get state() { return state; }, set state(v) { state = v; }, get tower() { return tower; }, get run() { return run; }, get camY() { return camY; },
   get platforms() { return tower ? tower.platforms : []; }, get hazards() { return tower ? tower.hazards : []; }, get items() { return tower ? tower.items : []; },
-  setRunCoins(n) { run.runCoins = n; }, setGod(v) { god = !!v; }, setCamY(v) { camY = v; }, massMax, chargesMax, coinsFor, heal,
+  BAND_H, BAND_SINK, setRunCoins(n) { run.runCoins = n; }, setGod(v) { god = !!v; }, setCamY(v) { camY = v; camReset(); }, CAM, massMax, chargesMax, coinsFor, heal,
   startTower, jumpTo, tryActivatePower, damage, die, continueRun, restartFromCp, restartTower, nextTower, finishTower, doubleCoins, ratingFor, bonusCoins, update,
 });

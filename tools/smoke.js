@@ -18,14 +18,16 @@ async function runFlow(opts) {
   g.tap(240, 100); assert.strictEqual(d.state, 'title', 'тап мимо кнопки не стартует');
   const play = btn(d, 'play'); g.tap(play.x, play.y); await g.flush(); assert.strictEqual(d.state, 'play'); assert.strictEqual(d.YG.log.at(-1), 'start');
   const c0 = d.ball.charges; g.tap(300, 300); assert.strictEqual(d.ball.charges, c0 - 1, 'тап в игре — прыжок');
-  // тап по Тефе (спека v2.1.1 §3.4): при полной шкале — суперсила без траты заряда, и в воздухе тоже;
-  // при неполной шкале, во время берсерка и после исчерпанного лимита — обычный прыжок
-  const tapTefa = () => g.tap(d.ball.x, d.ball.y - d.camY);
-  d.ball.charges = 3; tapTefa(); assert.ok(!d.isBerserk() && d.ball.charges === 2, 'неполная шкала — тап по Тефе остаётся прыжком');
+  // кнопка берсерка (плейтест владельца v2.2a, вместо тапа по Тефе): при полной шкале внизу справа — тап по ней включает
+  // суперсилу без траты заряда, и в воздухе тоже; без полной шкалы, во время берсерка и после лимита кнопки нет — там
+  // обычный прыжок; тап по самой Тефе — всегда прыжок
+  const bzTap = () => g.tap(d.BZ_BTN.x, d.BZ_BTN.y), tapTefa = () => g.tap(d.ball.x, d.ball.y - d.camY);
+  d.ball.charges = 3; bzTap(); assert.ok(!d.isBerserk() && d.ball.charges === 2, 'неполная шкала — кнопки нет, тап там — прыжок');
   d.powerAdd(d.POWER_FULL); assert.strictEqual(d.ball.onPlatform, null, 'Тефа в воздухе');
-  { const c1 = d.ball.charges; tapTefa(); assert.ok(d.isBerserk(), 'тап по Тефе при полной шкале — суперсила'); assert.strictEqual(d.ball.charges, c1, 'и не прыжок'); }
-  { const c2 = d.ball.charges; tapTefa(); assert.strictEqual(d.ball.charges, c2 - 1, 'во время берсерка тап по Тефе — прыжок'); } d.endBerserk();
-  d.ball.charges = 3; d.powerAdd(d.POWER_FULL); tapTefa(); assert.ok(!d.isBerserk() && d.ball.charges === 2, 'лимит исчерпан — тап по Тефе остаётся прыжком');
+  { const c1 = d.ball.charges; tapTefa(); assert.ok(!d.isBerserk(), 'тап по Тефе суперсилу больше не включает'); assert.strictEqual(d.ball.charges, c1 - 1, 'это прыжок'); }
+  { const c1 = d.ball.charges; bzTap(); assert.ok(d.isBerserk(), 'кнопка при полной шкале — суперсила'); assert.strictEqual(d.ball.charges, c1, 'и не прыжок'); }
+  { const c2 = d.ball.charges; bzTap(); assert.strictEqual(d.ball.charges, c2 - 1, 'во время берсерка кнопки нет — прыжок'); } d.endBerserk();
+  d.ball.charges = 3; d.powerAdd(d.POWER_FULL); bzTap(); assert.ok(!d.isBerserk() && d.ball.charges === 2, 'лимит исчерпан — кнопки нет, прыжок');
   climb(g, d); assert.strictEqual(d.state, 'finish', 'дошли до крыши башни 1'); assert.strictEqual(d.YG.log.at(-1), 'stop');
   assert.ok(d.run.rating && 'SABCD'.includes(d.run.rating.letter)); assert.strictEqual(d.save.tower, 2); assert.ok(d.save.log[1]);
   assert.strictEqual(JSON.parse(g.store.get('teft_save')).tower, 2, 'прогресс сохранён');
@@ -57,10 +59,15 @@ async function runFlow(opts) {
   assert.strictEqual(inters(), n0 + 1, 'интервал 180 с соблюдён');
   // пауза по скрытию вкладки: возврат по тапу без прыжка; клавиатура прыгает
   const ch = d.ball.charges; d.powerAdd(d.POWER_FULL); g.hide(); assert.ok(d.paused); g.show(); assert.ok(d.awaitTap);
-  g.tap(d.ball.x, d.ball.y - d.camY); assert.ok(!d.awaitTap); assert.strictEqual(d.ball.charges, ch, 'тап после паузы — не прыжок');
-  assert.ok(!d.isBerserk(), 'и не суперсила, даже по Тефе с полной шкалой');
+  g.tap(d.BZ_BTN.x, d.BZ_BTN.y); assert.ok(!d.awaitTap); assert.strictEqual(d.ball.charges, ch, 'тап после паузы — не прыжок');
+  assert.ok(!d.isBerserk(), 'и не суперсила, даже по кнопке с полной шкалой');
   g.key('ArrowLeft'); assert.strictEqual(d.ball.charges, ch - 1);
   d.powerAdd(d.POWER_FULL); g.key('KeyE'); assert.ok(d.isBerserk(), 'клавиша E включает суперсилу'); d.endBerserk();
+  { // клавиатура в миске (спека v2.2a §6.3): первая клавиша прыжка только отлепляет и тратит заряд, вторая прыгает
+    const b = d.ball, bowl = { id: 9300, type: 'bowl', x: b.x, y: b.y + b.r, w: 120, row: 0 }; d.platforms.push(bowl);
+    b.onPlatform = null; d.landOn(bowl); b.charges = 3;
+    g.key('ArrowUp'); assert.ok(b.onPlatform === 9300 && b.charges === 2, 'клавиша в миске отлепляет, не прыгая');
+    g.key('ArrowUp'); assert.ok(b.onPlatform === null && b.charges === 1, 'вторая клавиша прыгает'); d.platforms.pop(); }
   const ss = d.YG.log.filter(x => x === 'start' || x === 'stop'); // GameplayAPI: ни двух start подряд, ни двух stop
   for (let i = 1; i < ss.length; i++) assert.notStrictEqual(ss[i], ss[i - 1], 'start/stop чередуются');
   return d;

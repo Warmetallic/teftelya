@@ -47,5 +47,24 @@ const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addCol
   for (let i = 0; i < 190; i++) d.updatePlatforms(0.016, P2, tp); assert.ok(!cheese.gone, 'через 3 с отрос');
   put(240, -480 - 34 + 10, 300); assert.strictEqual(d.tryLand(P2, -520), cheese, 'и снова держит');
   assert.strictEqual(d.platformById(P, 2), pan); assert.strictEqual(d.platformById(P, null), null); assert.strictEqual(d.platformById(P, 99), null);
+  // полка (спека v2.2a §6.1): при посадке Тефа сохраняет SHELF_KEEP скорости полёта и скользит с торможением SHELF_FRICTION;
+  // съехала за край дальше LAND_TOL·r — падает; без боковой скорости стоит на месте
+  const shelf = { id: 5, type: 'shelf', x: 240, y: -600, w: 120 }, P3 = [shelf];
+  const slideOn = (x, vx) => { put(x, -600 - 34, 0); ball.vx = vx; d.landOn(shelf); for (let i = 0; i < 120 && ball.onPlatform !== null; i++) d.updatePlatforms(1 / 60, P3, tp); };
+  slideOn(240, 300); { const want = (d.SHELF_KEEP * 300) ** 2 / (2 * d.SHELF_FRICTION); assert.strictEqual(ball.onPlatform, 5, 'остановилась на полке'); assert.ok(Math.abs(ball.x - 240 - want) < 4, 'проскользнула ≈ ' + want.toFixed(1) + ' px: ' + (ball.x - 240).toFixed(1)); }
+  slideOn(240, 0); assert.strictEqual(ball.x, 240, 'без боковой скорости не скользит');
+  slideOn(240 + 50, 420); assert.strictEqual(ball.onPlatform, null, 'съехала с края — падает');
+  // тостер (спека v2.2a §6.2): стоящую Тефу подбрасывает через TOASTER_T; ушла раньше — отсчёт сбрасывается
+  const toaster = { id: 6, type: 'toaster', x: 240, y: -720, w: 110 }, P4 = [toaster]; let tev = [];
+  put(240, -720 - 34, 0); d.landOn(toaster);
+  for (let i = 0; i < Math.round(d.TOASTER_T * 60) - 3; i++) tev.push(...d.updatePlatforms(1 / 60, P4, tp));
+  assert.ok(!tev.some(e => e.type === 'launch'), 'до конца отсчёта не подбрасывает');
+  for (let i = 0; i < 6; i++) tev.push(...d.updatePlatforms(1 / 60, P4, tp));
+  assert.strictEqual(tev.filter(e => e.type === 'launch' && e.p === toaster).length, 1, 'тостер подбросил один раз');
+  put(240, -720 - 34, 0); d.landOn(toaster); for (let i = 0; i < 30; i++) d.updatePlatforms(1 / 60, P4, tp);
+  ball.onPlatform = null; d.updatePlatforms(1 / 60, P4, tp); assert.strictEqual(toaster.toastT, 0, 'ушла с тостера — отсчёт сброшен');
+  // лопатка-батут (§6.4): подбрасывает сразу
+  const spatula = { id: 7, type: 'spatula', x: 240, y: -840, w: 110 }; put(240, -840 - 34, 0); d.landOn(spatula);
+  assert.ok(d.updatePlatforms(1 / 60, [spatula], tp).some(e => e.type === 'launch' && e.p === spatula), 'лопатка подбрасывает сразу');
   console.log('test_platforms ok');
 })().catch(e => { console.error(e); process.exit(1); });

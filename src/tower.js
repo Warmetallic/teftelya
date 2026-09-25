@@ -14,6 +14,8 @@ const X_MIN = 70, X_MAX = 410; // центры обычных платформ; 
 const EDGE = 20;          // платформа не подходит к краю поля ближе 20 px
 const BLADES_R = 36;        // радиус лопастей миксера, px (столкновение — hazards.js)
 const BLADE_GAP = 10, BLADE_NEAR = 90; // зазор до маршрута и стоящей Тефы; не дальше BLADE_NEAR от маршрута, иначе лопасти ни на что не влияют
+const BOARD_W = 180, BOARD_KNIFE = 25, BOARD_TRAVEL = 50; // доска: ширина, нож в 25 px от края у стены, ход ножа (спека v2.2a §6.5)
+const UNIQUE_SHARE = 0.2;  // доля обычных платформ, которую в башне занимает уникальность темы (за счёт тарелок; спека v2.2a §7)
 const PATH_MAX_ROWS = 4;    // самый большой подъём между соседними платформами пути: 480 px, два прыжка дают ≈ 536
 const FOOD_KINDS = { ketchup: { r: 15, coins: 1, w: 5 }, pasta: { r: 17, coins: 2, w: 4 }, meat: { r: 21, coins: 3, w: 2 } };
 const FOOD_COLOR = { ketchup: '#e3342f', pasta: '#f6c343', meat: '#b5452b' };
@@ -25,7 +27,7 @@ function towerParams(N) {
     gapMax: N >= 5 ? 3 : 2, wMin: Math.max(80, 101 - N), wMax: Math.max(110, 141 - N),
     mix: N === 1 ? { plate: 0.5, pan: 0.25, tray: 0.25, cheese: 0 } : { plate: 0.5, pan: 0.2, tray: 0.15, cheese: 0.15 },
     frag: { steps, gap: other * 25 / 60, side: other * 15 / 60, fork: other * 20 / 60 },
-    par: rows * 2.4, coinMul: 1 + 0.05 * (N - 1), theme: 'kitchen' };
+    par: rows * 2.4, coinMul: 1 + 0.05 * (N - 1), theme: themeFor(N).id, uniques: uniquesFor(N) };
 }
 function pickKind(R) { let sum = 0; for (const k in FOOD_KINDS) sum += FOOD_KINDS[k].w; let t = R() * sum; for (const k in FOOD_KINDS) { t -= FOOD_KINDS[k].w; if (t <= 0) return k; } return 'ketchup'; }
 function mkFood(R, x, y) { const kind = pickKind(R); return { kind, x, y, r: FOOD_KINDS[kind].r, seed: R() * 10, dead: false }; }
@@ -108,7 +110,62 @@ function buildTower(N) {
   }
   if (N >= 2 && !hazards.some(h => h.type === 'knife') && knifeSlots.length) knife(...knifeSlots[0]); // первый нож башни гарантирован
   placeBlades(platforms, hazards, path);
+  placeUniques(N, tp, platforms, hazards, path); // после лопастей: уникальности подстраиваются под опасности, а не наоборот
   return { tp, platforms, hazards, items, path };
+}
+// уникальности темы (спека v2.2a §6–§7): пятая часть обычных платформ башни, за счёт тарелок; старт, чекпоинты, крыша и
+// площадки отдыха не трогаются. Решения берутся из своего потока случайных чисел, поэтому раскладка башни та же, что без
+// уникальностей, — меняются только типы. У каждого типа своё правило, можно ли его сюда поставить
+const UNIQUE_RULES = {
+  shelf: { ok: () => true },                 // полка холодильника: скользкая, ставится где угодно
+  toaster: { ok: (p, hz, path, byId) => !launchBlocked(p, hz) && !afterLaunchBlocked(p, hz, path, byId), launch: true }, // тостер и лопатка подбрасывают: столб полёта над ними
+  board: { ok: (p, hz, path, byId, platforms) => boardOk(p, hz, platforms), make: (p, hz, R) => makeBoard(p, hz, R) }, // доска с ножом у стены
+  bowl: { ok: (p, hz, path, byId) => bowlOk(p, path, byId) },  // миска на пути — только перед переходом в один прыжок: после отлипания запас
+  spatula: { ok: (p, hz, path, byId) => !launchBlocked(p, hz) && !afterLaunchBlocked(p, hz, path, byId), launch: true }, // свободен от лопастей и ножей
+};
+// центры Тефы масс 1, 4 и 8 при вертикальном подбросе с платформы p на LAUNCH_H
+const launchColumn = p => { const out = []; for (const m of [1, 4, 8]) { const r = radiusFor(m); for (let y = p.y - r; y >= p.y - r - LAUNCH_H; y -= 8) out.push([p.x, y, r]); } return out; };
+// подброс задевает нож: условие удара как в hazards.js, по всему ходу ножа
+const knifeHitsColumn = (h, col) => col.some(([x, y, r]) => { for (let ky = h.by; ky <= h.y - 80; ky += 4) if (Math.abs(x - h.x) < r + 8 && Math.abs(y - (ky + 40)) < r + 40) return true; return false; });
+// доска: широкая, нож у конца ближе к стене. Её нож не должен лежать на соседних платформах и бить стоящую на них Тефу,
+// а стоящая на доске Тефа любой массы — задевать лопасти
+const boardAt = p => { const x = clamp(p.x, EDGE + BOARD_W / 2, W - EDGE - BOARD_W / 2), low = p.y - 84;
+  return { x, knife: { type: 'knife', x: x + (x < W / 2 ? -1 : 1) * (BOARD_W / 2 - BOARD_KNIFE), y: p.y - 4, by: low - BOARD_TRAVEL, phase: 'rest', board: p.id } }; };
+const boardOk = (p, hazards, platforms) => {
+  const b = boardAt(p), k = b.knife, top = k.by - 14 - 40, tip = k.y - 80 + 84;
+  for (const q of platforms) {
+    if (q === p || Math.abs(q.y - p.y) > 3 * ROW_H) continue;
+    const x0 = (q.type === 'tray' ? q.x0 : q.x) - q.w / 2, x1 = (q.type === 'tray' ? q.x1 : q.x) + q.w / 2;
+    if (q.row === p.row && x1 > b.x - BOARD_W / 2 && x0 < b.x + BOARD_W / 2) return false; // доска не наезжает на соседа по ряду
+    if (!(k.x + 10 < x0 || k.x - 10 > x1 || q.y + 18 < top || q.y - 8 > tip)) return false; // нож лежит на чужой платформе
+    for (const m of [1, 4, 8]) { const R = radiusFor(m), y = q.y - R;
+      for (let x = x0; x <= x1; x += 5) for (let ky = k.by; ky <= k.y - 80; ky += 4) if (Math.abs(x - k.x) < R + 8 && Math.abs(y - (ky + 40)) < R + 40) return false; }
+  }
+  for (const h of hazards) if (h.type === 'blades') for (const m of [1, 4, 8]) { const R = radiusFor(m);
+    for (let x = b.x - BOARD_W / 2; x <= b.x + BOARD_W / 2; x += 5) if (Math.hypot(x - h.x, p.y - R - h.y) < R + BLADES_R) return false; }
+  return true;
+};
+const makeBoard = (p, hazards, R) => { const b = boardAt(p); p.x = b.x; p.w = BOARD_W; hazards.push(Object.assign({ id: 10000 + p.id, t: R() * KNIFE_CYCLE, gone: false }, b.knife)); };
+const bowlOk = (p, path, byId) => { const i = path.indexOf(p.id); if (i < 0 || i + 1 >= path.length) return true; const n = byId.get(path[i + 1]);
+  return [1, 4, 8].every(m => { const r = radiusFor(m); return !jumpPlan(p.x, p.y - r, r, n.x, n.y).double; }); };
+// тостер или лопатка на пути: от вершины подброса Тефа летит к одной из следующих платформ пути (так делает и бот) — этот полёт тоже мимо лопастей
+const afterLaunchBlocked = (p, hazards, path, byId) => {
+  const i = path.indexOf(p.id); if (i < 0) return false;
+  for (const m of [1, 4, 8]) { const r = radiusFor(m), ay = p.y - LAUNCH_H - r;
+    for (let j = i + 1; j <= Math.min(path.length - 1, i + 4); j++) { const b = byId.get(path[j]), pts = flightPath(p.x, ay, r, b.x, b.y);
+      if (hazards.some(h => h.type === 'blades' && pts.some(([x, y]) => Math.hypot(x - h.x, y - h.y) < r + BLADES_R + BLADE_GAP))) return true; } }
+  return false;
+};
+const launchBlocked = (p, hazards) => { const col = launchColumn(p); return hazards.some(h => h.type === 'blades' ? col.some(([x, y, r]) => Math.hypot(x - h.x, y - h.y) < r + BLADES_R) : h.type === 'knife' && knifeHitsColumn(h, col)); };
+function placeUniques(N, tp, platforms, hazards, path) {
+  const kinds = tp.uniques.filter(u => UNIQUE_RULES[u]); if (!kinds.length) return;
+  const RU = mulberry32(N * 7919 + 99), byId = new Map(platforms.map(p => [p.id, p]));
+  for (const p of platforms) {
+    if (p.type !== 'plate' || p.start || p.cp || p.roof || p.rest) continue;
+    if (RU() >= UNIQUE_SHARE / tp.mix.plate) continue;
+    const u = kinds[Math.floor(RU() * kinds.length)];
+    if (UNIQUE_RULES[u].ok(p, hazards, path, byId, platforms)) { p.type = u; if (UNIQUE_RULES[u].make) UNIQUE_RULES[u].make(p, hazards, RU); }
+  }
 }
 // лопасти не встают на дугу прицельного прыжка и туда, где Тефа стоит (финальное ревью v2.1.1: на месте в середине ряда их
 // задевал обычный прыжок между ступенями зигзага). Проверяются все переходы пути, чей полёт может дотянуться до лопастей
@@ -117,7 +174,7 @@ function buildTower(N) {
 // BLADE_NEAR от маршрута; не нашлось — лопасти убираются
 function placeBlades(platforms, hazards, path) {
   const byId = new Map(platforms.map(p => [p.id, p])), offs = [];
-  for (const dx of [0, 30, -30, 60, -60, 90, -90, 120, -120, 150, -150]) for (const dy of [0, -30, 30, -60, 60, -90, 90, -120, -150]) offs.push([dx, dy]);
+  for (let dx = -210; dx <= 210; dx += 30) for (let dy = -210; dy <= 180; dy += 30) offs.push([dx, dy]); // ближайшие к исходному месту — первыми (сортировка ниже)
   offs.sort((a, b) => Math.hypot(a[0], a[1]) - Math.hypot(b[0], b[1]));
   for (let k = hazards.length - 1; k >= 0; k--) {
     const h = hazards[k]; if (h.type !== 'blades') continue;
@@ -144,4 +201,4 @@ function placeBlades(platforms, hazards, path) {
     if (spot) { h.x = spot[0]; h.y = spot[1]; } else hazards.splice(k, 1);
   }
 }
-expose({ ROW_H, CP_EVERY, KNIFE_CYCLE, X_MIN, X_MAX, PATH_MAX_ROWS, BLADES_R, BLADE_GAP, BLADE_NEAR, placeBlades, FOOD_KINDS, FOOD_COLOR, mulberry32, towerParams, buildTower });
+expose({ BOARD_W, BOARD_KNIFE, UNIQUE_SHARE, UNIQUE_RULES, placeUniques, ROW_H, CP_EVERY, KNIFE_CYCLE, X_MIN, X_MAX, PATH_MAX_ROWS, BLADES_R, BLADE_GAP, BLADE_NEAR, placeBlades, FOOD_KINDS, FOOD_COLOR, mulberry32, towerParams, buildTower });

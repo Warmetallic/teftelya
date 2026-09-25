@@ -9,6 +9,11 @@ const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addCol
   const t1 = d.buildTower(1), t1b = d.buildTower(1), t2 = d.buildTower(2);
   assert.strictEqual(JSON.stringify(t1), JSON.stringify(t1b), 'одинаковая раскладка при том же N');
   assert.notStrictEqual(JSON.stringify(t1.platforms), JSON.stringify(t2.platforms), 'другая башня — другая раскладка');
+  // темы по кругу и их уникальности (спека v2.2a §3): башни 1–5 — первый круг, 6–10 — второй; кухня получает доску со второго круга
+  assert.deepStrictEqual([1, 2, 3, 4, 5, 6, 7, 11].map(n => d.themeFor(n).id), ['kitchen', 'fridge', 'oven', 'sink', 'feast', 'kitchen', 'fridge', 'kitchen']);
+  assert.deepStrictEqual([1, 5, 6, 10, 11].map(d.loopOf), [1, 1, 2, 2, 3]);
+  assert.deepStrictEqual([1, 2, 3, 4, 5, 6, 7].map(n => d.uniquesFor(n)), [[], ['shelf'], ['toaster'], ['bowl'], ['spatula'], ['board'], ['shelf']]);
+  for (const n of [1, 2, 6, 9]) { const tp = d.towerParams(n); assert.strictEqual(tp.theme, d.themeFor(n).id); assert.deepStrictEqual(tp.uniques, d.uniquesFor(n)); }
   // параметры роста
   const p1 = d.towerParams(1), p5 = d.towerParams(5), p9 = d.towerParams(9), p50 = d.towerParams(50);
   assert.strictEqual(p1.rows, 45); assert.strictEqual(p50.rows, 160); assert.strictEqual(p9.dmg, undefined, 'урон не растёт с номером башни');
@@ -26,7 +31,7 @@ const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addCol
   for (const p of P1) assert.ok(p.y === -p.row * d.ROW_H, 'ряд ' + p.row + ' на своей высоте'); // === , а не strictEqual: для ряда 0 сравниваем 0 и −0
   assert.strictEqual(t1.path[0], P1[0].id); assert.strictEqual(t1.path.at(-1), roof.id);
   // правила для башен 1–100
-  const share = { plate: 0, pan: 0, tray: 0, cheese: 0 }, r8 = d.radiusFor(8); let air = 0, links = 0;
+  const BASE = ['plate', 'pan', 'tray', 'cheese'], share = { plate: 0, pan: 0, tray: 0, cheese: 0 }, ushare = { plate: 0, uniq: 0, all: 0 }, r8 = d.radiusFor(8); let air = 0, links = 0;
   for (let N = 1; N <= 100; N++) {
     const t = d.buildTower(N), P = t.platforms, byId = new Map(P.map(p => [p.id, p]));
     for (const p of P) {
@@ -34,7 +39,11 @@ const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addCol
       if (p.type === 'tray') assert.ok(p.x0 - p.w / 2 >= 20 - 1e-9 && p.x1 + p.w / 2 <= 460 + 1e-9, 'башня ' + N + ': поднос не выезжает за поле');
       if (p.type === 'pan') assert.ok(p.row >= 3, 'сковородок нет в рядах 1–2');
       if (p.rest) assert.ok(p.type === 'plate' && p.w === 180, 'площадка отдыха — широкая тарелка');
-      if (!(p.cp || p.roof || p.start || p.rest)) share[p.type]++;
+      if (!BASE.includes(p.type)) assert.ok(t.tp.uniques.includes(p.type), 'башня ' + N + ': уникальность ' + p.type + ' только в своей теме');
+      if (!(p.cp || p.roof || p.start || p.rest)) { // доли: в башнях без уникальностей — прежние, с уникальностью — пятая часть уникальна за счёт тарелок
+        if (t.platforms.some(q => !BASE.includes(q.type))) { ushare.all++; if (p.type === 'plate') ushare.plate++; else if (!BASE.includes(p.type)) ushare.uniq++; }
+        else share[p.type]++;
+      }
     }
     if (N === 1) assert.ok(P.filter(p => p.type === 'tray').every(p => p.speed >= 40 && p.speed <= 70), 'поднос в башне 1 медленный: 40–70 px/с');
     if (N === 1) { assert.ok(!P.some(p => p.type === 'cheese'), 'сыра нет в башне 1'); assert.strictEqual(t.hazards.length, 0, 'в башне 1 опасностей в раскладке нет'); }
@@ -45,7 +54,7 @@ const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addCol
     for (const h of t.hazards) if (h.type === 'knife') {
       const top = h.by - 14 - 40, tip = h.y - 80 + 84;
       for (const p of P) {
-        if (Math.abs(p.y - h.y) > 6 * d.ROW_H) continue;
+        if (Math.abs(p.y - h.y) > 6 * d.ROW_H || p.id === h.board) continue; // нож доски рубит свою доску нарочно — проверка ниже
         const x0 = (p.type === 'tray' ? p.x0 : p.x) - p.w / 2, x1 = (p.type === 'tray' ? p.x1 : p.x) + p.w / 2;
         assert.ok(h.x + 10 < x0 || h.x - 10 > x1 || p.y + 18 < top || p.y - 8 > tip, 'башня ' + N + ': нож не лежит на платформе');
         for (const m of [1, 4, 8]) {
@@ -82,7 +91,40 @@ const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addCol
     assert.ok(t.items.length > 0 && t.items.every(it => d.FOOD_KINDS[it.kind] && !it.dead));
   }
   const typed = share.plate + share.pan + share.tray + share.cheese;
-  assert.ok(Math.abs(share.plate / typed - 0.5) < 0.05, 'простых тарелок около половины: ' + (share.plate / typed).toFixed(2));
+  assert.ok(Math.abs(share.plate / typed - 0.5) < 0.05, 'без уникальностей простых тарелок около половины: ' + (share.plate / typed).toFixed(2));
+  assert.ok(Math.abs(ushare.uniq / ushare.all - 0.2) < 0.05, 'уникальностей около пятой части: ' + (ushare.uniq / ushare.all).toFixed(2));
+  assert.ok(Math.abs(ushare.plate / ushare.all - 0.3) < 0.06, 'в башнях с уникальностью тарелок около 30 %: ' + (ushare.plate / ushare.all).toFixed(2));
+  assert.ok([2, 7, 12].every(n => d.buildTower(n).platforms.some(p => p.type === 'shelf')), 'в холодильнике есть полки');
+  // доска с ножом — в кухне со второго круга (спека v2.2a §6.5): ширина 180, нож у конца ближе к стене в 65 px от центра;
+  // центр доски безопасен для масс 1, 4 и 8, у ножа — удар
+  assert.ok([6, 11].every(n => d.buildTower(n).platforms.some(p => p.type === 'board')) && !d.buildTower(1).platforms.some(p => p.type === 'board'), 'доски в кухне со второго круга');
+  for (const n of [6, 11, 16, 21]) { const t = d.buildTower(n);
+    for (const b of t.platforms.filter(p => p.type === 'board')) {
+      const ks = t.hazards.filter(h => h.board === b.id); assert.strictEqual(ks.length, 1, 'у доски один нож'); const k = ks[0];
+      assert.strictEqual(b.w, 180); assert.strictEqual(k.x, b.x + (b.x < 240 ? -65 : 65), 'нож у конца доски ближе к стене');
+      const inStrike = (x, R) => { for (let ky = k.by; ky <= k.y - 80; ky += 2) if (Math.abs(x - k.x) < R + 8 && Math.abs(b.y - R - (ky + 40)) < R + 40) return true; return false; };
+      for (const m of [1, 4, 8]) assert.ok(!inStrike(b.x, d.radiusFor(m)), 'башня ' + n + ': центр доски безопасен, масса ' + m);
+      assert.ok(inStrike(k.x, d.radiusFor(4)), 'башня ' + n + ': у ножа доски — удар'); } }
+  // миски — в раковине; миска на пути стоит только там, где до следующей платформы пути хватает одного прыжка (массы 1, 4, 8)
+  assert.ok([4, 9].every(n => d.buildTower(n).platforms.some(p => p.type === 'bowl')), 'в раковине есть миски');
+  for (let N = 1; N <= 60; N++) { const t = d.buildTower(N), by = new Map(t.platforms.map(p => [p.id, p]));
+    t.path.forEach((id, i) => { const p = by.get(id); if (p.type !== 'bowl' || i + 1 >= t.path.length) return; const nx = by.get(t.path[i + 1]);
+      for (const m of [1, 4, 8]) { const r = d.radiusFor(m); assert.ok(!d.jumpPlan(p.x, p.y - r, r, nx.x, nx.y).double, 'башня ' + N + ': из миски до следующей платформы пути — один прыжок'); } }); }
+  // тостер в духовке, лопатка на праздничном столе; столб подброса над ними свободен от лопастей и ножей для масс 1, 4 и 8
+  assert.ok([3, 8].every(n => d.buildTower(n).platforms.some(p => p.type === 'toaster')) && [5, 10].every(n => d.buildTower(n).platforms.some(p => p.type === 'spatula')), 'тостеры и лопатки в своих темах');
+  // тостер и лопатка на пути: полёт от вершины подброса к четырём следующим платформам пути тоже мимо лопастей
+  for (let N = 1; N <= 40; N++) { const t = d.buildTower(N), by = new Map(t.platforms.map(p => [p.id, p]));
+    t.path.forEach((id, i) => { const p = by.get(id); if (p.type !== 'toaster' && p.type !== 'spatula') return;
+      for (const m of [1, 4, 8]) { const R = d.radiusFor(m), ay = p.y - d.LAUNCH_H - R;
+        for (let j = i + 1; j <= Math.min(t.path.length - 1, i + 4); j++) { const b = by.get(t.path[j]);
+          for (const [x, y] of d.flightPath(p.x, ay, R, b.x, b.y)) for (const h of t.hazards) if (h.type === 'blades')
+            assert.ok(Math.hypot(x - h.x, y - h.y) >= R + d.BLADES_R, 'башня ' + N + ': после подброса ' + p.type + ' полёт мимо лопастей'); } } }); }
+  for (let N = 1; N <= 40; N++) { const t = d.buildTower(N);
+    for (const p of t.platforms.filter(q => q.type === 'toaster' || q.type === 'spatula')) for (const m of [1, 4, 8]) { const R = d.radiusFor(m);
+      for (let y = p.y - R; y >= p.y - R - d.LAUNCH_H; y -= 8) for (const h of t.hazards) {
+        if (h.type === 'blades') assert.ok(Math.hypot(p.x - h.x, y - h.y) >= R + d.BLADES_R, 'башня ' + N + ': столб подброса мимо лопастей');
+        if (h.type === 'knife') for (let ky = h.by; ky <= h.y - 80; ky += 4) assert.ok(!(Math.abs(p.x - h.x) < R + 8 && Math.abs(y - (ky + 40)) < R + 40), 'башня ' + N + ': столб подброса мимо ножа');
+      } } }
   assert.ok(air / links > 0.1, 'прыжок в воздухе нужен регулярно: ' + (air / links).toFixed(2));
   // в первых 10 башнях есть все типы
   const all = []; for (let N = 1; N <= 10; N++) all.push(d.buildTower(N));

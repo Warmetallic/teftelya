@@ -1,7 +1,7 @@
 'use strict';
 // ---------- точка входа: загрузка, ввод, пауза, реклама между забегами, цикл ----------
 const AD_INTERVAL = 180; // секунд между межстраничными показами — свой лимит поверх лимитов Яндекса
-const TAP_TEFA_K = 1.3;   // тап ближе 1.3·r к центру Тефы попадает «по Тефе»: ≈ 1.1 видимого радиуса (тело шире коллизии в 1.25 раза)
+const BZ_TAP = 12;        // кнопка берсерка ловит тап чуть шире своего круга
 let booted = false, paused = false, awaitTap = false, adBusy = false;
 let plays = 0, lastAdAt = 0, sessionT = 0; // lastAdAt = 0: первые AD_INTERVAL секунд сессии без межстраничной — осознанная отсрочка
 async function boot() {
@@ -57,11 +57,10 @@ function onTap(x, y) {
   if (!booted || adBusy || paused) return;
   audio();
   if (awaitTap) { awaitTap = false; YG.gameplayStart(); return; } // первый тап после паузы — не прыжок
-  if (state === 'play') { // тап по Тефе при полной шкале — суперсила, иначе прыжок в точку (тап по боковой зоне = у края поля)
+  if (state === 'play') { // тап по кнопке берсерка (видна при полной шкале) — суперсила, иначе прыжок в точку (тап по боковой зоне = у края поля)
     if (!ball.alive) return;
-    const wx = clamp(x, 0, W), wy = y + camY;
-    if (powerReady() && Math.hypot(wx - ball.x, wy - ball.y) <= Math.max(30, TAP_TEFA_K * ball.r)) { tryActivatePower(); return; }
-    jumpTo(wx, wy); return;
+    if (powerReady() && Math.hypot(x - BZ_BTN.x, y - BZ_BTN.y) <= BZ_BTN.r + BZ_TAP) { tryActivatePower(); return; }
+    jumpTo(clamp(x, 0, W), y + camY); return;
   }
   if (state !== 'title' && tGame < 0.6) return;
   const b = hitButton(x, y); if (!b) return;
@@ -114,3 +113,16 @@ expose({ get paused() { return paused; }, get awaitTap() { return awaitTap; }, g
 function startBoot() { if (!DBG.boot) DBG.boot = boot().catch(e => { console.error('boot failed', e); booted = true; if (!tower) startTower(1, 0); state = 'title'; YG.ready(); }); return DBG.boot; }
 expose({ startBoot });
 if (!CFG.manualBoot) startBoot();
+// ?camdbg — ползунки камеры для подбора ощущения на плейтесте; найденные числа потом переносятся в CAM (game.js)
+function camDebugPanel() {
+  const box = document.createElement('div');
+  box.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:9;background:rgba(0,0,0,.75);color:#fff;font:13px system-ui;padding:8px 10px;border-radius:8px';
+  for (const [k, min, max, step, label] of [['smooth', 0.05, 1, 0.01, 'плавность, с'], ['anchor', 0.4, 0.8, 0.01, 'где стоит Тефа (доля экрана сверху)'], ['win', 0, 0.4, 0.01, 'окно сверху (доля экрана)']]) {
+    const row = document.createElement('label'), inp = document.createElement('input'), val = document.createElement('span');
+    row.style.cssText = 'display:block;margin:2px 0'; inp.type = 'range'; inp.min = min; inp.max = max; inp.step = step; inp.value = CAM[k]; inp.style.verticalAlign = 'middle';
+    const show = () => { val.textContent = ' ' + label + ': ' + CAM[k]; }; inp.oninput = () => { CAM[k] = +inp.value; show(); }; show();
+    row.append(inp, val); box.append(row);
+  }
+  document.body.append(box);
+}
+if (typeof location !== 'undefined' && /camdbg/.test(location.search)) camDebugPanel();

@@ -1,10 +1,11 @@
 // node tools/test_render.js — рендер и экраны не падают на proxy-контексте; тексты HUD, титула, смерти и финиша; локализация
 const assert = require('assert');
 const noop = () => {};
-const texts = [], styles = [], dashes = [], glows = []; // styles: цвета заливки и обводки; dashes: setLineDash; glows: shadowBlur > 0
+const texts = [], styles = [], dashes = [], glows = [], rects = []; // styles: цвета заливки и обводки; dashes: setLineDash; glows: shadowBlur > 0; rects: fillRect с текущей заливкой
+let fill = '';
 const ctx = new Proxy({}, { get: (t, k) => k === 'fillText' ? s => texts.push(String(s)) : k === 'setLineDash' ? a => dashes.push(a)
-    : /Gradient$/.test(k) ? () => ({ addColorStop: noop }) : noop,
-  set: (t, k, v) => { if (k === 'fillStyle' || k === 'strokeStyle') styles.push(String(v)); if (k === 'shadowBlur' && v > 0) glows.push(v); return true; } });
+    : k === 'fillRect' ? (x, y, w, h) => rects.push({ x, y, w, h, fill }) : /Gradient$/.test(k) ? () => ({ addColorStop: noop }) : noop,
+  set: (t, k, v) => { if (k === 'fillStyle' || k === 'strokeStyle') styles.push(String(v)); if (k === 'fillStyle') fill = String(v); if (k === 'shadowBlur' && v > 0) glows.push(v); return true; } });
 (async () => {
   for (const size of [[480, 854], [1280, 720]]) {
     const g = require('./_env')(ctx, { width: size[0], height: size[1] }); const d = g.dbg(); await d.YG.init(); await d.loadSave();
@@ -30,6 +31,13 @@ const ctx = new Proxy({}, { get: (t, k) => k === 'fillText' ? s => texts.push(St
   // титул: башня, тема, кнопка «Играть»; с чекпоинтом — строка чекпоинта
   texts.length = 0; d.state = 'title'; d.titleScreen(); assert.ok(texts.includes('Башня 1') && texts.includes('Кухня')); assert.deepStrictEqual(d.buttons.map(b => b.id), ['play']);
   d.save.cp = 1; texts.length = 0; d.titleScreen(); assert.ok(texts.includes('Чекпоинт 1')); d.save.cp = 0;
+  // темы (спека v2.2a §5): фон каждой темы рисуется, на титуле её название; при старте башни плашка «Башня N · Тема» на 1.5 с
+  for (let n = 1; n <= 6; n++) { d.startTower(n); d.state = 'title'; d.drawBg(); d.drawWorld(); d.drawBand(); texts.length = 0; d.titleScreen(); assert.ok(texts.includes(d.T('theme.' + d.themeFor(n).id)), 'на титуле тема башни ' + n); }
+  d.startTower(2); d.state = 'play'; texts.length = 0; d.drawHUD(); assert.ok(texts.includes('Башня 2 · Холодильник'), 'плашка темы при старте');
+  for (let i = 0; i < 100; i++) d.update(0.016); texts.length = 0; d.drawHUD(); assert.ok(!texts.some(t => t.includes(' · ')), 'через 1.6 с плашки нет');
+  for (const [lang, want] of [['en', 'Tower 2 · Fridge'], ['tr', 'Kule 2 · Buzdolabı']]) { d.setLang(lang); d.startTower(2); d.state = 'play'; texts.length = 0; d.drawHUD(); assert.ok(texts.includes(want), lang + ': плашка ' + want); }
+  d.setLang('ru');
+  d.startTower(1);
   // HUD: шкала силы, монеты, башня; панели серии и иконок массы нет; при лимите больше одного — остаток берсерков
   d.state = 'play'; d.setRunCoins(12); d.powerAdd(12); texts.length = 0; d.drawHUD(); assert.ok(texts.includes('● 12') && texts.includes('Башня 1'));
   assert.ok(!texts.some(t => /Серия|Streak/.test(t)), 'панели серии нет'); assert.ok(!texts.some(t => t.startsWith('×')), 'при лимите 1 число не пишется');
@@ -76,6 +84,10 @@ const ctx = new Proxy({}, { get: (t, k) => k === 'fillText' ? s => texts.push(St
   assert.deepStrictEqual(d.buttons.map(b => b.id), ['double', 'next']);
   d.doubleCoins(); texts.length = 0; d.finishScreen(true); assert.deepStrictEqual(d.buttons.map(b => b.id), ['next']); assert.ok(texts.some(t => t.includes('×2')));
   d.startTower(1); d.state = 'play'; d.run.deaths = 1; d.run.foodEaten = d.run.foodTotal; d.finishTower(); texts.length = 0; d.finishScreen(true); assert.ok(texts.includes('A') && texts.some(t => t.startsWith('✗ Без смертей')));
+  // названия тем на трёх языках
+  for (const lang of ['ru', 'en', 'tr']) { d.setLang(lang); for (const id of ['kitchen', 'fridge', 'oven', 'sink', 'feast']) assert.ok(d.T('theme.' + id) && d.T('theme.' + id) !== 'theme.' + id, lang + ': название темы ' + id); }
+  d.setLang('ru');
+  assert.deepStrictEqual(['kitchen', 'fridge', 'oven', 'sink', 'feast'].map(id => d.T('theme.' + id)), ['Кухня', 'Холодильник', 'Духовка', 'Раковина', 'Праздничный стол']);
   // локализация и тексты без гендерных форм
   d.setLang('en'); texts.length = 0; d.finishScreen(true); assert.ok(texts.includes('Tower 1 cleared!'));
   d.setLang('tr'); texts.length = 0; d.deadScreen(true); assert.ok(texts.includes('Pat!'));
@@ -105,5 +117,11 @@ const ctx = new Proxy({}, { get: (t, k) => k === 'fillText' ? s => texts.push(St
   }
   assert.strictEqual(rebakes, 0, 'частое тело не вытесняется из кэша');
   delete document.createElement;
+  // высокий телефон 390×844: поле короче экрана, под ним виден фон — полоса продолжается сплошной заливкой своего
+  // нижнего цвета до низа экрана, а не висит над плиткой (финальное ревью v2.2a)
+  { const g3 = require('./_env')(ctx, { width: 390, height: 844 }); const d3 = g3.dbg(); await d3.YG.init(); await d3.loadSave();
+    const b = d3.fieldBounds(); assert.ok(b.y1 > 854 + 50, 'экран выше поля: ' + b.y1);
+    for (let n = 1; n <= 5; n++) { d3.startTower(n); rects.length = 0; d3.drawBg(); const bottom = (d3.BAND_BOTTOM || {})[d3.themeFor(n).id];
+      assert.ok(bottom && rects.some(r => r.fill === bottom && r.y <= 854 + 1 && r.y + r.h >= b.y1 - 1 && r.x <= 0 && r.x + r.w >= 480), 'под полем заливка полосы, башня ' + n); } }
   console.log('test_render ok');
 })().catch(e => { console.error(e); process.exit(1); });
