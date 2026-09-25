@@ -34,6 +34,22 @@ function drawPlatform(p) {
     ctx.fillStyle = `rgba(255,${(90 - heat * 60) | 0},20,${0.15 + heat * 0.6})`; ctx.beginPath(); ctx.ellipse(p.x, y + 8, p.w / 2 - 14, 9, 0, 0, 7); ctx.fill();
     ctx.strokeStyle = '#3d3734'; ctx.lineWidth = 8; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(p.x + p.w / 2, y + 8); ctx.lineTo(p.x + p.w / 2 + 40, y + 2); ctx.stroke(); // ручка
     if (heat > 0.3) { ctx.fillStyle = `rgba(255,255,255,${(heat - 0.3) * 0.4})`; for (let i = 0; i < 3; i++) { const t = (tGame * 1.5 + i * 0.33) % 1; ctx.beginPath(); ctx.arc(p.x - 20 + i * 20 + Math.sin(t * 6) * 6, y - 10 - t * 40, 6 + t * 6, 0, 7); ctx.fill(); } } // дымок
+  } else if (p.type === 'cheese') { // ломтик сыра: жёлтый с дырками; крошится — дрожит; пропал — пунктир до возврата
+    if (p.gone) { ctx.strokeStyle = 'rgba(246,195,67,0.3)'; ctx.lineWidth = 2; ctx.setLineDash([6, 6]); rrect(p.x - p.w / 2, y - 4, p.w, 16, 5); ctx.stroke(); ctx.setLineDash([]); return; }
+    const sh = p.crumbleT > 0 ? Math.sin(tGame * 60) * 2 : 0;
+    ctx.save(); ctx.translate(p.x + sh, y);
+    ctx.fillStyle = '#f6c343'; rrect(-p.w / 2, -4, p.w, 16, 5); ctx.fill();
+    ctx.fillStyle = '#dca531'; rrect(-p.w / 2, 7, p.w, 5, 3); ctx.fill(); // корочка снизу
+    ctx.fillStyle = '#c98f22'; for (const [hx, hy, hr] of [[-0.3, 3, 4], [0.05, 1, 3], [0.32, 4, 3.5]]) { ctx.beginPath(); ctx.arc(hx * p.w, hy, hr, 0, 7); ctx.fill(); } // дырки
+    if (p.crumbleT > 0) { // крошится: трещины и крошки сыплются вниз, чтобы и на стоп-кадре было видно
+      const k = 1 - p.crumbleT / CHEESE_T;
+      ctx.strokeStyle = '#8a5f14'; ctx.lineWidth = 1.5; ctx.beginPath();
+      ctx.moveTo(-p.w * 0.12, -4); ctx.lineTo(-p.w * 0.05, 4); ctx.lineTo(-p.w * 0.1, 12); ctx.moveTo(p.w * 0.2, -4); ctx.lineTo(p.w * 0.14, 5); ctx.stroke();
+      ctx.fillStyle = '#f6c343'; ctx.globalAlpha = 1 - 0.6 * k;
+      for (let i = 0; i < 6; i++) ctx.fillRect(((i * 0.37 + 0.1) % 1 - 0.5) * p.w * 0.9 - 2, 14 + k * (18 + i * 5), 4, 4);
+      ctx.globalAlpha = 1;
+    }
+    ctx.restore();
   } else { // поднос
     ctx.fillStyle = '#b08d5a'; rrect(p.x - p.w / 2, y - 4, p.w, 18, 6); ctx.fill();
     ctx.fillStyle = '#8a6a3e'; rrect(p.x - p.w / 2 + 6, y, p.w - 12, 10, 4); ctx.fill();
@@ -42,26 +58,61 @@ function drawPlatform(p) {
 }
 function drawHazard(h) {
   if (h.gone) return; const y = h.y - camY; if (y < -320 || y > H + 320) return;
-  if (h.type === 'oil') {
-    ctx.fillStyle = '#6d6d6d'; ctx.beginPath(); ctx.ellipse(h.x, y, 22, 10, 0, 0, 7); ctx.fill(); // половник
-    ctx.strokeStyle = '#6d6d6d'; ctx.lineWidth = 6; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(h.x + 18, y - 4); ctx.lineTo(h.x + 60, y - 30); ctx.stroke();
-    ctx.fillStyle = '#f2c94c';
-    for (const dr of h.drops) {
-      const dy = dr.y - camY;
-      if (dr.splat > 0) { ctx.globalAlpha = clamp(dr.splat * 2, 0, 1); ctx.beginPath(); ctx.ellipse(h.x, dy + 6, 18, 5, 0, 0, 7); ctx.fill(); ctx.globalAlpha = 1; }
-      else { ctx.beginPath(); ctx.moveTo(h.x, dy - 14); ctx.quadraticCurveTo(h.x + 9, dy, h.x, dy + 8); ctx.quadraticCurveTo(h.x - 9, dy, h.x, dy - 14); ctx.fill(); }
-    }
-  } else if (h.type === 'knife') {
+  if (h.type === 'knife') {
     const ky = knifeY(h) - camY, wind = h.phase === 'wind';
+    ctx.save();
+    if (wind) { // замах (вариант A листа design_warn_round1): нож дрожит и вспыхивает красным — сейчас ударит
+      ctx.translate(h.x, ky + 40); ctx.rotate(Math.sin(tGame * 45) * 0.07); ctx.translate(-h.x, -(ky + 40));
+      ctx.shadowColor = 'rgba(255,60,40,0.95)'; ctx.shadowBlur = 16;
+    }
     ctx.fillStyle = '#5a3b22'; rrect(h.x - 7, ky - 40, 14, 40, 4); ctx.fill(); // рукоять
     ctx.fillStyle = wind ? '#ffffff' : '#d8dde3'; ctx.beginPath(); ctx.moveTo(h.x - 8, ky); ctx.lineTo(h.x + 8, ky); ctx.lineTo(h.x + 6, ky + 70); ctx.lineTo(h.x, ky + 84); ctx.lineTo(h.x - 6, ky + 70); ctx.closePath(); ctx.fill();
-    if (wind) { ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 2; ctx.setLineDash([6, 6]); ctx.beginPath(); ctx.moveTo(h.x, ky + 90); ctx.lineTo(h.x, y - 10); ctx.stroke(); ctx.setLineDash([]); } // замах: линия удара
+    ctx.strokeStyle = wind ? '#ff5a36' : 'rgba(255,90,54,0.55)'; ctx.lineWidth = 2; ctx.stroke(); // оранжево-красная кромка: опасно (спека v2.1.1 §8)
+    ctx.shadowBlur = 0;
+    if (wind) { ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.fillRect(h.x - 2, ky + 6, 3, 52); } // блик на лезвии
+    ctx.restore();
   } else if (h.type === 'blades') {
     ctx.save(); ctx.translate(h.x, y); ctx.rotate(h.ang);
-    ctx.fillStyle = '#c8ccd2';
-    for (let i = 0; i < 3; i++) { ctx.rotate(Math.PI * 2 / 3); ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(BLADES_R + 8, -10); ctx.lineTo(BLADES_R + 8, 10); ctx.closePath(); ctx.fill(); }
-    ctx.fillStyle = '#4a4a4a'; ctx.beginPath(); ctx.arc(0, 0, 10, 0, 7); ctx.fill();
+    const halo = ctx.createRadialGradient(0, 0, BLADES_R * 0.4, 0, 0, BLADES_R + 24); // зона задевания — красный ореол (вариант A)
+    halo.addColorStop(0, 'rgba(255,90,54,0.35)'); halo.addColorStop(1, 'rgba(255,90,54,0)');
+    ctx.fillStyle = halo; ctx.beginPath(); ctx.arc(0, 0, BLADES_R + 24, 0, 7); ctx.fill();
+    ctx.fillStyle = '#c8ccd2'; ctx.strokeStyle = '#ff5a36'; ctx.lineWidth = 2;
+    for (let i = 0; i < 3; i++) { ctx.rotate(Math.PI * 2 / 3); ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(BLADES_R + 8, -10); ctx.lineTo(BLADES_R + 8, 10); ctx.closePath(); ctx.fill(); ctx.stroke(); }
+    ctx.fillStyle = '#ff5a36'; ctx.beginPath(); ctx.arc(0, 0, 11, 0, 7); ctx.fill(); // оранжево-красная ступица
+    ctx.fillStyle = '#4a4a4a'; ctx.beginPath(); ctx.arc(0, 0, 5, 0, 7); ctx.fill();
     ctx.restore();
+  }
+}
+// масло сверху (спека v2.1.1 §7.2): половник повара у верхнего края, столб красного света, горячие капли, шипящие пятна
+function drawPours() {
+  for (const p of pours) {
+    const tilt = p.warnT > 0 ? (1 - clamp(p.warnT / POUR_WARN, 0, 1)) * 0.35 : 0.35; // черпак опрокидывается к столбу за время предупреждения
+    if (p.warnT > 0) { // куда польётся — столб мягкого красного света от черпака, гаснет книзу и пульсирует (вариант A)
+      const y0 = LADLE_Y + 10, k = 0.75 + 0.25 * Math.sin(tGame * 12) ** 2;
+      const beam = ctx.createLinearGradient(0, y0, 0, H);
+      beam.addColorStop(0, `rgba(255,90,54,${0.42 * k})`); beam.addColorStop(0.55, `rgba(255,90,54,${0.14 * k})`); beam.addColorStop(1, 'rgba(255,90,54,0)');
+      ctx.fillStyle = beam; ctx.fillRect(p.x - 16, y0, 32, H - y0);
+      const core = ctx.createLinearGradient(0, y0, 0, H); core.addColorStop(0, `rgba(255,215,170,${0.55 * k})`); core.addColorStop(0.5, 'rgba(255,215,170,0)');
+      ctx.fillStyle = core; ctx.fillRect(p.x - 3, y0, 6, H - y0);
+    }
+    ctx.save(); ctx.translate(p.x, LADLE_Y); ctx.scale(p.x > W / 2 ? -1 : 1, 1); ctx.rotate(-tilt); // черпак над столбом, ручка к середине экрана и вверх: не залезает на счёт и край
+    ctx.strokeStyle = '#8d8d95'; ctx.lineWidth = 7; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(16, -6); ctx.lineTo(56, -16); ctx.stroke();
+    ctx.fillStyle = '#b8bcc4'; ctx.beginPath(); ctx.ellipse(0, 0, 22, 14, 0, 0, Math.PI); ctx.fill(); // чаша
+    ctx.fillStyle = '#ff9a2a'; ctx.beginPath(); ctx.ellipse(0, 0, 20, 6, 0, 0, 7); ctx.fill(); // горячее масло в черпаке
+    ctx.restore();
+  }
+  for (const dr of drops) { // горячая капля: оранжевая со свечением и бликом
+    const y = dr.y - camY, g = ctx.createRadialGradient(dr.x, y, 2, dr.x, y, 18);
+    g.addColorStop(0, 'rgba(255,170,60,0.55)'); g.addColorStop(1, 'rgba(255,120,30,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(dr.x, y, 18, 0, 7); ctx.fill();
+    ctx.fillStyle = '#ff9a2a'; ctx.beginPath(); ctx.moveTo(dr.x, y - 16); ctx.quadraticCurveTo(dr.x + 9, y, dr.x, y + 8); ctx.quadraticCurveTo(dr.x - 9, y, dr.x, y - 16); ctx.fill();
+    ctx.fillStyle = 'rgba(255,240,200,0.8)'; ctx.beginPath(); ctx.ellipse(dr.x - 2.5, y - 2, 2, 4, 0.3, 0, 7); ctx.fill();
+  }
+  for (const s of splats) { // шипящее пятно с пузырьками, гаснет за SPLAT_T
+    const x = s.p.x + s.dx, y = s.p.y - camY, a = clamp(s.t / SPLAT_T, 0, 1);
+    ctx.fillStyle = `rgba(255,140,40,${0.75 * a})`; ctx.beginPath(); ctx.ellipse(x, y + 2, SPLAT_W / 2, 5, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = `rgba(255,230,170,${0.8 * a})`;
+    for (let i = 0; i < 3; i++) { const t = (tGame * 3 + i / 3) % 1; ctx.beginPath(); ctx.arc(x - 10 + i * 10, y - t * 12, 2 + t * 2, 0, 7); ctx.fill(); }
   }
 }
 function drawFly(f) {
@@ -82,18 +133,22 @@ function drawItem(it) {
   const x = it.x, y = it.y - camY; if (y < -40 || y > H + 40) return;
   const wob = Math.sin(tGame * 4 + it.seed) * 3;
   ctx.save(); ctx.translate(x, y + wob);
-  if (it.kind === 'ketchup') {
-    ctx.fillStyle = '#e3342f'; ctx.beginPath();
-    ctx.moveTo(0, -18); ctx.bezierCurveTo(14, -2, 15, 10, 0, 16); ctx.bezierCurveTo(-15, 10, -14, -2, 0, -18); ctx.fill();
-    ctx.fillStyle = 'rgba(255,255,255,0.45)'; ctx.beginPath(); ctx.ellipse(-4, 2, 3, 6, 0.4, 0, 7); ctx.fill();
+  if (it.kind === 'ketchup') { // ломтик помидора с семенами и хвостиком: не путается с красной каплей опасности (спека v2.1.1 §8)
+    ctx.fillStyle = '#d93a2b'; ctx.beginPath(); ctx.arc(0, 0, 15, 0, 7); ctx.fill();
+    ctx.fillStyle = '#f07a5e'; ctx.beginPath(); ctx.arc(0, 0, 11.5, 0, 7); ctx.fill(); // мякоть
+    ctx.fillStyle = '#ffd28a'; for (let i = 0; i < 4; i++) { const a = i * Math.PI / 2 + 0.4; ctx.beginPath(); ctx.ellipse(Math.cos(a) * 6, Math.sin(a) * 6, 3.2, 2, a, 0, 7); ctx.fill(); } // семена в камерах
+    ctx.fillStyle = '#d93a2b'; ctx.beginPath(); ctx.arc(0, 0, 2.5, 0, 7); ctx.fill(); // серединка
+    ctx.fillStyle = '#4caf50'; ctx.beginPath(); ctx.ellipse(-3, -15, 5, 2.2, -0.5, 0, 7); ctx.ellipse(3, -15, 5, 2.2, 0.5, 0, 7); ctx.fill(); // хвостик
   } else if (it.kind === 'pasta') {
     ctx.strokeStyle = '#f6c343'; ctx.lineWidth = 6; ctx.lineCap = 'round'; ctx.beginPath();
     for (let i = 0; i <= 24; i++) { const t = i / 24; const px = -16 + t * 32, py = Math.sin(t * Math.PI * 4) * 8; i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); }
     ctx.stroke(); ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 2; ctx.stroke();
-  } else {
-    ctx.fillStyle = '#b5452b'; ctx.beginPath(); ctx.ellipse(0, 0, 22, 16, -0.3, 0, 7); ctx.fill();
-    ctx.fillStyle = '#f3e0c8'; ctx.beginPath(); ctx.ellipse(6, -4, 7, 4, -0.3, 0, 7); ctx.fill();
-    ctx.strokeStyle = '#f3e0c8'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(-14, 6); ctx.quadraticCurveTo(-4, 2, 4, 9); ctx.stroke();
+  } else { // кусочек мяса на косточке: раньше овал с полосой читался как хмурое лицо
+    ctx.strokeStyle = '#f3e6d0'; ctx.lineWidth = 6; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(4, 4); ctx.lineTo(18, 13); ctx.stroke(); // косточка
+    ctx.fillStyle = '#f3e6d0'; ctx.beginPath(); ctx.arc(20, 10, 4.2, 0, 7); ctx.arc(17, 17, 4.2, 0, 7); ctx.fill(); // головка кости
+    ctx.fillStyle = '#b5452b'; ctx.beginPath(); ctx.ellipse(-5, -3, 16, 13, -0.4, 0, 7); ctx.fill(); // мясо
+    ctx.fillStyle = '#d9705a'; ctx.beginPath(); ctx.ellipse(-9, -7, 7, 4, -0.4, 0, 7); ctx.fill(); // блик
+    ctx.strokeStyle = 'rgba(255,230,210,0.45)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(-5, -3, 9, 0.5, 2.0); ctx.stroke(); // волокна
   }
   ctx.restore();
 }
@@ -102,28 +157,43 @@ function chunk(x, y, rx, ry) { // кусок фарша (частицы урон
   g.addColorStop(0, '#e89a6c'); g.addColorStop(0.5, '#c0583a'); g.addColorStop(1, '#833218');
   ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, 7); ctx.fill();
 }
+// Тефа сама показывает жизни (спека v2.1.1 §3.2): укусы, лицо, мигание последнего куска, заживление; ободка больше нет
 function drawTefaBall() {
-  const x = ball.x, y = ball.y - camY, bz = isBerserk(), r = ball.r * (bz ? 1.6 : 1);
+  const bz = isBerserk(), r = ball.r * (bz ? 1.6 : 1);
+  const x = ball.x, y = ball.y - camY + ball.r - r; // берсерк крупнее от нижней точки: низ Тефы остаётся на платформе
   const st = tower ? platformById(tower.platforms, ball.onPlatform) : null;
   if (st) { ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(x, st.y - camY + 6, r * 0.9, 8, 0, 0, 7); ctx.fill(); } // тень на платформе
   const pose = { sx: 1 + ball.sq, sy: 1 - ball.sq, tilt: ball.tilt, face: ball.face, mouth: ball.mouth, blink: ball.blink > 0, hot: ball.hot, berserk: bz,
-    alpha: run && run.invuln > 0 && Math.floor(tGame * 12) % 2 === 0 ? 0.45 : 1 };
-  ctx.save(); ctx.strokeStyle = 'rgba(255,230,200,0.35)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(x, y - r * 0.08, r * 1.27, r * 1.1, 0, 0, 7); ctx.stroke(); ctx.restore(); // светлый ободок по силуэту (тело шире, чем выше), иначе прячется под телом: Тефа не сливается с тёмной кухней
+    alpha: run && run.invuln > 0 && Math.floor(tGame * 12) % 2 === 0 ? 0.45 : 1,
+    hp: { cur: ball.mass, max: massMax() }, charged: powerReady(),
+    tint: ball.mass === 1 ? 0.5 + 0.5 * Math.sin(tGame * Math.PI * 3) : 0, // последний кусок мигает ≈ 1.5 раза в секунду
+    heal: ball.healT > 0 ? 1 - ball.healT / HEAL_T : 0,
+    bake: radiusFor(ball.mass) * (bz ? 1.6 : 1) }; // кэш тела печётся под целевой радиус массы, пока ball.r его догоняет
   drawTefa(ctx, x, y, r, pose);
-  const cm = chargesMax(); // заряды над головой
-  for (let i = 0; i < cm; i++) { ctx.fillStyle = i < ball.charges ? '#f6c343' : 'rgba(255,255,255,0.2)'; ctx.beginPath(); ctx.arc(x - (cm - 1) * 7 + i * 14, y - r * 1.16 - 14, 4, 0, 7); ctx.fill(); }
+  const cm = chargesMax(), top = y - r * 1.16 - 14 - (bz ? r * 0.55 : 0); // заряды над головой; в берсерке выше пламени
+  for (let i = 0; i < cm; i++) { ctx.fillStyle = i < ball.charges ? '#f6c343' : 'rgba(255,255,255,0.2)'; ctx.beginPath(); ctx.arc(x - (cm - 1) * 7 + i * 14, top, 4, 0, 7); ctx.fill(); }
 }
-function drawHUD() {
-  const mm = massMax();
-  for (let i = 0; i < mm; i++) { // масса как здоровье
-    const x = 24 + i * 22, y = 34; ctx.fillStyle = i < ball.mass ? '#c0583a' : 'rgba(255,255,255,0.15)'; ctx.beginPath(); ctx.arc(x, y, 8, 0, 7); ctx.fill();
-    if (i < ball.mass) { ctx.fillStyle = 'rgba(255,230,200,0.5)'; ctx.beginPath(); ctx.arc(x - 3, y - 3, 3, 0, 7); ctx.fill(); }
+// шкала суперсилы сверху слева (спека v2.1.1 §3.3): копится оранжевой, полна — золотая и пульсирует, в берсерке показывает
+// остаток его времени, исчерпана — серая; при лимите больше одного справа остаток берсерков
+function drawPowerMeter() {
+  const x = 40, y = 30, w = 140, h = 10, bz = isBerserk(), spent = powerSpent() && !bz, ready = powerReady();
+  // сила золотая, опасность оранжево-красная (спека v2.1.1 §8): значок-молния, а не капля, чтобы шкалу не путали с маслом
+  ctx.save(); ctx.translate(22, y + 5);
+  ctx.fillStyle = spent ? 'rgba(255,255,255,0.25)' : ready || bz ? '#ffe08a' : '#e8b030';
+  ctx.beginPath(); ctx.moveTo(3, -11); ctx.lineTo(-6, 1); ctx.lineTo(-1, 1); ctx.lineTo(-3, 11); ctx.lineTo(6, -2); ctx.lineTo(1, -2); ctx.closePath(); ctx.fill();
+  ctx.restore();
+  ctx.fillStyle = 'rgba(255,255,255,0.15)'; rrect(x, y, w, h, 5); ctx.fill();
+  const frac = bz ? power.berserkT / berserkDur() : spent ? 0 : clamp(power.v / POWER_FULL, 0, 1);
+  if (frac > 0) {
+    ctx.save();
+    if (ready) { ctx.shadowColor = 'rgba(255,220,120,0.9)'; ctx.shadowBlur = 8 + 8 * (0.5 + 0.5 * Math.sin(tGame * 8)); }
+    ctx.fillStyle = bz ? '#fff0b8' : ready ? '#ffe08a' : '#e8b030'; rrect(x, y, w * frac, h, 5); ctx.fill(); // копится, готова, берсерк тает
+    ctx.restore();
   }
-  const bz = isBerserk(), frac = bz ? streak.berserkT / berserkDur() : clamp(streak.n / berserkThreshold(), 0, 1); // серия / берсерк
-  ctx.fillStyle = 'rgba(255,255,255,0.15)'; rrect(16, 50, 150, 10, 5); ctx.fill();
-  if (frac > 0) { ctx.fillStyle = bz ? '#ffe08a' : '#8ff0a4'; rrect(16, 50, 150 * frac, 10, 5); ctx.fill(); }
-  ctx.fillStyle = '#fff'; ctx.font = '700 15px system-ui, sans-serif'; ctx.textAlign = 'left';
-  ctx.fillText(bz ? T('berserk') : T('streak') + ' ' + streak.n, 16, 80);
+  if (berserkLimit() > 1) { ctx.fillStyle = '#fff'; ctx.font = '700 14px system-ui, sans-serif'; ctx.textAlign = 'left'; ctx.fillText('×' + (berserkLimit() - power.used), x + w + 8, y + 10); }
+}
+function drawHUD() { // жизни показывает сама Тефа; здесь шкала силы, монеты, номер башни и прогресс
+  drawPowerMeter();
   ctx.textAlign = 'right'; ctx.font = '700 22px system-ui, sans-serif'; ctx.fillStyle = '#ffe08a'; ctx.fillText('● ' + run.runCoins, W - 16, 40);
   ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.font = '600 15px system-ui, sans-serif'; ctx.fillText(T('tower') + ' ' + tower.tp.N, W - 16, 64);
   const x = W - 14, y0 = 110, y1 = H - 110; // прогресс башни с отметками чекпоинтов
@@ -138,6 +208,7 @@ function drawWorld() { // всё внутри поля; вызывающий с�
   for (const h of tower.hazards) drawHazard(h);
   for (const it of tower.items) if (!it.dead) drawItem(it);
   for (const f of flies) drawFly(f);
+  drawPours();
   if (ball.alive || state === 'title' || state === 'finish') drawTefaBall();
   for (const p of particles) {
     ctx.globalAlpha = clamp(p.t / p.life, 0, 1);
@@ -148,8 +219,9 @@ function drawWorld() { // всё внутри поля; вызывающий с�
   for (const t of texts) {
     const k = t.t; ctx.globalAlpha = 1 - k * k; ctx.fillStyle = t.color; ctx.textAlign = 'center';
     ctx.font = `900 ${t.big ? 30 : 22}px system-ui, sans-serif`;
-    ctx.fillText(t.str, t.x, t.y - camY - k * 70);
+    ctx.lineJoin = 'round'; ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(30,14,8,0.6)'; // тёмная обводка: читается и поверх Тефы
+    ctx.strokeText(t.str, t.x, t.y - camY - k * TEXT_RISE); ctx.fillText(t.str, t.x, t.y - camY - k * TEXT_RISE);
   }
   ctx.globalAlpha = 1;
 }
-expose({ drawBg, drawWorld, drawHUD, drawPlatform, drawHazard, drawFly });
+expose({ drawBg, drawWorld, drawHUD, drawPowerMeter, drawPlatform, drawHazard, drawFly, drawPours, drawItem });

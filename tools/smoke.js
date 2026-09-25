@@ -5,18 +5,11 @@ const { fakeYaGames } = require('./test_sdk');
 const noop = () => {};
 const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addColorStop: noop }) : noop, set: () => true });
 const dist = process.argv.includes('--dist');
+const bot = require('./bot');
 const btn = (d, id) => d.buttons.find(b => b.id === id);
 const steps = (g, n) => { for (let i = 0; i < n; i++) g.step(); };
-// поднимается по ближайшей платформе следующего ряда; god-режим: урон и падение не мешают проверить путь генератора
-function climb(g, d, maxFrames = 20000) {
-  d.setGod(true);
-  for (let i = 0; i < maxFrames && d.state === 'play'; i++) {
-    const p = d.platforms.find(q => q.id === d.ball.onPlatform);
-    if (p && !p.roof) { const next = d.platforms.filter(q => q.row === p.row + 1).sort((a, b) => Math.abs(a.x - p.x) - Math.abs(b.x - p.x))[0]; d.jumpTo(next.x, next.y); }
-    g.step();
-  }
-  d.setGod(false);
-}
+// подъём до крыши по безопасному пути генератора; god-режим: урон и падение не мешают проверить поток экранов
+function climb(g, d) { d.setGod(true); bot.climb(g, d); d.setGod(false); }
 async function runFlow(opts) {
   const g = require('./_env')(ctx, Object.assign({ dist }, opts)); const d = g.dbg();
   g.step(); // кадр до загрузки — экран «Загрузка…» не падает
@@ -25,6 +18,14 @@ async function runFlow(opts) {
   g.tap(240, 100); assert.strictEqual(d.state, 'title', 'тап мимо кнопки не стартует');
   const play = btn(d, 'play'); g.tap(play.x, play.y); await g.flush(); assert.strictEqual(d.state, 'play'); assert.strictEqual(d.YG.log.at(-1), 'start');
   const c0 = d.ball.charges; g.tap(300, 300); assert.strictEqual(d.ball.charges, c0 - 1, 'тап в игре — прыжок');
+  // тап по Тефе (спека v2.1.1 §3.4): при полной шкале — суперсила без траты заряда, и в воздухе тоже;
+  // при неполной шкале, во время берсерка и после исчерпанного лимита — обычный прыжок
+  const tapTefa = () => g.tap(d.ball.x, d.ball.y - d.camY);
+  d.ball.charges = 3; tapTefa(); assert.ok(!d.isBerserk() && d.ball.charges === 2, 'неполная шкала — тап по Тефе остаётся прыжком');
+  d.powerAdd(d.POWER_FULL); assert.strictEqual(d.ball.onPlatform, null, 'Тефа в воздухе');
+  { const c1 = d.ball.charges; tapTefa(); assert.ok(d.isBerserk(), 'тап по Тефе при полной шкале — суперсила'); assert.strictEqual(d.ball.charges, c1, 'и не прыжок'); }
+  { const c2 = d.ball.charges; tapTefa(); assert.strictEqual(d.ball.charges, c2 - 1, 'во время берсерка тап по Тефе — прыжок'); } d.endBerserk();
+  d.ball.charges = 3; d.powerAdd(d.POWER_FULL); tapTefa(); assert.ok(!d.isBerserk() && d.ball.charges === 2, 'лимит исчерпан — тап по Тефе остаётся прыжком');
   climb(g, d); assert.strictEqual(d.state, 'finish', 'дошли до крыши башни 1'); assert.strictEqual(d.YG.log.at(-1), 'stop');
   assert.ok(d.run.rating && 'SABCD'.includes(d.run.rating.letter)); assert.strictEqual(d.save.tower, 2); assert.ok(d.save.log[1]);
   assert.strictEqual(JSON.parse(g.store.get('teft_save')).tower, 2, 'прогресс сохранён');
@@ -55,8 +56,11 @@ async function runFlow(opts) {
   d.die('fall'); steps(g, 60); { const b = btn(d, 'restart'); g.tap(b.x, b.y); } await g.flush(); g.step();
   assert.strictEqual(inters(), n0 + 1, 'интервал 180 с соблюдён');
   // пауза по скрытию вкладки: возврат по тапу без прыжка; клавиатура прыгает
-  const ch = d.ball.charges; g.hide(); assert.ok(d.paused); g.show(); assert.ok(d.awaitTap); g.tap(240, 300); assert.ok(!d.awaitTap); assert.strictEqual(d.ball.charges, ch, 'тап после паузы — не прыжок');
+  const ch = d.ball.charges; d.powerAdd(d.POWER_FULL); g.hide(); assert.ok(d.paused); g.show(); assert.ok(d.awaitTap);
+  g.tap(d.ball.x, d.ball.y - d.camY); assert.ok(!d.awaitTap); assert.strictEqual(d.ball.charges, ch, 'тап после паузы — не прыжок');
+  assert.ok(!d.isBerserk(), 'и не суперсила, даже по Тефе с полной шкалой');
   g.key('ArrowLeft'); assert.strictEqual(d.ball.charges, ch - 1);
+  d.powerAdd(d.POWER_FULL); g.key('KeyE'); assert.ok(d.isBerserk(), 'клавиша E включает суперсилу'); d.endBerserk();
   const ss = d.YG.log.filter(x => x === 'start' || x === 'stop'); // GameplayAPI: ни двух start подряд, ни двух stop
   for (let i = 1; i < ss.length; i++) assert.notStrictEqual(ss[i], ss[i - 1], 'start/stop чередуются');
   return d;
@@ -66,13 +70,9 @@ async function runClimbNoGod() {
   const g = require('./_env')(ctx, { dist }); const d = g.dbg();
   await g.boot();
   const play = btn(d, 'play'); g.tap(play.x, play.y); await g.flush();
-  d.hazards.length = 0;                             // масло снято: проверяем путь генератора, а не уклонение от капель
+  d.hazards.length = 0; d.resetPours(1e9);         // опасности и масло сняты: проверяем путь генератора, а не уклонение
   const rnd0 = Math.random; Math.random = () => 1;  // муха по серии не влетает; тап каждый кадр — лени тоже нет
-  for (let i = 0; i < 20000 && d.state === 'play'; i++) {
-    const p = d.platforms.find(q => q.id === d.ball.onPlatform);
-    if (p && !p.roof) { const next = d.platforms.filter(q => q.row === p.row + 1).sort((a, b) => Math.abs(a.x - p.x) - Math.abs(b.x - p.x))[0]; d.jumpTo(next.x, next.y); }
-    g.step();
-  }
+  bot.climb(g, d, { noHazards: true });
   Math.random = rnd0;
   assert.strictEqual(d.state, 'finish', 'башня 1 проходима без god');
   assert.strictEqual(d.run.deaths, 0);

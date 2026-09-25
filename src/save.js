@@ -4,7 +4,8 @@
 // поэтому слияние «максимум/лучшее по полям» никогда не отнимает у игрока и не уводит баланс в минус.
 const SAVE_VERSION = 4;
 const SAVE_KEY = 'teft_save';
-const UP_MAX = { meat: null, crust: null, appetite: null, spice: null, nerve: 2, grit: 2, repel: 15, charge: 3 }; // null — без потолка (спека §6)
+// null — без потолка (спека v2 §6); nerve («Кураж») ускоряет зарядку шкалы, fury («Запал») — +1 берсерк на башню (спека v2.1.1 §4)
+const UP_MAX = { meat: null, crust: null, appetite: null, spice: null, nerve: 2, grit: 2, repel: 15, charge: 3, fury: 2 };
 const SKIN_ORDER = ['none', 'chef', 'glasses', 'crown', 'bow', 'mustache']; // порядок открытия скинов; каталог — v2.3
 const RANK = ['D', 'C', 'B', 'A', 'S'];
 const save = { v: SAVE_VERSION, earned: 0, spent: 0, up: _emptyUp(), skins: [], skin: 'none', tower: 1, log: {}, cp: 0 };

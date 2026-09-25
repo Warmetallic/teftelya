@@ -1,6 +1,7 @@
 'use strict';
 // ---------- эффекты: частицы, крошки, всплывающие тексты, куски мяса ----------
 let particles = [], texts = [];
+const TEXT_RISE = 70; // надпись всплывает на 70 px за свою секунду жизни
 function burst(x, y, color, n, spd = 220, life = 0.6, size = 4) {
   for (let i = 0; i < n; i++) {
     const a = rnd(0, Math.PI * 2), s = rnd(spd * 0.3, spd);
@@ -10,7 +11,20 @@ function burst(x, y, color, n, spd = 220, life = 0.6, size = 4) {
 function crumbs(x, y) {
   for (let i = 0; i < 8; i++) particles.push({ x: x + rnd(-ball.r * 0.6, ball.r * 0.6), y, vx: rnd(-90, 90), vy: rnd(40, 160), life: 0.5, t: 0.5, color: '#a0472a', size: rnd(2, 5), g: 300 });
 }
-function popText(x, y, str, color, big = false) { texts.push({ x, y, str, color, t: 0, big }); }
+// надпись целиком в поле: полуширину оцениваем по числу букв (замер node-canvas: крупный шрифт до 9.5 px на половину буквы,
+// мелкий до 6.6), высота строки — 34 и 26 px
+function popText(x, y, str, color, big = false) {
+  const half = String(str).length * (big ? 9.5 : 6.6), lh = big ? 34 : 26; x = clamp(x, half + 8, W - half - 8);
+  // заметные надписи (моложе 0.7 с), чьи прямоугольники задевают новую на её текущей высоте, не дают налезть: новая встаёт
+  // на строку выше самой верхней из них; все всплывают с одной скоростью TEXT_RISE, так что зазор сохраняется
+  const at = o => o.y - o.t * TEXT_RISE;
+  for (let i = 0; i < 4; i++) {
+    const near = texts.filter(o => o.t < 0.7 && Math.abs(o.x - x) < o.half + half && Math.abs(at(o) - y) < Math.max(o.lh, lh));
+    if (!near.length) break;
+    y = Math.min(...near.map(o => at(o) - Math.max(o.lh, lh)));
+  }
+  texts.push({ x, y, str, color, t: 0, big, half, lh });
+}
 function loseMeat(fromX, fromY, n) { // куски фарша отлетают от Тефы
   for (let i = 0; i < n; i++) {
     const a = Math.atan2(ball.y - fromY, ball.x - fromX) + rnd(-1.2, 1.2), sp = rnd(180, 340);
