@@ -118,12 +118,15 @@ function buildTower(N) {
 const UNIQUE_RULES = {
   shelf: { ok: () => true },                 // полка холодильника: скользкая, ставится где угодно
   toaster: { ok: (p, hz, path, byId) => !launchBlocked(p, hz) && !afterLaunchBlocked(p, hz, path, byId), launch: true }, // тостер и лопатка подбрасывают: столб полёта над ними
+  bowl: { ok: (p, hz, path, byId) => bowlOk(p, path, byId) },  // миска на пути — только перед переходом в один прыжок: после отлипания запас
   spatula: { ok: (p, hz, path, byId) => !launchBlocked(p, hz) && !afterLaunchBlocked(p, hz, path, byId), launch: true }, // свободен от лопастей и ножей
 };
 // центры Тефы масс 1, 4 и 8 при вертикальном подбросе с платформы p на LAUNCH_H
 const launchColumn = p => { const out = []; for (const m of [1, 4, 8]) { const r = radiusFor(m); for (let y = p.y - r; y >= p.y - r - LAUNCH_H; y -= 8) out.push([p.x, y, r]); } return out; };
 // подброс задевает нож: условие удара как в hazards.js, по всему ходу ножа
 const knifeHitsColumn = (h, col) => col.some(([x, y, r]) => { for (let ky = h.by; ky <= h.y - 80; ky += 4) if (Math.abs(x - h.x) < r + 8 && Math.abs(y - (ky + 40)) < r + 40) return true; return false; });
+const bowlOk = (p, path, byId) => { const i = path.indexOf(p.id); if (i < 0 || i + 1 >= path.length) return true; const n = byId.get(path[i + 1]);
+  return [1, 4, 8].every(m => { const r = radiusFor(m); return !jumpPlan(p.x, p.y - r, r, n.x, n.y).double; }); };
 // тостер или лопатка на пути: от вершины подброса Тефа летит к одной из следующих платформ пути (так делает и бот) — этот полёт тоже мимо лопастей
 const afterLaunchBlocked = (p, hazards, path, byId) => {
   const i = path.indexOf(p.id); if (i < 0) return false;

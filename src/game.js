@@ -45,6 +45,9 @@ function startTower(N, fromCp = 0) {
 function jumpTo(tx, ty) {
   if (!ball.alive || state !== 'play') return false;
   if (ball.charges <= 0) { pulse(-60); tone(160, 90, 0.12, 'sine', 0.12); return false; }
+  if (ball.stuck && ball.onPlatform !== null) { // миска: первый тап отлепляет и тратит заряд, прыжка нет (спека v2.2a §6.3)
+    ball.stuck = false; ball.charges--; squash(-120); jolt(tx, ball.y, 120); tone(220, 330, 0.1, 'triangle', 0.12); return true;
+  }
   const a = aimJump(ball.x, ball.y, ball.r, clamp(tx, 0, W), ty);
   ball.charges--; ball.vx = a.vx; ball.vy = a.vy; ball.onPlatform = null; run.campT = 0;
   squash(-220); crumbs(ball.x, ball.y + ball.r * 0.8); sfx.jump(ball.mass); ball.blink = 0.08;

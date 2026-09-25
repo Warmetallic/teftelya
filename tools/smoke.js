@@ -61,6 +61,11 @@ async function runFlow(opts) {
   assert.ok(!d.isBerserk(), 'и не суперсила, даже по Тефе с полной шкалой');
   g.key('ArrowLeft'); assert.strictEqual(d.ball.charges, ch - 1);
   d.powerAdd(d.POWER_FULL); g.key('KeyE'); assert.ok(d.isBerserk(), 'клавиша E включает суперсилу'); d.endBerserk();
+  { // клавиатура в миске (спека v2.2a §6.3): первая клавиша прыжка только отлепляет и тратит заряд, вторая прыгает
+    const b = d.ball, bowl = { id: 9300, type: 'bowl', x: b.x, y: b.y + b.r, w: 120, row: 0 }; d.platforms.push(bowl);
+    b.onPlatform = null; d.landOn(bowl); b.charges = 3;
+    g.key('ArrowUp'); assert.ok(b.onPlatform === 9300 && b.charges === 2, 'клавиша в миске отлепляет, не прыгая');
+    g.key('ArrowUp'); assert.ok(b.onPlatform === null && b.charges === 1, 'вторая клавиша прыгает'); d.platforms.pop(); }
   const ss = d.YG.log.filter(x => x === 'start' || x === 'stop'); // GameplayAPI: ни двух start подряд, ни двух stop
   for (let i = 1; i < ss.length; i++) assert.notStrictEqual(ss[i], ss[i - 1], 'start/stop чередуются');
   return d;

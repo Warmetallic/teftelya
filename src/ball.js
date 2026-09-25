@@ -15,6 +15,7 @@ const ball = {
   tilt: 0, tiltv: 0,            // наклон, рад
   face: 0, mouth: 0, blink: 0, hot: 0, healT: 0, // healT — остаток анимации заживления укуса
   slide: 0,                     // px/с — проскальзывание по полке холодильника после посадки
+  stuck: false,                 // приклеилась в миске: первый тап только отлепляет (спека v2.2a §6.3)
   alive: true,
 };
 function radiusFor(m) { return MASS_R0 + MASS_RK * (clamp(m, 1, MASS_RCAP) - 1); }

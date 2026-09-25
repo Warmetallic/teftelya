@@ -95,6 +95,11 @@ const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addCol
   assert.ok(Math.abs(ushare.uniq / ushare.all - 0.2) < 0.05, 'уникальностей около пятой части: ' + (ushare.uniq / ushare.all).toFixed(2));
   assert.ok(Math.abs(ushare.plate / ushare.all - 0.3) < 0.06, 'в башнях с уникальностью тарелок около 30 %: ' + (ushare.plate / ushare.all).toFixed(2));
   assert.ok([2, 7, 12].every(n => d.buildTower(n).platforms.some(p => p.type === 'shelf')), 'в холодильнике есть полки');
+  // миски — в раковине; миска на пути стоит только там, где до следующей платформы пути хватает одного прыжка (массы 1, 4, 8)
+  assert.ok([4, 9].every(n => d.buildTower(n).platforms.some(p => p.type === 'bowl')), 'в раковине есть миски');
+  for (let N = 1; N <= 60; N++) { const t = d.buildTower(N), by = new Map(t.platforms.map(p => [p.id, p]));
+    t.path.forEach((id, i) => { const p = by.get(id); if (p.type !== 'bowl' || i + 1 >= t.path.length) return; const nx = by.get(t.path[i + 1]);
+      for (const m of [1, 4, 8]) { const r = d.radiusFor(m); assert.ok(!d.jumpPlan(p.x, p.y - r, r, nx.x, nx.y).double, 'башня ' + N + ': из миски до следующей платформы пути — один прыжок'); } }); }
   // тостер в духовке, лопатка на праздничном столе; столб подброса над ними свободен от лопастей и ножей для масс 1, 4 и 8
   assert.ok([3, 8].every(n => d.buildTower(n).platforms.some(p => p.type === 'toaster')) && [5, 10].every(n => d.buildTower(n).platforms.some(p => p.type === 'spatula')), 'тостеры и лопатки в своих темах');
   // тостер и лопатка на пути: полёт от вершины подброса к четырём следующим платформам пути тоже мимо лопастей

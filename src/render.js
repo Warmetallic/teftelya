@@ -73,6 +73,10 @@ function drawPlatform(p) {
     ctx.fillStyle = `rgba(255,${(90 - heat * 60) | 0},20,${0.15 + heat * 0.6})`; ctx.beginPath(); ctx.ellipse(p.x, y + 8, p.w / 2 - 14, 9, 0, 0, 7); ctx.fill();
     ctx.strokeStyle = '#3d3734'; ctx.lineWidth = 8; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(p.x + p.w / 2, y + 8); ctx.lineTo(p.x + p.w / 2 + 40, y + 2); ctx.stroke(); // ручка
     if (heat > 0.3) { ctx.fillStyle = `rgba(255,255,255,${(heat - 0.3) * 0.4})`; for (let i = 0; i < 3; i++) { const t = (tGame * 1.5 + i * 0.33) % 1; ctx.beginPath(); ctx.arc(p.x - 20 + i * 20 + Math.sin(t * 6) * 6, y - 10 - t * 40, 6 + t * 6, 0, 7); ctx.fill(); } } // дымок
+  } else if (p.type === 'bowl') { // миска с пеной (спека v2.2a §6.3)
+    ctx.fillStyle = '#e8eef3'; ctx.beginPath(); ctx.moveTo(p.x - p.w / 2, y - 6); ctx.quadraticCurveTo(p.x, y + 40, p.x + p.w / 2, y - 6); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#9fb4c4'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.9)'; for (let k = 0, n = Math.max(3, Math.round(p.w / 22)); k < n; k++) { ctx.beginPath(); ctx.arc(p.x - p.w / 2 + 12 + k * (p.w - 24) / (n - 1), y - 6, 5 + (k % 3) * 2, 0, 7); ctx.fill(); }
   } else if (p.type === 'toaster') { // тостер с прорезями; рычаг светится сильнее к концу отсчёта (спека v2.2a §6.2)
     const k = clamp((p.toastT || 0) / TOASTER_T, 0, 1), sh = k > 0 ? Math.sin(tGame * 60) * k * 2 : 0;
     ctx.save(); ctx.translate(p.x + sh, y);

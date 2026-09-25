@@ -16,6 +16,7 @@ function botAct(d, st) {
     const on = d.platforms.find(p => p.id === b.onPlatform);
     st.on = on; st.planned = false;
     if (on && on.type === 'spatula') return false; // лопатка подбросит сама: ждём и подруливаем у вершины
+    if (b.stuck) return d.jumpTo(b.x, b.y);        // миска: первый тап отлепляет
     const next = nextOnPath(d); if (!next) return false;
     st.next = next; st.second = false; st.planned = true;
     const plan = d.jumpPlan(b.x, b.y, b.r, aimX(next), next.y); // один прыжок или два — как считает игра (ball.js)

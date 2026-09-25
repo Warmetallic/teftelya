@@ -9,7 +9,7 @@ const CHEESE_T = 0.5, CHEESE_BACK = 3; // сыр крошится через 0.5
 function panTime(tp) { return Math.max(PAN_MIN, PAN_TIME + 0.25 * ((save.up && save.up.crust) || 0) - ((tp && tp.heat) || 0)); }
 function platformById(platforms, id) { return id === null || id === undefined ? null : platforms.find(p => p.id === id) || null; }
 function overPlatform(p) { return Math.abs(ball.x - p.x) <= p.w / 2 + ball.r * LAND_TOL; }
-function landOn(p) { ball.slide = p.type === 'shelf' ? SHELF_KEEP * ball.vx : 0; ball.y = p.y - ball.r; ball.vy = 0; ball.vx = 0; ball.onPlatform = p.id; }
+function landOn(p) { ball.slide = p.type === 'shelf' ? SHELF_KEEP * ball.vx : 0; ball.stuck = p.type === 'bowl'; ball.y = p.y - ball.r; ball.vy = 0; ball.vx = 0; ball.onPlatform = p.id; }
 // посадка сверху с учётом пройденного за кадр пути: prevBottom — низ Тефы в прошлом кадре. Снизу и сбоку платформы проницаемы.
 function tryLand(platforms, prevBottom) {
   if (ball.vy < 0) return null;
