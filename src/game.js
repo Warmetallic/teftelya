@@ -12,6 +12,7 @@ const BONUS_MULT = { S: 2, A: 1.5, B: 1.2, C: 1, D: 0.8 };
 const FOOD_SHARE = 0.8;         // доля еды башни для галочки рейтинга
 let state = 'title';            // title | play | dead | finish
 let tower = null;               // { tp, platforms, hazards, items } текущей башни
+let roofP = null;               // крыша текущей башни: её линия — финиш
 let camY = 0, tGame = 0, camShake = 0, shakeX = 0, shakeY = 0;
 let run = null;                 // состояние забега, см. newRun()
 let god = false;                // тесты (smoke): без урона и смерти от падения
@@ -35,7 +36,7 @@ function placeAt(p) { // появление — не посадка: миска 
 function respawnAt(p) { placeAt(p); camY = ball.y - H * 0.6; }
 // башня N с нуля; fromCp > 0 — старт с чекпоинта сохранения (новая сессия: считается одной смертью)
 function startTower(N, fromCp = 0) {
-  tower = buildTower(N); run = newRun(); run.foodTotal = tower.items.length; run.bannerT = BANNER_T;
+  tower = buildTower(N); roofP = tower.platforms.find(p => p.roof); run = newRun(); run.foodTotal = tower.items.length; run.bannerT = BANNER_T;
   if (fromCp && !tower.platforms.some(p => p.cp === fromCp)) fromCp = 0; // битый чекпоинт из сохранения
   resetPower(); resetFlies(); resetFx(); resetPours(5); // первый налив масла не раньше 5 с
   ball.mass = massMax(); ball.r = radiusFor(ball.mass);
@@ -123,7 +124,7 @@ function finishTower() {
   const prev = save.log[N], t = Math.round(run.time * 10) / 10;
   if (!prev || RANK.indexOf(rt.letter) > RANK.indexOf(prev.r) || (rt.letter === prev.r && t < prev.t)) save.log[N] = { r: rt.letter, t };
   save.tower = Math.max(save.tower, N + 1); save.cp = 0; persist();
-  ball.onPlatform = tower.platforms.find(p => p.roof).id;
+  ball.x = clamp(ball.x, roofP.x - roofP.w / 2 + ball.r, roofP.x + roofP.w / 2 - ball.r); ball.y = roofP.y - ball.r; ball.vx = 0; ball.vy = 0; ball.onPlatform = roofP.id; // под экраном финиша Тефа стоит на крыше
   state = 'finish'; tGame = 0; sfx.big(); camShake = 8; YG.gameplayStop();
 }
 function reachCheckpoint(p) { run.cp = p.cp; save.cp = p.cp; heal(massMax()); delayPours(4); persist(); popText(p.x, p.y - 40, T('checkpoint', p.cp), '#8ff0a4', true); sfx.buy(); }
@@ -152,6 +153,7 @@ function updateRun(dt) {
     const vy = ball.vy, p = tryLand(tower.platforms, prevBottom);
     if (p) { onLand(p, vy); if (state !== 'play') return; }
   }
+  if (ball.y + ball.r < roofP.y) { finishTower(); return; } // финиш — линия крыши: Тефа выше неё — башня пройдена, садиться не нужно, опасности уже не бьют (плейтест владельца v2.2a)
   run.campT = ball.onPlatform !== null && ball.onPlatform === wasOn ? run.campT + dt : 0;
   const st = platformById(tower.platforms, ball.onPlatform);
   ball.hot = st && st.type === 'pan' ? clamp((st.hotT || 0) / panTime(tp), 0, 1) : Math.max(0, ball.hot - dt * 2);

@@ -1,6 +1,7 @@
 'use strict';
 // ---------- опасности: муха (наводится), масло сверху (льёт повар), нож (гильотина в разрыве), лопасти; каждая снимает один кусок ----------
 const FLY_CHASE = 6, FLY_CHASE_MIN = 1.5, FLY_WARN = 0.7, FLY_MAX = 3, FLY_CD = 2, CAMP_T = 3;
+const FLY_UP = 0.4; // вверх муха летит не быстрее этой доли своей скорости: от Тефы, которая лезет вверх, отстаёт (плейтест владельца v2.2a)
 const KNIFE_REST = 1.2, KNIFE_WIND = 0.6, KNIFE_STRIKE = 0.3; // сумма = KNIFE_CYCLE
 // BLADES_R (радиус лопастей) задаёт tower.js: генератор ищет лопастям место с учётом их размера
 let flies = []; // мухи живут отдельно от раскладки башни: их спавнит политика, а не генератор
@@ -34,10 +35,11 @@ function updateHazards(dt, hazards, env) {
   const ev = [], tp = env.tp, R = ball.r;
   for (const f of flies) {
     if (f.gone) continue;
-    if (f.warnT > 0) { f.warnT -= dt; f.y = ball.y - 100; continue; }
+    const sp = tp.flySpeed, up = FLY_UP * sp;
+    if (f.warnT > 0) { f.warnT -= dt; f.y = Math.max(ball.y - 100, f.y - up * dt); continue; } // за Тефой вниз сразу, вверх медленно
     f.chaseT += dt; f.phase += dt * 7;
-    const dx = ball.x - f.x, dy = ball.y - f.y, dist = Math.hypot(dx, dy) || 1, sp = tp.flySpeed;
-    f.x += (dx / dist) * sp * dt + Math.cos(f.phase) * 60 * dt; f.y += (dy / dist) * sp * dt + Math.sin(f.phase * 1.3) * 60 * dt;
+    const dx = ball.x - f.x, dy = ball.y - f.y, dist = Math.hypot(dx, dy) || 1;
+    f.x += (dx / dist) * sp * dt + Math.cos(f.phase) * 60 * dt; f.y += Math.max((dy / dist) * sp + Math.sin(f.phase * 1.3) * 60, -up) * dt;
     if (dist < R + 12) { f.gone = true; ev.push(env.berserk ? { type: 'eaten', what: 'fly', x: f.x, y: f.y } : { type: 'hit', reason: 'fly', x: f.x, y: f.y }); continue; }
     if (f.chaseT >= flyChase()) { f.gone = true; ev.push({ type: 'flyGaveUp', h: f }); }
   }
@@ -101,7 +103,7 @@ function updatePours(dt, env) {
   splats = splats.filter(s => s.t > 0);
   return ev;
 }
-expose({ FLY_CHASE, FLY_CHASE_MIN, FLY_WARN, FLY_MAX, FLY_CD, CAMP_T, KNIFE_REST, KNIFE_WIND, KNIFE_STRIKE,
+expose({ FLY_UP, FLY_CHASE, FLY_CHASE_MIN, FLY_WARN, FLY_MAX, FLY_CD, CAMP_T, KNIFE_REST, KNIFE_WIND, KNIFE_STRIKE,
   POUR_WARN, POUR_DROPS, POUR_V, SPLAT_T, SPLAT_W, LADLE_Y,
   get flies() { return flies; }, flyChase, spawnFly, resetFlies, flyWanted, knifePhase, knifeY, updateHazards,
   get pours() { return pours; }, get drops() { return drops; }, get splats() { return splats; }, pourInterval, resetPours, delayPours, startPour, updatePours });

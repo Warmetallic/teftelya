@@ -165,5 +165,13 @@ const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addCol
     d.setGod(true); d.setCamY(d.camY - 400); d.update(0.016); d.update(0.016); d.setGod(false);
     assert.ok(ball.y + ball.r <= line(), 'god-спасение: Тефа над полосой'); assert.ok(d.jumpTo(ball.x, ball.y - 200)); d.update(0.016);
     assert.strictEqual(ball.onPlatform, null, 'после god-спасения прыжок не отменяется'); }
+  // финиш — линия крыши (плейтест владельца v2.2a): Тефа, поднявшаяся выше крыши, финиширует сразу, не садясь, — даже
+  // пролетая сбоку от неё; после черты ничто не бьёт, под экраном финиша Тефа стоит на крыше
+  { d.startTower(2); d.state = 'play'; d.resetPours(1e9); d.hazards.length = 0; d.resetFlies(); for (const it of d.items) it.dead = true;
+    const roof = d.platforms.find(p => p.roof); ball.onPlatform = null; ball.x = roof.x + roof.w / 2 + 30; ball.y = roof.y + 60; ball.vx = 0; ball.vy = -900; d.setCamY(roof.y - 400);
+    let f = 0; for (; f < 60 && d.state === 'play'; f++) d.update(1 / 60);
+    assert.strictEqual(d.state, 'finish', 'выше крыши — финиш'); assert.ok(f <= 8, 'сразу на линии, а не после посадки: кадр ' + f);
+    assert.strictEqual(ball.onPlatform, roof.id); assert.strictEqual(ball.y + ball.r, roof.y, 'под экраном финиша Тефа стоит на крыше');
+    assert.ok(Math.abs(ball.x - roof.x) <= roof.w / 2, 'и над ней, а не в воздухе сбоку'); }
   console.log('test_game ok');
 })().catch(e => { console.error(e); process.exit(1); });

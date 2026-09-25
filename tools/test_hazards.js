@@ -17,6 +17,16 @@ const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addCol
   for (let i = 0; i < 600; i++) { ball.y -= 6; ev.push(...run([], 1)); }
   assert.ok(ev.some(e => e.type === 'flyGaveUp'), 'отстала'); assert.strictEqual(d.flies.length, 0);
   assert.strictEqual(d.flyChase(), 6); d.save.up.repel = 20; assert.strictEqual(d.flyChase(), d.FLY_CHASE_MIN, 'репеллент не ниже минимума'); d.save.up.repel = 0;
+  // муха набирает высоту не быстрее 0.4 своей скорости — в погоне и в предупреждении; вбок и вниз как раньше: от Тефы,
+  // которая лезет вверх, муха отстаёт (плейтест владельца v2.2a)
+  { const sp = tp.flySpeed, up = 0.4 * sp, T = 60 * 0.016;
+    d.resetFlies(); ball.x = 240; ball.y = -500; d.spawnFly(true); const w = d.flies[0], wy0 = w.y;
+    ball.y = -1100; run([], 10); assert.ok(wy0 - w.y <= up * 10 * 0.016 + 0.5, 'в предупреждении набирает высоту медленно: ' + (wy0 - w.y).toFixed(0));
+    ball.y = -500; run([], 1); assert.ok(Math.abs(w.y - (ball.y - 100)) < 1e-6, 'вниз в предупреждении — сразу, как раньше');
+    w.warnT = 0; w.x = 240; w.y = -500; ball.x = 240; ball.y = -1100; run([], 60);
+    assert.ok(-500 - w.y <= up * T + 0.5 && -500 - w.y >= up * T * 0.9, 'в погоне вверх — со скоростью 0.4: ' + (-500 - w.y).toFixed(0));
+    w.y = -500; ball.y = -100; run([], 30); assert.ok(w.y + 500 >= (sp - 60) * 30 * 0.016 * 0.9, 'вниз — полной скоростью: ' + (w.y + 500).toFixed(0));
+    d.resetFlies(); }
   // в берсерке муху съедают
   d.resetFlies(); ball.x = 240; ball.y = -500; d.spawnFly(false); env.berserk = true; ev = [];
   for (let i = 0; i < 400 && !ev.some(e => e.type === 'eaten'); i++) ev.push(...run([], 1));
