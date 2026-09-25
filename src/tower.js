@@ -14,6 +14,7 @@ const X_MIN = 70, X_MAX = 410; // центры обычных платформ; 
 const EDGE = 20;          // платформа не подходит к краю поля ближе 20 px
 const BLADES_R = 36;        // радиус лопастей миксера, px (столкновение — hazards.js)
 const BLADE_GAP = 10, BLADE_NEAR = 90; // зазор до маршрута и стоящей Тефы; не дальше BLADE_NEAR от маршрута, иначе лопасти ни на что не влияют
+const UNIQUE_SHARE = 0.2;  // доля обычных платформ, которую в башне занимает уникальность темы (за счёт тарелок; спека v2.2a §7)
 const PATH_MAX_ROWS = 4;    // самый большой подъём между соседними платформами пути: 480 px, два прыжка дают ≈ 536
 const FOOD_KINDS = { ketchup: { r: 15, coins: 1, w: 5 }, pasta: { r: 17, coins: 2, w: 4 }, meat: { r: 21, coins: 3, w: 2 } };
 const FOOD_COLOR = { ketchup: '#e3342f', pasta: '#f6c343', meat: '#b5452b' };
@@ -107,8 +108,25 @@ function buildTower(N) {
     if (top.roof) break;
   }
   if (N >= 2 && !hazards.some(h => h.type === 'knife') && knifeSlots.length) knife(...knifeSlots[0]); // первый нож башни гарантирован
+  placeUniques(N, tp, platforms);
   placeBlades(platforms, hazards, path);
   return { tp, platforms, hazards, items, path };
+}
+// уникальности темы (спека v2.2a §6–§7): пятая часть обычных платформ башни, за счёт тарелок; старт, чекпоинты, крыша и
+// площадки отдыха не трогаются. Решения берутся из своего потока случайных чисел, поэтому раскладка башни та же, что без
+// уникальностей, — меняются только типы. У каждого типа своё правило, можно ли его сюда поставить
+const UNIQUE_RULES = {
+  shelf: { ok: () => true }, // полка холодильника: скользкая, ставится где угодно
+};
+function placeUniques(N, tp, platforms) {
+  const kinds = tp.uniques.filter(u => UNIQUE_RULES[u]); if (!kinds.length) return;
+  const RU = mulberry32(N * 7919 + 99);
+  for (const p of platforms) {
+    if (p.type !== 'plate' || p.start || p.cp || p.roof || p.rest) continue;
+    if (RU() >= UNIQUE_SHARE / tp.mix.plate) continue;
+    const u = kinds[Math.floor(RU() * kinds.length)];
+    if (UNIQUE_RULES[u].ok(p)) p.type = u;
+  }
 }
 // лопасти не встают на дугу прицельного прыжка и туда, где Тефа стоит (финальное ревью v2.1.1: на месте в середине ряда их
 // задевал обычный прыжок между ступенями зигзага). Проверяются все переходы пути, чей полёт может дотянуться до лопастей
@@ -144,4 +162,4 @@ function placeBlades(platforms, hazards, path) {
     if (spot) { h.x = spot[0]; h.y = spot[1]; } else hazards.splice(k, 1);
   }
 }
-expose({ ROW_H, CP_EVERY, KNIFE_CYCLE, X_MIN, X_MAX, PATH_MAX_ROWS, BLADES_R, BLADE_GAP, BLADE_NEAR, placeBlades, FOOD_KINDS, FOOD_COLOR, mulberry32, towerParams, buildTower });
+expose({ UNIQUE_SHARE, UNIQUE_RULES, placeUniques, ROW_H, CP_EVERY, KNIFE_CYCLE, X_MIN, X_MAX, PATH_MAX_ROWS, BLADES_R, BLADE_GAP, BLADE_NEAR, placeBlades, FOOD_KINDS, FOOD_COLOR, mulberry32, towerParams, buildTower });

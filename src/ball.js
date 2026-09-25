@@ -13,6 +13,7 @@ const ball = {
   sq: 0, sqv: 0,                // сквош: > 0 сплющена, < 0 вытянута
   tilt: 0, tiltv: 0,            // наклон, рад
   face: 0, mouth: 0, blink: 0, hot: 0, healT: 0, // healT — остаток анимации заживления укуса
+  slide: 0,                     // px/с — проскальзывание по полке холодильника после посадки
   alive: true,
 };
 function radiusFor(m) { return MASS_R0 + MASS_RK * (clamp(m, 1, MASS_RCAP) - 1); }

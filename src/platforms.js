@@ -3,11 +3,12 @@
 const PAN_TIME = 2;      // с до ожога на сковородке (черновик)
 const PAN_MIN = 0.5;     // ниже таймер не опускается при любом жаре башни
 const LAND_TOL = 0.35;   // доля радиуса, на которую Тефа может свисать с края и всё ещё стоять
+const SHELF_KEEP = 0.6, SHELF_FRICTION = 600; // полка: доля скорости полёта при посадке и торможение, px/с² (спека v2.2a §6.1)
 const CHEESE_T = 0.5, CHEESE_BACK = 3; // сыр крошится через 0.5 с после посадки и отрастает через 3 с (спека v2.1.1 §6.3)
 function panTime(tp) { return Math.max(PAN_MIN, PAN_TIME + 0.25 * ((save.up && save.up.crust) || 0) - ((tp && tp.heat) || 0)); }
 function platformById(platforms, id) { return id === null || id === undefined ? null : platforms.find(p => p.id === id) || null; }
 function overPlatform(p) { return Math.abs(ball.x - p.x) <= p.w / 2 + ball.r * LAND_TOL; }
-function landOn(p) { ball.y = p.y - ball.r; ball.vy = 0; ball.vx = 0; ball.onPlatform = p.id; }
+function landOn(p) { ball.slide = p.type === 'shelf' ? SHELF_KEEP * ball.vx : 0; ball.y = p.y - ball.r; ball.vy = 0; ball.vx = 0; ball.onPlatform = p.id; }
 // посадка сверху с учётом пройденного за кадр пути: prevBottom — низ Тефы в прошлом кадре. Снизу и сбоку платформы проницаемы.
 function tryLand(platforms, prevBottom) {
   if (ball.vy < 0) return null;
@@ -40,10 +41,13 @@ function updatePlatforms(dt, platforms, tp) {
       }
     }
   }
+  if (standing && standing.type === 'shelf' && ball.slide) { // Тефа скользит по полке и тормозит; съехала за край — падает (проверка ниже)
+    ball.x += ball.slide * dt; const dv = SHELF_FRICTION * dt; ball.slide = Math.abs(ball.slide) <= dv ? 0 : ball.slide - Math.sign(ball.slide) * dv;
+  }
   if (standing) { if (standing.gone || !overPlatform(standing)) ball.onPlatform = null; else { ball.y = standing.y - ball.r; ball.vy = 0; } }
   return ev;
 }
 // доля до ожога для рендера: делим на реальный таймер, а не на базовый —
 // при жаре башни и «Корочке» шкала должна совпадать с тем, когда сковородка правда сожжёт
 function panHeat(p, tp) { return p.type === 'pan' ? clamp((p.hotT || 0) / panTime(tp), 0, 1) : 0; }
-expose({ PAN_TIME, PAN_MIN, panTime, platformById, overPlatform, landOn, tryLand, updatePlatforms, panHeat });
+expose({ SHELF_KEEP, SHELF_FRICTION, PAN_TIME, PAN_MIN, panTime, platformById, overPlatform, landOn, tryLand, updatePlatforms, panHeat });

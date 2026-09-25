@@ -31,7 +31,7 @@ const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addCol
   for (const p of P1) assert.ok(p.y === -p.row * d.ROW_H, 'ряд ' + p.row + ' на своей высоте'); // === , а не strictEqual: для ряда 0 сравниваем 0 и −0
   assert.strictEqual(t1.path[0], P1[0].id); assert.strictEqual(t1.path.at(-1), roof.id);
   // правила для башен 1–100
-  const share = { plate: 0, pan: 0, tray: 0, cheese: 0 }, r8 = d.radiusFor(8); let air = 0, links = 0;
+  const BASE = ['plate', 'pan', 'tray', 'cheese'], share = { plate: 0, pan: 0, tray: 0, cheese: 0 }, ushare = { plate: 0, uniq: 0, all: 0 }, r8 = d.radiusFor(8); let air = 0, links = 0;
   for (let N = 1; N <= 100; N++) {
     const t = d.buildTower(N), P = t.platforms, byId = new Map(P.map(p => [p.id, p]));
     for (const p of P) {
@@ -39,7 +39,11 @@ const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addCol
       if (p.type === 'tray') assert.ok(p.x0 - p.w / 2 >= 20 - 1e-9 && p.x1 + p.w / 2 <= 460 + 1e-9, 'башня ' + N + ': поднос не выезжает за поле');
       if (p.type === 'pan') assert.ok(p.row >= 3, 'сковородок нет в рядах 1–2');
       if (p.rest) assert.ok(p.type === 'plate' && p.w === 180, 'площадка отдыха — широкая тарелка');
-      if (!(p.cp || p.roof || p.start || p.rest)) share[p.type]++;
+      if (!BASE.includes(p.type)) assert.ok(t.tp.uniques.includes(p.type), 'башня ' + N + ': уникальность ' + p.type + ' только в своей теме');
+      if (!(p.cp || p.roof || p.start || p.rest)) { // доли: в башнях без уникальностей — прежние, с уникальностью — пятая часть уникальна за счёт тарелок
+        if (t.platforms.some(q => !BASE.includes(q.type))) { ushare.all++; if (p.type === 'plate') ushare.plate++; else if (!BASE.includes(p.type)) ushare.uniq++; }
+        else share[p.type]++;
+      }
     }
     if (N === 1) assert.ok(P.filter(p => p.type === 'tray').every(p => p.speed >= 40 && p.speed <= 70), 'поднос в башне 1 медленный: 40–70 px/с');
     if (N === 1) { assert.ok(!P.some(p => p.type === 'cheese'), 'сыра нет в башне 1'); assert.strictEqual(t.hazards.length, 0, 'в башне 1 опасностей в раскладке нет'); }
@@ -87,7 +91,10 @@ const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addCol
     assert.ok(t.items.length > 0 && t.items.every(it => d.FOOD_KINDS[it.kind] && !it.dead));
   }
   const typed = share.plate + share.pan + share.tray + share.cheese;
-  assert.ok(Math.abs(share.plate / typed - 0.5) < 0.05, 'простых тарелок около половины: ' + (share.plate / typed).toFixed(2));
+  assert.ok(Math.abs(share.plate / typed - 0.5) < 0.05, 'без уникальностей простых тарелок около половины: ' + (share.plate / typed).toFixed(2));
+  assert.ok(Math.abs(ushare.uniq / ushare.all - 0.2) < 0.05, 'уникальностей около пятой части: ' + (ushare.uniq / ushare.all).toFixed(2));
+  assert.ok(Math.abs(ushare.plate / ushare.all - 0.3) < 0.06, 'в башнях с уникальностью тарелок около 30 %: ' + (ushare.plate / ushare.all).toFixed(2));
+  assert.ok([2, 7, 12].every(n => d.buildTower(n).platforms.some(p => p.type === 'shelf')), 'в холодильнике есть полки');
   assert.ok(air / links > 0.1, 'прыжок в воздухе нужен регулярно: ' + (air / links).toFixed(2));
   // в первых 10 башнях есть все типы
   const all = []; for (let N = 1; N <= 10; N++) all.push(d.buildTower(N));

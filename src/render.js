@@ -73,6 +73,9 @@ function drawPlatform(p) {
     ctx.fillStyle = `rgba(255,${(90 - heat * 60) | 0},20,${0.15 + heat * 0.6})`; ctx.beginPath(); ctx.ellipse(p.x, y + 8, p.w / 2 - 14, 9, 0, 0, 7); ctx.fill();
     ctx.strokeStyle = '#3d3734'; ctx.lineWidth = 8; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(p.x + p.w / 2, y + 8); ctx.lineTo(p.x + p.w / 2 + 40, y + 2); ctx.stroke(); // ручка
     if (heat > 0.3) { ctx.fillStyle = `rgba(255,255,255,${(heat - 0.3) * 0.4})`; for (let i = 0; i < 3; i++) { const t = (tGame * 1.5 + i * 0.33) % 1; ctx.beginPath(); ctx.arc(p.x - 20 + i * 20 + Math.sin(t * 6) * 6, y - 10 - t * 40, 6 + t * 6, 0, 7); ctx.fill(); } } // дымок
+  } else if (p.type === 'shelf') { // полка холодильника: бледно-голубое стекло с бликом (спека v2.2a §6.1)
+    ctx.fillStyle = 'rgba(190,225,255,0.55)'; rrect(p.x - p.w / 2, y - 4, p.w, 12, 4); ctx.fill(); ctx.strokeStyle = 'rgba(120,180,230,0.9)'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.beginPath(); ctx.moveTo(p.x - p.w / 2 + 8, y - 1); ctx.lineTo(p.x + p.w / 2 - 20, y - 1); ctx.stroke();
   } else if (p.type === 'cheese') { // ломтик сыра: жёлтый с дырками; крошится — дрожит; пропал — пунктир до возврата
     if (p.gone) { ctx.strokeStyle = 'rgba(246,195,67,0.3)'; ctx.lineWidth = 2; ctx.setLineDash([6, 6]); rrect(p.x - p.w / 2, y - 4, p.w, 16, 5); ctx.stroke(); ctx.setLineDash([]); return; }
     const sh = p.crumbleT > 0 ? Math.sin(tGame * 60) * 2 : 0;
