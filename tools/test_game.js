@@ -124,6 +124,19 @@ const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addCol
     assert.ok(d.jumpTo(240, bowl.y - 200), 'тап принят'); assert.strictEqual(ball.onPlatform, 9200, 'первый тап только отлепляет'); assert.strictEqual(ball.charges, d.chargesMax() - 1, 'и тратит заряд');
     assert.ok(d.jumpTo(240, bowl.y - 200)); assert.strictEqual(ball.onPlatform, null, 'второй тап прыгает'); assert.strictEqual(ball.charges, d.chargesMax() - 2, 'прыжок из миски стоит двух зарядов');
     dropIn(); d.jumpTo(240, bowl.y - 200); assert.strictEqual(ball.onPlatform, 9200, 'после новой посадки снова липко'); }
+  // доска с ножом (спека v2.2a §6.5): в центре доски за полный цикл ножа урона нет, у ножа — удар
+  { d.startTower(6); d.state = 'play'; d.resetPours(1e9); d.resetFlies(); for (const it of d.items) it.dead = true;
+    const bd = d.platforms.find(p => p.type === 'board'), kn = d.hazards.find(h => h.board === bd.id); d.hazards.length = 0; d.hazards.push(kn);
+    const standAt = x => { ball.onPlatform = bd.id; ball.x = x; ball.y = bd.y - ball.r; ball.vx = 0; ball.vy = 0; d.setCamY(bd.y - 500); d.run.invuln = 0; };
+    const m0 = ball.mass; for (let i = 0; i < 200; i++) { standAt(bd.x); d.update(1 / 60); } assert.strictEqual(ball.mass, m0, 'центр доски безопасен');
+    let hit = false; for (let i = 0; i < 200 && !hit; i++) { standAt(kn.x); const mm = ball.mass; d.update(1 / 60); hit = ball.mass < mm; }
+    assert.ok(hit, 'у ножа доски — удар'); }
+  { // нож доски в берсерке ломается, как обычный нож: +2 монеты, урона нет
+    d.startTower(6); d.state = 'play'; d.resetPours(1e9); d.resetFlies(); for (const it of d.items) it.dead = true;
+    const bd = d.platforms.find(p => p.type === 'board'), kn = d.hazards.find(h => h.board === bd.id); d.hazards.length = 0; d.hazards.push(kn);
+    d.powerAdd(d.POWER_FULL); assert.ok(d.tryActivatePower()); const c0 = d.run.runCoins, m0 = ball.mass;
+    for (let i = 0; i < 200 && !kn.gone; i++) { ball.onPlatform = bd.id; ball.x = kn.x; ball.y = bd.y - ball.r; ball.vx = 0; ball.vy = 0; d.setCamY(bd.y - 500); d.update(1 / 60); }
+    assert.ok(kn.gone, 'нож доски сломан в берсерке'); assert.strictEqual(d.run.runCoins, c0 + 2); assert.strictEqual(ball.mass, m0); }
   // нижняя граница (спека v2.2a §4): смерть, как только низ Тефы ушёл в полосу внизу экрана глубже BAND_SINK; платформа,
   // прикрытая полосой не глубже BAND_SINK, ещё ловит, более глубокая — нет (раньше под экраном была невидимая полоса спасения)
   { const bandTop = () => d.camY + 854 - d.BAND_H, fall = (y, vy) => { ball.onPlatform = null; ball.vx = 0; ball.vy = vy; ball.y = y; ball.x = 240; };

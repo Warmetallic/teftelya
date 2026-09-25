@@ -54,7 +54,7 @@ const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addCol
     for (const h of t.hazards) if (h.type === 'knife') {
       const top = h.by - 14 - 40, tip = h.y - 80 + 84;
       for (const p of P) {
-        if (Math.abs(p.y - h.y) > 6 * d.ROW_H) continue;
+        if (Math.abs(p.y - h.y) > 6 * d.ROW_H || p.id === h.board) continue; // нож доски рубит свою доску нарочно — проверка ниже
         const x0 = (p.type === 'tray' ? p.x0 : p.x) - p.w / 2, x1 = (p.type === 'tray' ? p.x1 : p.x) + p.w / 2;
         assert.ok(h.x + 10 < x0 || h.x - 10 > x1 || p.y + 18 < top || p.y - 8 > tip, 'башня ' + N + ': нож не лежит на платформе');
         for (const m of [1, 4, 8]) {
@@ -95,6 +95,16 @@ const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addCol
   assert.ok(Math.abs(ushare.uniq / ushare.all - 0.2) < 0.05, 'уникальностей около пятой части: ' + (ushare.uniq / ushare.all).toFixed(2));
   assert.ok(Math.abs(ushare.plate / ushare.all - 0.3) < 0.06, 'в башнях с уникальностью тарелок около 30 %: ' + (ushare.plate / ushare.all).toFixed(2));
   assert.ok([2, 7, 12].every(n => d.buildTower(n).platforms.some(p => p.type === 'shelf')), 'в холодильнике есть полки');
+  // доска с ножом — в кухне со второго круга (спека v2.2a §6.5): ширина 180, нож у конца ближе к стене в 65 px от центра;
+  // центр доски безопасен для масс 1, 4 и 8, у ножа — удар
+  assert.ok([6, 11].every(n => d.buildTower(n).platforms.some(p => p.type === 'board')) && !d.buildTower(1).platforms.some(p => p.type === 'board'), 'доски в кухне со второго круга');
+  for (const n of [6, 11, 16, 21]) { const t = d.buildTower(n);
+    for (const b of t.platforms.filter(p => p.type === 'board')) {
+      const ks = t.hazards.filter(h => h.board === b.id); assert.strictEqual(ks.length, 1, 'у доски один нож'); const k = ks[0];
+      assert.strictEqual(b.w, 180); assert.strictEqual(k.x, b.x + (b.x < 240 ? -65 : 65), 'нож у конца доски ближе к стене');
+      const inStrike = (x, R) => { for (let ky = k.by; ky <= k.y - 80; ky += 2) if (Math.abs(x - k.x) < R + 8 && Math.abs(b.y - R - (ky + 40)) < R + 40) return true; return false; };
+      for (const m of [1, 4, 8]) assert.ok(!inStrike(b.x, d.radiusFor(m)), 'башня ' + n + ': центр доски безопасен, масса ' + m);
+      assert.ok(inStrike(k.x, d.radiusFor(4)), 'башня ' + n + ': у ножа доски — удар'); } }
   // миски — в раковине; миска на пути стоит только там, где до следующей платформы пути хватает одного прыжка (массы 1, 4, 8)
   assert.ok([4, 9].every(n => d.buildTower(n).platforms.some(p => p.type === 'bowl')), 'в раковине есть миски');
   for (let N = 1; N <= 60; N++) { const t = d.buildTower(N), by = new Map(t.platforms.map(p => [p.id, p]));

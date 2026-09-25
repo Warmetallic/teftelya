@@ -73,6 +73,9 @@ function drawPlatform(p) {
     ctx.fillStyle = `rgba(255,${(90 - heat * 60) | 0},20,${0.15 + heat * 0.6})`; ctx.beginPath(); ctx.ellipse(p.x, y + 8, p.w / 2 - 14, 9, 0, 0, 7); ctx.fill();
     ctx.strokeStyle = '#3d3734'; ctx.lineWidth = 8; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(p.x + p.w / 2, y + 8); ctx.lineTo(p.x + p.w / 2 + 40, y + 2); ctx.stroke(); // ручка
     if (heat > 0.3) { ctx.fillStyle = `rgba(255,255,255,${(heat - 0.3) * 0.4})`; for (let i = 0; i < 3; i++) { const t = (tGame * 1.5 + i * 0.33) % 1; ctx.beginPath(); ctx.arc(p.x - 20 + i * 20 + Math.sin(t * 6) * 6, y - 10 - t * 40, 6 + t * 6, 0, 7); ctx.fill(); } } // дымок
+  } else if (p.type === 'board') { // разделочная доска (нож над её концом рисуется как обычный нож; спека v2.2a §6.5)
+    ctx.fillStyle = '#c8955a'; rrect(p.x - p.w / 2, y - 4, p.w, 16, 5); ctx.fill(); ctx.fillStyle = '#a5723f'; rrect(p.x - p.w / 2, y + 8, p.w, 5, 3); ctx.fill();
+    ctx.strokeStyle = 'rgba(90,55,25,0.35)'; ctx.lineWidth = 1.5; for (let k = 1; k < 4; k++) { ctx.beginPath(); ctx.moveTo(p.x - p.w / 2 + 10, y + k * 3); ctx.lineTo(p.x + p.w / 2 - 10, y + k * 3); ctx.stroke(); }
   } else if (p.type === 'bowl') { // миска с пеной (спека v2.2a §6.3)
     ctx.fillStyle = '#e8eef3'; ctx.beginPath(); ctx.moveTo(p.x - p.w / 2, y - 6); ctx.quadraticCurveTo(p.x, y + 40, p.x + p.w / 2, y - 6); ctx.closePath(); ctx.fill();
     ctx.strokeStyle = '#9fb4c4'; ctx.lineWidth = 3; ctx.stroke();
