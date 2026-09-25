@@ -13,6 +13,13 @@ const steps = (g, n) => { for (let i = 0; i < n; i++) g.step(); };
 // подъём ботом по пути генератора до ряда rows в god-режиме, потом стоим на платформе
 async function up(g, d, rows) { d.state = 'play'; d.setGod(true); bot.climb(g, d, { untilRow: rows, maxFrames: 6000 }); d.setGod(false); }
 const tower2 = { store: { teft_save: JSON.stringify({ v: 4, earned: 40, spent: 0, up: {}, skins: [], skin: 'none', tower: 2, log: { 1: { r: 'A', t: 110 } }, cp: 0 }) } };
+const towerN = n => ({ store: { teft_save: JSON.stringify({ v: 4, earned: 0, spent: 0, up: {}, skins: [], skin: 'none', tower: n, log: {}, cp: 0 }) } });
+// тема башни (спека v2.2a §5–§6): Тефа двумя рядами ниже первой уникальности темы; фон, нижняя полоса и уникальность в кадре
+const themeScene = type => async (g, d) => {
+  const u = d.platforms.filter(p => p.type === type && p.row >= 3).sort((a, b) => a.row - b.row)[0];
+  await up(g, d, Math.max(1, u.row - 2)); d.resetPours(1e9); d.resetFlies(); steps(g, 20); };
+// плашка «Башня 2 · Холодильник» сразу после старта башни
+const banner = async (g, d) => { d.state = 'play'; steps(g, 20); };
 const tower3 = { store: { teft_save: JSON.stringify({ v: 4, earned: 120, spent: 0, up: {}, skins: [], skin: 'none', tower: 3, log: { 1: { r: 'S', t: 95.2 }, 2: { r: 'B', t: 150 } }, cp: 0 }) } };
 const play = async (g, d) => { await up(g, d, 6); steps(g, 10); };
 // башня 3: поднимаемся под первые лопасти генератора; нож, муху и налив масла для кадра ставим к камере (правка сцены, не рендера)
@@ -60,6 +67,12 @@ const finish = async (g, d) => { d.state = 'play'; d.run.foodEaten = Math.round(
   await shoot('cheese', 480, 854, cheese, tower3);
   await shoot('pour', 480, 854, pour);
   await shoot('knife', 480, 854, knife, tower2);
+  await shoot('banner', 480, 854, banner, towerN(2));
+  await shoot('theme_fridge', 480, 854, themeScene('shelf'), towerN(2));
+  await shoot('theme_oven', 480, 854, themeScene('toaster'), towerN(3));
+  await shoot('theme_sink', 480, 854, themeScene('bowl'), towerN(4));
+  await shoot('theme_feast', 480, 854, themeScene('spatula'), towerN(5));
+  await shoot('theme_kitchen2', 480, 854, themeScene('board'), towerN(6));
   await shoot('fly_warn', 480, 854, async (g, d) => { await up(g, d, 2); d.spawnFly(true); steps(g, 3); });
   await shoot('dead', 480, 854, dead);
   await shoot('finish', 480, 854, finish);
