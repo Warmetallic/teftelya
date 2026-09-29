@@ -71,10 +71,11 @@ function pourInterval(N) { return Math.max(3, 9 - 0.3 * (N - 1)); }
 function resetPours(delay) { pours = []; drops = []; splats = []; pourT = delay; } // старт башни, чекпоинт, «Продолжить»
 function delayPours(t) { pourT = Math.max(pourT, t); }                            // передышка после нового чекпоинта
 function startPour(x, extraWarn = 0) { pours.push({ x: clamp(x, 40, W - 40), warnT: POUR_WARN + extraWarn, left: POUR_DROPS, dropT: 0 }); }
-// env: { tp, berserk, camY, platforms }. События: hit {reason: 'oil'} | eaten {what: 'oil'} — как у остальных опасностей
+// env: { tp, berserk, camY, platforms, grounded }. События: hit {reason: 'oil'} | eaten {what: 'oil'} — как у остальных опасностей.
+// Новый налив стартует только когда Тефа стоит (grounded): в полёте увернуться нечем (плейтест владельца v2.2a); начатый — идёт
 function updatePours(dt, env) {
   const ev = [], N = env.tp.N;
-  pourT -= dt;
+  if (env.grounded !== false) pourT -= dt;
   if (pourT <= 0) { // столб рядом с Тефой или чуть впереди по ходу; с башни 6 иногда второй налив через 0.4 с в другом столбе
     startPour(ball.x + ball.vx * 0.3 + (Math.random() * 200 - 100));
     if (N >= 6 && Math.random() < 0.3) startPour(ball.x + (Math.random() < 0.5 ? -1 : 1) * (120 + Math.random() * 80), 0.4);
