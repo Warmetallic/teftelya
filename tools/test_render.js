@@ -125,11 +125,12 @@ const ctx = new Proxy({}, { get: (t, k) => k === 'fillText' ? s => texts.push(St
     const b = d4.fieldBounds(); assert.strictEqual(d4.artBg('fridge', b), false, 'без картинок арта нет');
     const t0 = Date.now(); d4.ART_IMG.oven = null; await d4.artPrepare('oven', 60); assert.ok(Date.now() - t0 < 1000 && !d4.ART.oven, 'картинки не пришли — ждём не дольше maxMs и живём без арта');
     const pic = (w, h, c) => { const cv = createCanvas(w, h), g = cv.getContext('2d'); g.fillStyle = c; g.fillRect(0, 0, w, h); return cv; };
-    d4.ART_IMG.fridge = { back: pic(96, 140, '#889'), watermelon: pic(60, 70, '#c55'), milk: pic(32, 72, '#dde'), eggs: pic(80, 72, '#eeb'), pickles: pic(35, 72, '#6a4'), grapes: pic(61, 72, '#85a'), broccoli: pic(74, 72, '#4a4'), yogurt: pic(58, 54, '#ccd'), bottle: pic(22, 72, '#eef') };
-    await d4.artPrepare('fridge'); const a = d4.ART.fridge; assert.ok(a && a.back.length >= 2 && a.front.length >= 1 && typeof a.anim === 'function', 'слои холодильника испечены');
-    for (const cy of [0, -1234, -5000, -12345]) { d4.setCamY(cy); rctx.fillStyle = '#f0f'; rctx.fillRect(0, 0, 480, 854); assert.ok(d4.artBg('fridge', b), 'арт рисуется');
-      const px = rctx.getImageData(0, 0, 480, 854).data; let holes = 0; for (let y = 0; y < 854; y += 20) for (let x = 0; x < 480; x += 20) { const i = (y * 480 + x) * 4; if (px[i] === 255 && px[i + 1] === 0 && px[i + 2] === 255) holes++; }
-      assert.strictEqual(holes, 0, 'camY ' + cy + ': поле покрыто без щелей'); }
+    for (const theme of Object.keys(d4.ART_SRC)) { // каждая тема: картинки-заглушки по списку имён, слои, покрытие поля
+      d4.ART_IMG[theme] = Object.fromEntries(d4.ART_SRC[theme].map((n, i) => [n, pic(n === 'back' ? 96 : 30 + i * 7, n === 'back' ? 140 : 72, n === 'back' ? '#889' : '#a75')]));
+      await d4.artPrepare(theme); const a = d4.ART[theme]; assert.ok(a && a.back.length >= 2 && a.front.length >= 1 && typeof a.anim === 'function', 'слои темы ' + theme + ' испечены');
+      for (const cy of [0, -1234, -5000, -12345]) { d4.setCamY(cy); rctx.fillStyle = '#f0f'; rctx.fillRect(0, 0, 480, 854); assert.ok(d4.artBg(theme, b), 'арт рисуется');
+        const px = rctx.getImageData(0, 0, 480, 854).data; let holes = 0; for (let y = 0; y < 854; y += 20) for (let x = 0; x < 480; x += 20) { const i = (y * 480 + x) * 4; if (px[i] === 255 && px[i + 1] === 0 && px[i + 2] === 255) holes++; }
+        assert.strictEqual(holes, 0, theme + ', camY ' + cy + ': поле покрыто без щелей'); } }
     delete document.createElement; }
   // высокий телефон 390×844: поле короче экрана, под ним виден фон — полоса продолжается сплошной заливкой своего
   // нижнего цвета до низа экрана, а не висит над плиткой (финальное ревью v2.2a)
