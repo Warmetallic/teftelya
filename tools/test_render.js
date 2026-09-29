@@ -124,10 +124,14 @@ const ctx = new Proxy({}, { get: (t, k) => k === 'fillText' ? s => texts.push(St
     document.createElement = () => createCanvas(1, 1);
     const b = d4.fieldBounds(); assert.strictEqual(d4.artBg('fridge', b), false, 'без картинок арта нет');
     const t0 = Date.now(); d4.ART_IMG.oven = null; await d4.artPrepare('oven', 60); assert.ok(Date.now() - t0 < 1000 && !d4.ART.oven, 'картинки не пришли — ждём не дольше maxMs и живём без арта');
+    assert.strictEqual(d4.artWarm(), false, 'прогрев: следующая тема ещё не готова'); d4.ART_IMG.oven = undefined; delete d4.ART_IMG.oven;
     const pic = (w, h, c) => { const cv = createCanvas(w, h), g = cv.getContext('2d'); g.fillStyle = c; g.fillRect(0, 0, w, h); return cv; };
-    for (const theme of Object.keys(d4.ART_SRC)) { // каждая тема: картинки-заглушки по списку имён, слои, покрытие поля
+    for (const theme of Object.keys(d4.ART_SRC)) { // каждая тема: картинки-заглушки по списку имён, слои, покрытие поля, бюджет памяти
       d4.ART_IMG[theme] = Object.fromEntries(d4.ART_SRC[theme].map((n, i) => [n, pic(n === 'back' ? 96 : 30 + i * 7, n === 'back' ? 140 : 72, n === 'back' ? '#889' : '#a75')]));
       await d4.artPrepare(theme); const a = d4.ART[theme]; assert.ok(a && a.back.length >= 2 && a.front.length >= 1 && typeof a.anim === 'function', 'слои темы ' + theme + ' испечены');
+      const mpx = a.back.concat(a.front).reduce((s, l) => s + l.c.width * l.c.height, 0) / 1e6; assert.ok(mpx <= 6, theme + ': холсты слоёв ' + mpx.toFixed(1) + ' МПкс, не больше 6');
+      await d4.artPrepare(theme); assert.strictEqual(d4.ART[theme], a, 'повторный artPrepare (смерть, «Продолжить», «Заново») не печёт заново');
+      assert.ok(Object.keys(d4.ART).length <= 2, 'испечены не больше двух тем — текущая и следующая, память телефона');
       for (const cy of [0, -1234, -5000, -12345]) { d4.setCamY(cy); rctx.fillStyle = '#f0f'; rctx.fillRect(0, 0, 480, 854); assert.ok(d4.artBg(theme, b), 'арт рисуется');
         const px = rctx.getImageData(0, 0, 480, 854).data; let holes = 0; for (let y = 0; y < 854; y += 20) for (let x = 0; x < 480; x += 20) { const i = (y * 480 + x) * 4; if (px[i] === 255 && px[i + 1] === 0 && px[i + 2] === 255) holes++; }
         assert.strictEqual(holes, 0, theme + ', camY ' + cy + ': поле покрыто без щелей'); } }

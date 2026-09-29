@@ -32,11 +32,14 @@ function artPrepare(theme, maxMs = ART_WAIT_MS) {
   const wait = ART_IMG[theme] === null && maxMs > 0 ? new Promise(res => { (ART_WAIT[theme] = ART_WAIT[theme] || []).push(res); setTimeout(res, maxMs); }) : Promise.resolve();
   return wait.then(() => { artGet(theme); });
 }
-// прогрев: печёт по одной ещё не испечённой теме с пришедшими картинками за вызов; true — всё готово, звать больше не нужно
+// память телефона: испечёнными живут только тема текущей башни и тема следующей (≈ 19 МБ холстов на тему), остальные выбрасываются
+function artNext() { return tower ? themeFor(tower.tp.N + 1).id : null; }
+function artEvict(keep) { for (const t in ART) if (t !== keep && t !== artNext()) delete ART[t]; }
+// прогрев следующей темы между кадрами: true — готово (или картинок нет), звать больше не нужно; false — звать ещё
 function artWarm() {
-  for (const t in ART_SRC) if (!(t in ART) && ART_IMG[t]) { artGet(t); return false; }
-  for (const t in ART_SRC) if (!(t in ART) && ART_IMG[t] === null) return false;
-  return true;
+  const n = artNext(); if (!n || n in ART || ART_IMG[n] === false || ART_IMG[n] === undefined) return true;
+  if (ART_IMG[n] === null) return false;
+  artGet(n); return true;
 }
 // размытие глубины резкости: три прохода box-blur ≈ гаусс в premultiplied alpha; по вертикали по кругу — слой повторяется без шва
 function artBlur(g, w, h, r) {
@@ -73,6 +76,7 @@ function artGet(theme) {
   const im = ART_IMG[theme];
   if (im === null || im === undefined) return null;   // ещё грузится или картинок нет — пока старый фон
   try { ART[theme] = im && ART_BAKE[theme] ? ART_BAKE[theme](im) : null; } catch (e) { ART[theme] = null; }
+  artEvict(theme);
   return ART[theme];
 }
 function artBg(theme, b) { // фон темы из картинок; false — арта нет, рисует старый фон

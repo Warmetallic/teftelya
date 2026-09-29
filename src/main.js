@@ -11,8 +11,7 @@ async function boot() {
   startTower(save.tower, save.cp); state = 'title';
   YG.onPause(pauseGame); YG.onResume(resumeGame);
   await artPrepare(tower.tp.theme); // экран загрузки ждёт картинки первой темы (не дольше ART_WAIT_MS) и печёт её слои
-  booted = true;
-  const warm = setInterval(() => { if (artWarm()) clearInterval(warm); }, 700); // остальные темы допекаются между кадрами титула
+  booted = true; artWarmLoop();
   draw();       // титул на экране — игра готова к взаимодействию
   YG.ready();
 }
@@ -41,7 +40,7 @@ async function showAd(fn) {
 async function goPlay(kind) {
   plays++;
   if (plays > 1 && sessionT - lastAdAt >= AD_INTERVAL) { const r = await showAd(() => YG.showInterstitial()); if (r.shown) lastAdAt = sessionT; }
-  if (kind === 'cp') restartFromCp(); else if (kind === 'restart') restartTower(); else if (kind === 'next') { nextTower(); artPrepare(tower.tp.theme, 0); } else state = 'play'; // новая башня: слои её темы печём до первого кадра
+  if (kind === 'cp') restartFromCp(); else if (kind === 'restart') restartTower(); else if (kind === 'next') { nextTower(); artPrepare(tower.tp.theme, 0).then(artWarmLoop); } else state = 'play'; // новая башня: её тема уже испечена прогревом, следующую греем дальше
   YG.gameplayStart();
 }
 async function tryContinue() {
@@ -111,6 +110,8 @@ function frame(now) {
 }
 requestAnimationFrame(frame);
 expose({ get paused() { return paused; }, get awaitTap() { return awaitTap; }, get adBusy() { return adBusy; }, forceAdReady() { lastAdAt = -1e9; }, pauseGame, resumeGame, goPlay });
+let warmTimer = null; // прогрев темы следующей башни между кадрами (спека v2.2c §6): один таймер, перезапускается при переходе
+function artWarmLoop() { clearInterval(warmTimer); warmTimer = setInterval(() => { if (artWarm()) clearInterval(warmTimer); }, 700); }
 // старт загрузки: в продакшене сразу при загрузке скрипта; тесты ставят CFG.manualBoot и зовут startBoot() сами
 function startBoot() { if (!DBG.boot) DBG.boot = boot().catch(e => { console.error('boot failed', e); booted = true; if (!tower) startTower(1, 0); state = 'title'; YG.ready(); }); return DBG.boot; }
 expose({ startBoot });
