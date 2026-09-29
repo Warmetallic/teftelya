@@ -172,8 +172,9 @@ function updateRun(dt) {
   const st = platformById(tower.platforms, ball.onPlatform);
   ball.hot = st && st.type === 'pan' ? clamp((st.hotT || 0) / panTime(tp), 0, 1) : Math.max(0, ball.hot - dt * 2);
   run.flyCd = Math.max(0, run.flyCd - dt);
-  if (run.flyCd <= 0 && flyWanted(dt, power.flyStreak, run.campT, isBerserk(), powerReady())) { spawnFly(); run.flyCd = FLY_CD; run.campT = 0; }
-  const hev = updateHazards(dt, tower.hazards, { tp, berserk: isBerserk(), invuln: run.invuln }).concat(updatePours(dt, { tp, berserk: isBerserk(), camY, platforms: tower.platforms }));
+  const grounded = ball.onPlatform !== null; // новые угрозы ждут посадки: в полёте среагировать нечем (плейтест владельца v2.2a)
+  if (grounded && run.flyCd <= 0 && flyWanted(dt, power.flyStreak, run.campT, isBerserk(), powerReady())) { spawnFly(); run.flyCd = FLY_CD; run.campT = 0; }
+  const hev = updateHazards(dt, tower.hazards, { tp, berserk: isBerserk(), invuln: run.invuln }).concat(updatePours(dt, { tp, berserk: isBerserk(), camY, platforms: tower.platforms, grounded }));
   for (const e of hev) {
     if (e.type === 'hit') damage(1, e.reason, e.x, e.y); // каждая опасность снимает один кусок; сразу убивает только падение
     else if (e.type === 'flyGaveUp') { onPower(powerAdd(3)); flyStreakAdd(3); popText(e.h.x, e.h.y, T('flyGone'), 'rgba(255,255,255,0.7)'); }

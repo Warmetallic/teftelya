@@ -192,5 +192,21 @@ const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addCol
     for (let i = 0; i < 90; i++) step();
     assert.ok(Math.abs(d.camY - (ball.y - 854 * 0.6)) < 3, 'после посадки камера у новой тарелки'); assert.ok(d.camY < cam0);
     assert.ok(maxDv < 200, 'скорость камеры без скачков: ' + maxDv.toFixed(0) + ' px/с за кадр'); }
+  // новые угрозы ждут посадки (плейтест владельца v2.2a): муха и налив не стартуют, пока Тефа в воздухе, — увернуться в полёте
+  // нечем, урон был бы гарантирован; уже начатые предупреждения не отменяются; на платформе всё как раньше
+  { d.startTower(1); d.state = 'play'; d.hazards.length = 0; d.resetFlies(); for (const it of d.items) it.dead = true;
+    const p0 = d.platforms.find(p => p.id === ball.onPlatform); d.platforms.length = 0; d.platforms.push(p0);
+    d.resetPours(0.2); d.run.campT = 10; d.jumpTo(ball.x, ball.y - 500); // лень уже накоплена, налив уже пора: обе угрозы хотят стартовать
+    let air = 0; for (let i = 0; i < 300 && ball.onPlatform === null; i++) { d.update(1 / 60); air++; }
+    assert.ok(air > 30 && ball.onPlatform === p0.id, 'Тефа полетала и села: ' + air);
+    assert.strictEqual(d.flies.length, 0, 'в полёте муха не влетела'); assert.strictEqual(d.pours.length + d.drops.length, 0, 'в полёте налив не начался');
+    d.run.campT = 10; for (let i = 0; i < 15; i++) d.update(1 / 60); // посадка сбрасывает лень — накапливаем снова; наливу осталось 0.2 с
+    assert.strictEqual(d.flies.length, 1, 'на платформе муха влетает'); assert.strictEqual(d.pours.length, 1, 'и налив начинается');
+    d.resetFlies(); d.resetPours(0.2); d.run.campT = 10; d.run.flyCd = 0; ball.onPlatform = null; ball.vy = -Math.sqrt(2 * d.GRAV * d.LAUNCH_H); // подброс: полёт дольше обычного
+    for (let i = 0; i < 400 && ball.onPlatform === null; i++) d.update(1 / 60);
+    assert.strictEqual(d.flies.length + d.pours.length + d.drops.length, 0, 'и за весь подброс ничего не стартовало');
+    d.resetPours(1e9); d.resetFlies(); d.run.campT = 10; d.run.flyCd = 0; d.update(1 / 60); assert.strictEqual(d.flies.length, 1); // муха стартовала на платформе
+    d.jumpTo(ball.x, ball.y - 300); for (let i = 0; i < 20; i++) d.update(1 / 60);
+    assert.strictEqual(d.flies.length, 1, 'начатое предупреждение прыжок не отменяет'); assert.ok(d.flies[0].warnT < d.FLY_WARN, 'и оно тикает в полёте'); }
   console.log('test_game ok');
 })().catch(e => { console.error(e); process.exit(1); });
