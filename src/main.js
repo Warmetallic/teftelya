@@ -10,7 +10,9 @@ async function boot() {
   await loadSave();
   startTower(save.tower, save.cp); state = 'title';
   YG.onPause(pauseGame); YG.onResume(resumeGame);
+  await artPrepare(tower.tp.theme); // экран загрузки ждёт картинки первой темы (не дольше ART_WAIT_MS) и печёт её слои
   booted = true;
+  const warm = setInterval(() => { if (artWarm()) clearInterval(warm); }, 700); // остальные темы допекаются между кадрами титула
   draw();       // титул на экране — игра готова к взаимодействию
   YG.ready();
 }
@@ -39,7 +41,7 @@ async function showAd(fn) {
 async function goPlay(kind) {
   plays++;
   if (plays > 1 && sessionT - lastAdAt >= AD_INTERVAL) { const r = await showAd(() => YG.showInterstitial()); if (r.shown) lastAdAt = sessionT; }
-  if (kind === 'cp') restartFromCp(); else if (kind === 'restart') restartTower(); else if (kind === 'next') nextTower(); else state = 'play';
+  if (kind === 'cp') restartFromCp(); else if (kind === 'restart') restartTower(); else if (kind === 'next') { nextTower(); artPrepare(tower.tp.theme, 0); } else state = 'play'; // новая башня: слои её темы печём до первого кадра
   YG.gameplayStart();
 }
 async function tryContinue() {

@@ -9,6 +9,7 @@
     "build": "node tools/build.js"
   },
   "devDependencies": {
-    "canvas": "^3.2.3"
+    "canvas": "^3.2.3",
+    "sharp": "^0.35.5"
   }
 }
