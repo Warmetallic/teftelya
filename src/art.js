@@ -218,7 +218,7 @@ ART_BAKE.oven = function (im) { // духовка: чёрная эмаль, ве
       for (const s of tiers) ovenRack(g, (s === T ? T - 30 : s) - 6);
       g.save(); g.translate(0, -T); ovenRack(g, T - 36); g.restore();
       const base = s => (s === T ? T - 30 : s) - 6;
-      prop(g, im.buns, 150, base(800), 210); prop(g, im.mitt, 380, base(800), 240);
+      prop(g, im.buns, 150, base(800), 210); prop(g, im.mitt, 390, base(800), 190);
       prop(g, im.chicken, 140, base(1600), 290); prop(g, im.potato, 330, base(1600), 170); prop(g, im.tongs, 430, base(1600), 320);
       prop(g, im.pie, 150, base(T), 230); prop(g, im.potato, 330, base(T), 150); prop(g, im.buns, 420, base(T), 180);
       fog(g, [255, 150, 70], 0.1, W, T); fog(g, OF, 0.28, W, T);
