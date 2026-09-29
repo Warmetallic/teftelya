@@ -40,7 +40,8 @@ async function showAd(fn) {
 async function goPlay(kind) {
   plays++;
   if (plays > 1 && sessionT - lastAdAt >= AD_INTERVAL) { const r = await showAd(() => YG.showInterstitial()); if (r.shown) lastAdAt = sessionT; }
-  if (kind === 'cp') restartFromCp(); else if (kind === 'restart') restartTower(); else if (kind === 'next') { nextTower(); artPrepare(tower.tp.theme, 0).then(artWarmLoop); } else state = 'play'; // новая башня: её тема уже испечена прогревом, следующую греем дальше
+  if (kind === 'cp') restartFromCp(); else if (kind === 'restart') restartTower(); else if (kind === 'next') nextTower(); else state = 'play';
+  artPrepare(tower.tp.theme, 0).then(artWarmLoop); // тема башни печётся до первого кадра (обычно уже испечена прогревом), дальше греем следующую
   YG.gameplayStart();
 }
 async function tryContinue() {
@@ -109,7 +110,9 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
-expose({ get paused() { return paused; }, get awaitTap() { return awaitTap; }, get adBusy() { return adBusy; }, forceAdReady() { lastAdAt = -1e9; }, pauseGame, resumeGame, goPlay });
+// отладка из консоли: прыгнуть на башню N с артом её темы (прямой startTower обходит запекание — фон был бы старый)
+function jumpTower(N) { startTower(N, 0); state = 'play'; return artPrepare(tower.tp.theme, 0).then(artWarmLoop); }
+expose({ get paused() { return paused; }, get awaitTap() { return awaitTap; }, get adBusy() { return adBusy; }, forceAdReady() { lastAdAt = -1e9; }, pauseGame, resumeGame, goPlay, jumpTower });
 let warmTimer = null; // прогрев темы следующей башни между кадрами (спека v2.2c §6): один таймер, перезапускается при переходе
 function artWarmLoop() { clearInterval(warmTimer); warmTimer = setInterval(() => { if (artWarm()) clearInterval(warmTimer); }, 700); }
 // старт загрузки: в продакшене сразу при загрузке скрипта; тесты ставят CFG.manualBoot и зовут startBoot() сами

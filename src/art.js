@@ -34,12 +34,15 @@ function artPrepare(theme, maxMs = ART_WAIT_MS) {
 }
 // память телефона: испечёнными живут только тема текущей башни и тема следующей (≈ 19 МБ холстов на тему), остальные выбрасываются
 function artNext() { return tower ? themeFor(tower.tp.N + 1).id : null; }
-function artEvict(keep) { for (const t in ART) if (t !== keep && t !== artNext()) delete ART[t]; }
-// прогрев следующей темы между кадрами: true — готово (или картинок нет), звать больше не нужно; false — звать ещё
+function artEvict(keep) { const cur = tower ? tower.tp.theme : null; for (const t in ART) if (t !== keep && t !== cur && t !== artNext()) delete ART[t]; } // текущую не трогать: иначе перепечётся в кадре (финальное ревью)
+// прогрев между кадрами вне игры (титул, финиш, смерть): сначала текущая тема, если её ещё нет (картинки опоздали к старту),
+// потом следующая; true — готово (или картинок нет), звать больше не нужно; false — звать ещё. В игре не печёт: стоп ≈ 0.4 с в кадре
 function artWarm() {
-  const n = artNext(); if (!n || n in ART || ART_IMG[n] === false || ART_IMG[n] === undefined) return true;
-  if (ART_IMG[n] === null) return false;
-  artGet(n); return true;
+  const todo = [tower ? tower.tp.theme : null, artNext()].filter(t => t && !(t in ART) && ART_IMG[t] !== false && ART_IMG[t] !== undefined);
+  if (!todo.length) return true;         // печь нечего (и без картинок вовсе — таймер гаснет сразу)
+  if (state === 'play') return false;    // в игре ждём экрана вне игры
+  if (ART_IMG[todo[0]] === null) return false; // картинки ещё грузятся
+  artGet(todo[0]); return false;
 }
 // размытие глубины резкости: три прохода box-blur ≈ гаусс в premultiplied alpha; по вертикали по кругу — слой повторяется без шва
 function artBlur(g, w, h, r) {
@@ -66,7 +69,7 @@ function artLayer({ T, S = 1, p, blur = 0, alpha = 1, wobble = 0 }, paint) {
 function artDraw(layers, b) {
   for (const l of layers) {
     const off = ((-camY * l.p) % l.T + l.T) % l.T, wy = l.wobble ? Math.sin(tGame * 5) * l.wobble : 0; ctx.globalAlpha = l.alpha; // wobble — дрожащий жар
-    for (let y = off - l.T * Math.ceil((off - b.y0) / l.T); y < b.y1; y += l.T) ctx.drawImage(l.c, 0, y + wy, W, l.T);
+    for (let y = off - l.T * Math.ceil((off - b.y0) / l.T); y < b.y1; y += l.T) ctx.drawImage(l.c, 0, y + wy, W, l.T + 1); // +1: повторы внахлёст, без волосяного шва при дробном масштабе
   }
   ctx.globalAlpha = 1;
 }
@@ -79,8 +82,8 @@ function artGet(theme) {
   artEvict(theme);
   return ART[theme];
 }
-function artBg(theme, b) { // фон темы из картинок; false — арта нет, рисует старый фон
-  const a = artGet(theme); if (!a) return false;
+function artBg(theme, b) { // фон темы из картинок — только уже испечённой (печёт artPrepare/artWarm, не кадр игры); false — старый фон
+  const a = ART[theme]; if (!a) return false;
   ctx.fillStyle = a.base; ctx.fillRect(b.x0, b.y0, b.x1 - b.x0, b.y1 - b.y0);
   artDraw(a.back, b); if (a.anim) a.anim(b);
   return true;

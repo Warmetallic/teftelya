@@ -7,6 +7,7 @@ async function shoot(name, w, h, scenario, opts = {}) {
   const real = createCanvas(w, h), ctx = real.getContext('2d');
   const g = require('./_env')(ctx, Object.assign({ width: w, height: h }, opts));
   global.document.createElement = () => createCanvas(1, 1); // невидимые холсты: слои арта и кэш Тефы, как в браузере
+  global.setInterval = () => 0; global.clearInterval = () => {}; // без таймера прогрева следующей темы: в Node каждое запекание — секунды, сцене оно не нужно
   if (opts.store) for (const k of Object.keys(opts.store)) g.store.set(k, opts.store[k]);
   await loadArt(g.dbg()); await g.boot(); await scenario(g, g.dbg());
   fs.writeFileSync(path.join(OUT, name + '.png'), real.toBuffer('image/png')); console.log('shots/' + name + '.png');

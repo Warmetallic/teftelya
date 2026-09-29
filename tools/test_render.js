@@ -126,8 +126,9 @@ const ctx = new Proxy({}, { get: (t, k) => k === 'fillText' ? s => texts.push(St
     const t0 = Date.now(); d4.ART_IMG.oven = null; await d4.artPrepare('oven', 60); assert.ok(Date.now() - t0 < 1000 && !d4.ART.oven, 'картинки не пришли — ждём не дольше maxMs и живём без арта');
     assert.strictEqual(d4.artWarm(), false, 'прогрев: следующая тема ещё не готова'); d4.ART_IMG.oven = undefined; delete d4.ART_IMG.oven;
     const pic = (w, h, c) => { const cv = createCanvas(w, h), g = cv.getContext('2d'); g.fillStyle = c; g.fillRect(0, 0, w, h); return cv; };
-    for (const theme of Object.keys(d4.ART_SRC)) { // каждая тема: картинки-заглушки по списку имён, слои, покрытие поля, бюджет памяти
-      d4.ART_IMG[theme] = Object.fromEntries(d4.ART_SRC[theme].map((n, i) => [n, pic(n === 'back' ? 96 : 30 + i * 7, n === 'back' ? 140 : 72, n === 'back' ? '#889' : '#a75')]));
+    const towerOf = { kitchen: 1, fridge: 2, oven: 3, sink: 4, feast: 5 };
+    for (const theme of Object.keys(d4.ART_SRC)) { // каждая тема на своей башне: картинки-заглушки по списку имён, слои, покрытие поля, бюджет памяти
+      d4.startTower(towerOf[theme]); d4.ART_IMG[theme] = Object.fromEntries(d4.ART_SRC[theme].map((n, i) => [n, pic(n === 'back' ? 96 : 30 + i * 7, n === 'back' ? 140 : 72, n === 'back' ? '#889' : '#a75')]));
       await d4.artPrepare(theme); const a = d4.ART[theme]; assert.ok(a && a.back.length >= 2 && a.front.length >= 1 && typeof a.anim === 'function', 'слои темы ' + theme + ' испечены');
       const mpx = a.back.concat(a.front).reduce((s, l) => s + l.c.width * l.c.height, 0) / 1e6; assert.ok(mpx <= 6, theme + ': холсты слоёв ' + mpx.toFixed(1) + ' МПкс, не больше 6');
       await d4.artPrepare(theme); assert.strictEqual(d4.ART[theme], a, 'повторный artPrepare (смерть, «Продолжить», «Заново») не печёт заново');
@@ -135,6 +136,27 @@ const ctx = new Proxy({}, { get: (t, k) => k === 'fillText' ? s => texts.push(St
       for (const cy of [0, -1234, -5000, -12345]) { d4.setCamY(cy); rctx.fillStyle = '#f0f'; rctx.fillRect(0, 0, 480, 854); assert.ok(d4.artBg(theme, b), 'арт рисуется');
         const px = rctx.getImageData(0, 0, 480, 854).data; let holes = 0; for (let y = 0; y < 854; y += 20) for (let x = 0; x < 480; x += 20) { const i = (y * 480 + x) * 4; if (px[i] === 255 && px[i + 1] === 0 && px[i + 2] === 255) holes++; }
         assert.strictEqual(holes, 0, theme + ', camY ' + cy + ': поле покрыто без щелей'); } }
+    // финальное ревью v2.2c: прогрев следующей темы не выбрасывает текущую (иначе она перепекается в кадре через 0.7 с после
+    // «Дальше»); во время игры ничего не печётся — artBg рисует только готовое, artWarm ждёт экрана вне игры
+    d4.startTower(2); d4.state = 'title'; delete d4.ART.fridge; delete d4.ART.oven; await d4.artPrepare('fridge'); const fr = d4.ART.fridge;
+    const warm = () => { let r = false; for (let i = 0; i < 5 && !r; i++) r = d4.artWarm(); return r; }; // таймер зовёт, пока не готово
+    assert.strictEqual(warm(), true, 'следующая тема (духовка) испечена прогревом'); assert.deepStrictEqual(Object.keys(d4.ART).sort(), ['fridge', 'oven'], 'испечены текущая и следующая');
+    d4.setCamY(0); assert.ok(d4.artBg('fridge', b)); assert.strictEqual(d4.ART.fridge, fr, 'текущая тема после прогрева та же, не перепечена');
+    d4.startTower(3); d4.state = 'play'; delete d4.ART.oven; assert.strictEqual(d4.artBg('oven', b), false, 'в игре artBg не печёт — рисует старый фон'); assert.ok(!d4.ART.oven);
+    assert.strictEqual(d4.artWarm(), false, 'в игре прогрев ждёт'); assert.ok(!d4.ART.sink);
+    await d4.artPrepare('oven', 0); assert.ok(d4.ART.oven && d4.artBg('oven', b), 'artPrepare печёт и arтBg рисует'); d4.state = 'finish'; assert.strictEqual(warm(), true); assert.ok(d4.ART.sink, 'вне игры прогрев печёт следующую');
+    delete document.createElement; }
+  // финальное ревью v2.2c: шов между повторами задника при дробном масштабе экрана (390×844 → scale 0.8125) — антиалиас кромок
+  // двух соседних drawImage давал строку, где просвечивала подложка; проверяем поверх розовой подложки
+  { const { createCanvas } = require('canvas'); const real = createCanvas(390, 844), rctx = real.getContext('2d');
+    const g5 = require('./_env')(rctx, { width: 390, height: 844 }); const d5 = g5.dbg(); await d5.YG.init(); await d5.loadSave(); d5.startTower(2); d5.state = 'play';
+    document.createElement = () => createCanvas(1, 1); const b = d5.fieldBounds();
+    const pic = (w, h, c) => { const cv = createCanvas(w, h), g = cv.getContext('2d'); g.fillStyle = c; g.fillRect(0, 0, w, h); return cv; };
+    d5.ART_IMG.fridge = Object.fromEntries(d5.ART_SRC.fridge.map((n, i) => [n, pic(n === 'back' ? 96 : 30 + i * 7, n === 'back' ? 140 : 72, n === 'back' ? '#889' : '#a75')]));
+    await d5.artPrepare('fridge'); d5.ART.fridge.base = '#f0f';
+    for (const cy of [-333.7, -1234.56, -777.25]) { d5.setCamY(cy); rctx.setTransform(1, 0, 0, 1, 0, 0); rctx.fillStyle = '#000'; rctx.fillRect(0, 0, 390, 844); const k = d5.view.scale * d5.view.dpr; rctx.setTransform(k, 0, 0, k, d5.view.offX * d5.view.dpr, d5.view.offY * d5.view.dpr); assert.ok(d5.artBg('fridge', b)); // как beginField
+      rctx.setTransform(1, 0, 0, 1, 0, 0); const px = rctx.getImageData(0, 0, 390, 844).data; let pink = 0; for (let i = 0; i < px.length; i += 4) if (px[i] > 200 && px[i + 1] < 60 && px[i + 2] > 200) pink++;
+      assert.strictEqual(pink, 0, 'camY ' + cy + ': подложка не просвечивает между повторами задника (' + pink + ' px)'); }
     delete document.createElement; }
   // высокий телефон 390×844: поле короче экрана, под ним виден фон — полоса продолжается сплошной заливкой своего
   // нижнего цвета до низа экрана, а не висит над плиткой (финальное ревью v2.2a)
