@@ -9,7 +9,7 @@ const ART_SRC = {
   fridge: ['back', 'watermelon', 'milk', 'eggs', 'pickles', 'grapes', 'broccoli', 'yogurt', 'bottle'],
   kitchen: ['back', 'pot', 'board', 'grater', 'flour', 'towel', 'kettle', 'spoon'],
   oven: ['back', 'buns', 'chicken', 'pie', 'potato', 'tongs', 'mitt'],
-  sink: ['back', 'sponge', 'soap', 'plates', 'cup', 'brush', 'foam'],
+  sink: ['back', 'soap', 'plates', 'cup', 'brush', 'foam'], // без губки: жёлто-зелёный брусок не отличить от платформы-сыра
   feast: ['back', 'cake', 'fruit', 'glass', 'gift', 'crackers', 'candle'],
 };
 const ART_IMG = {};             // тема → { имя: Image } когда всё загружено; null — грузится; false — не вышло
@@ -246,9 +246,9 @@ ART_BAKE.sink = function (im) { // раковина: стальная мойка
       const base = s => (s === T ? T - 40 : s);
       for (const s of tiers) { sinkFloor(g, base(s)); dishRack(g, base(s) - 430); }
       g.save(); g.translate(0, -T); dishRack(g, T - 40 - 430); g.restore();
-      prop(g, im.plates, 130, base(800), 250); prop(g, im.sponge, 350, base(800), 160); prop(g, im.foam, 420, base(800) - 120, 130);
-      prop(g, im.soap, 90, base(1600), 340); prop(g, im.cup, 250, base(1600), 190); prop(g, im.brush, 400, base(1600), 300);
-      prop(g, im.foam, 110, base(T), 170); prop(g, im.plates, 280, base(T), 220); prop(g, im.sponge, 430, base(T), 150);
+      prop(g, im.plates, 130, base(800), 250); prop(g, im.cup, 350, base(800), 180); prop(g, im.foam, 430, base(800) - 100, 130);
+      prop(g, im.soap, 90, base(1600), 340); prop(g, im.foam, 250, base(1600), 200); prop(g, im.brush, 400, base(1600), 300);
+      prop(g, im.foam, 110, base(T), 170); prop(g, im.plates, 280, base(T), 220); prop(g, im.cup, 430, base(T), 160);
       fog(g, [160, 200, 230], 0.12, W, T); fog(g, SF, 0.22, W, T);
     }),
   ];
