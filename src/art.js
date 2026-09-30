@@ -3,7 +3,7 @@
 // Владелец (2026-09-25): «должен быть прям хороший нарисованный холодильник, как будто мы внутри; у Pixar почти всё
 // реалистично, только мультяшно». Картинки сгенерированы локально (SDXL DreamShaper XL Lightning, OpenRAIL++; фон вещей
 // вырезан rembg) — assets/art/<тема>/*.webp. Код собирает из них слои: задник камеры холодильника, вещи на стеклянных
-// полках, размытый передний план; запекает один раз (свет ламп, холодная тонировка, размытие глубины) и двигает с
+// полках; запекает один раз (свет ламп, холодная тонировка, размытие глубины) и двигает с
 // параллаксом. Пока картинки грузятся или их нет (тесты в Node), рисуется старый фон темы.
 const ART_SRC = {
   fridge: ['back', 'watermelon', 'milk', 'eggs', 'pickles', 'grapes', 'broccoli', 'yogurt', 'bottle'],
@@ -13,7 +13,7 @@ const ART_SRC = {
   feast: ['back', 'cake', 'fruit', 'glass', 'gift', 'crackers', 'candle'],
 };
 const ART_IMG = {};             // тема → { имя: Image } когда всё загружено; null — грузится; false — не вышло
-const ART = {};                 // тема → { back: [слои], front: [слои], anim } или null
+const ART = {};                 // тема → { base, back: [слои], anim } или null; поверх мира арт ничего не рисует
 const ART_WAIT = {};            // тема → [resolve…] тех, кто ждёт её картинки (artPrepare)
 const ART_WAIT_MS = 3000;       // экран загрузки ждёт картинки текущей темы не дольше этого (спека v2.2c §6)
 const FOG = [18, 36, 58];       // холодная глубина холодильника
@@ -60,16 +60,16 @@ function artBlur(g, w, h, r) {
 }
 // слой: T — высота повтора в пикселях поля, S — пикселей холста на пиксель поля (2 — резко на экранах с двойной
 // плотностью), p — параллакс (1 = как мир), blur — радиус размытия в пикселях холста, paint рисует в координатах поля
-function artLayer({ T, S = 1, p, blur = 0, alpha = 1, wobble = 0 }, paint) {
+function artLayer({ T, S = 1, p, blur = 0, alpha = 1 }, paint) {
   const c = document.createElement('canvas'); c.width = Math.round(W * S); c.height = Math.round(T * S); const g = c.getContext('2d');
   g.scale(S, S); paint(g, T); g.setTransform(1, 0, 0, 1, 0, 0);
   if (blur > 0) artBlur(g, c.width, c.height, blur);
-  return { c, p, T, alpha, wobble };
+  return { c, p, T, alpha };
 }
 function artDraw(layers, b) {
   for (const l of layers) {
-    const off = ((-camY * l.p) % l.T + l.T) % l.T, wy = l.wobble ? Math.sin(tGame * 5) * l.wobble : 0; ctx.globalAlpha = l.alpha; // wobble — дрожащий жар
-    for (let y = off - l.T * Math.ceil((off - b.y0) / l.T); y < b.y1; y += l.T) ctx.drawImage(l.c, 0, y + wy, W, l.T + 1); // +1: повторы внахлёст, без волосяного шва при дробном масштабе
+    const off = ((-camY * l.p) % l.T + l.T) % l.T; ctx.globalAlpha = l.alpha;
+    for (let y = off - l.T * Math.ceil((off - b.y0) / l.T); y < b.y1; y += l.T) ctx.drawImage(l.c, 0, y, W, l.T + 1); // +1: повторы внахлёст, без волосяного шва при дробном масштабе
   }
   ctx.globalAlpha = 1;
 }
@@ -88,7 +88,6 @@ function artBg(theme, b) { // фон темы из картинок — толь
   artDraw(a.back, b); if (a.anim) a.anim(b);
   return true;
 }
-function artFg(theme) { const a = ART[theme]; if (a && a.front) artDraw(a.front, fieldBounds()); } // передний план поверх мира
 function tileTops(T, p, b) { const off = ((-camY * p) % T + T) % T, out = []; for (let y = off - T * Math.ceil((off - b.y0) / T); y < b.y1; y += T) out.push(y); return out; } // где на экране начинаются повторы слоя
 function fog(g, c, a, W_, T) { g.globalCompositeOperation = 'source-atop'; g.fillStyle = rgb(c, a); g.fillRect(0, 0, W_, T); g.globalCompositeOperation = 'source-over'; } // утопить нарисованное в глубину темы
 
@@ -170,12 +169,8 @@ const ART_BAKE = {
         g.globalCompositeOperation = 'source-atop'; g.fillStyle = 'rgba(120,160,210,0.16)'; g.fillRect(0, 0, W, T); g.fillStyle = rgb(FOG, 0.22); g.fillRect(0, 0, W, T); g.globalCompositeOperation = 'source-over';
       }),
     ];
-    const front = [artLayer({ T: 1600, S: 1, p: 1.35, blur: 7, alpha: 0.75 }, (g, T) => { // передний план: размытые бутылки у самого края
-      for (const y0 of [620, 1420]) prop(g, im.bottle, 4, y0, 420);
-      g.globalCompositeOperation = 'source-atop'; g.fillStyle = rgb(FOG, 0.35); g.fillRect(0, 0, W, T); g.globalCompositeOperation = 'source-over';
-    })];
     return {
-      base: 'rgb(28,48,70)', back, front,
+      base: 'rgb(28,48,70)', back,
       anim(b) { // холодный пар медленно плывёт поперёк
         for (let i = 0; i < 3; i++) { const y = ((i * 310 - camY * 0.45) % 930 + 930) % 930 - 40, x = ((tGame * (9 + i * 5) + i * 170) % 760) - 140;
           glowE(ctx, x, y, 220, 0.28, [205, 232, 255], 0.06); }
@@ -203,9 +198,8 @@ ART_BAKE.kitchen = function (im) { // кухня: плитка над столе
       fog(g, [255, 236, 200], 0.1, W, T); fog(g, KF, 0.22, W, T);
     }),
   ];
-  const front = [artLayer({ T: 1600, S: 1, p: 1.35, blur: 7, alpha: 0.7 }, (g, T) => { for (const y0 of [700, 1500]) prop(g, im.spoon, 6, y0, 330); fog(g, KF, 0.35, W, T); })]; // узкий стакан с ложками у края
   return {
-    base: 'rgb(78,58,40)', back, front,
+    base: 'rgb(78,58,40)', back,
     anim(b) { // пар от чайника (второй ярус) поднимается и тает
       for (const ty of tileTops(2400, 0.6, b)) for (let i = 0; i < 4; i++) { const k = ((tGame * 0.35 + i * 0.25) % 1), y = ty + 1290 - k * 150, x = 262 + Math.sin(tGame * 1.3 + i) * 12;
         if (y > b.y0 - 60 && y < b.y1 + 60) glowE(ctx, x, y, 26 + k * 30, 0.8, [255, 250, 245], 0.16 * (1 - k)); }
@@ -231,9 +225,8 @@ ART_BAKE.oven = function (im) { // духовка: чёрная эмаль, ве
       fog(g, [255, 150, 70], 0.1, W, T); fog(g, OF, 0.28, W, T);
     }),
   ];
-  const front = [artLayer({ T: 1600, S: 1, p: 1.35, blur: 7, alpha: 0.7, wobble: 3 }, (g, T) => { for (const y0 of [650, 1450]) prop(g, im.tongs, 10, y0, 400); fog(g, OF, 0.4, W, T); })];
   return {
-    base: 'rgb(28,16,12)', back, front,
+    base: 'rgb(28,16,12)', back,
     anim(b) { // угольки всплывают из глубины
       for (let i = 0; i < 8; i++) { const k = (tGame * (0.12 + i * 0.017) + i * 0.37) % 1, x = (i * 173 + 40 + Math.sin(tGame * 0.7 + i) * 18) % W, y = b.y1 - k * (b.y1 - b.y0);
         ctx.fillStyle = `rgba(230,${110 + (i % 3) * 25},50,${0.5 * (1 - k) * (0.6 + 0.4 * Math.sin(tGame * 6 + i))})`; ctx.beginPath(); ctx.arc(x, y, 2 + (i % 2), 0, 7); ctx.fill(); }
@@ -259,9 +252,8 @@ ART_BAKE.sink = function (im) { // раковина: стальная мойка
       fog(g, [160, 200, 230], 0.12, W, T); fog(g, SF, 0.22, W, T);
     }),
   ];
-  const front = [artLayer({ T: 1600, S: 1, p: 1.35, blur: 7, alpha: 0.7 }, (g, T) => { for (const y0 of [600, 1400]) prop(g, im.soap, 6, y0, 400); fog(g, SF, 0.35, W, T); })];
   return {
-    base: 'rgb(34,56,72)', back, front,
+    base: 'rgb(34,56,72)', back,
     anim(b) { // пузыри всплывают и лопаются у верха
       for (let i = 0; i < 7; i++) { const k = (tGame * (0.08 + i * 0.013) + i * 0.29) % 1, x = (i * 131 + 60 + Math.sin(tGame * 0.9 + i * 2) * 14) % W, y = b.y1 - k * (b.y1 - b.y0), r = 5 + (i % 3) * 4;
         ctx.strokeStyle = `rgba(225,245,255,${0.55 * (1 - k * k)})`; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.stroke();
@@ -287,9 +279,8 @@ ART_BAKE.feast = function (im) { // праздничный стол: скате�
       fog(g, [255, 200, 130], 0.1, W, T); fog(g, FF, 0.25, W, T);
     }),
   ];
-  const front = [artLayer({ T: 1600, S: 1, p: 1.35, blur: 7, alpha: 0.7 }, (g, T) => { for (const y0 of [620, 1420]) prop(g, im.glass, 12, y0, 400); fog(g, FF, 0.35, W, T); })];
   return {
-    base: 'rgb(18,40,28)', back, front,
+    base: 'rgb(18,40,28)', back,
     anim(b) { // огоньки свечей дрожат (ярусы 800: торт, 1600 и 2400: подсвечники), гирлянда на задней стенке мигает
       for (const ty of tileTops(2400, 0.6, b)) for (const [x, y] of [[130, 800 - 8 - 320], [100, 1600 - 300], [250, 2400 - 8 - 262]]) {
         const sy = ty + y; if (sy < b.y0 - 80 || sy > b.y1 + 80) continue; const f = 0.7 + 0.3 * Math.sin(tGame * 9 + x);
@@ -299,4 +290,4 @@ ART_BAKE.feast = function (im) { // праздничный стол: скате�
     },
   };
 };
-expose({ ART, ART_IMG, ART_SRC, ART_WAIT_MS, artPrepare, artWarm, artBg, artFg, artBlur });
+expose({ ART, ART_IMG, ART_SRC, ART_WAIT_MS, artPrepare, artWarm, artBg, artBlur });

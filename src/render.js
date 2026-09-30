@@ -323,7 +323,6 @@ function drawWorld() { // всё внутри поля; вызывающий с�
     else { ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x, p.y - camY, p.size, 0, 7); ctx.fill(); }
   }
   ctx.globalAlpha = 1;
-  artFg(tower.tp.theme); // передний план арта поверх мира, под полосой
   drawBand();
   for (const t of texts) {
     const k = t.t; ctx.globalAlpha = 1 - k * k; ctx.fillStyle = t.color; ctx.textAlign = 'center';

@@ -129,8 +129,9 @@ const ctx = new Proxy({}, { get: (t, k) => k === 'fillText' ? s => texts.push(St
     const towerOf = { kitchen: 1, fridge: 2, oven: 3, sink: 4, feast: 5 };
     for (const theme of Object.keys(d4.ART_SRC)) { // каждая тема на своей башне: картинки-заглушки по списку имён, слои, покрытие поля, бюджет памяти
       d4.startTower(towerOf[theme]); d4.ART_IMG[theme] = Object.fromEntries(d4.ART_SRC[theme].map((n, i) => [n, pic(n === 'back' ? 96 : 30 + i * 7, n === 'back' ? 140 : 72, n === 'back' ? '#889' : '#a75')]));
-      await d4.artPrepare(theme); const a = d4.ART[theme]; assert.ok(a && a.back.length >= 2 && a.front.length >= 1 && typeof a.anim === 'function', 'слои темы ' + theme + ' испечены');
-      const mpx = a.back.concat(a.front).reduce((s, l) => s + l.c.width * l.c.height, 0) / 1e6; assert.ok(mpx <= 6, theme + ': холсты слоёв ' + mpx.toFixed(1) + ' МПкс, не больше 6');
+      await d4.artPrepare(theme); const a = d4.ART[theme]; assert.ok(a && a.back.length >= 2 && typeof a.anim === 'function', 'слои темы ' + theme + ' испечены');
+      assert.ok(!a.front && typeof d4.artFg === 'undefined', theme + ': арт ничего не рисует поверх мира — размытая вещь у края закрывала Тефу и платформы (плейтест владельца 30.09)');
+      const mpx = a.back.reduce((s, l) => s + l.c.width * l.c.height, 0) / 1e6; assert.ok(mpx <= 6, theme + ': холсты слоёв ' + mpx.toFixed(1) + ' МПкс, не больше 6');
       await d4.artPrepare(theme); assert.strictEqual(d4.ART[theme], a, 'повторный artPrepare (смерть, «Продолжить», «Заново») не печёт заново');
       assert.ok(Object.keys(d4.ART).length <= 2, 'испечены не больше двух тем — текущая и следующая, память телефона');
       for (const cy of [0, -1234, -5000, -12345]) { d4.setCamY(cy); rctx.fillStyle = '#f0f'; rctx.fillRect(0, 0, 480, 854); assert.ok(d4.artBg(theme, b), 'арт рисуется');
