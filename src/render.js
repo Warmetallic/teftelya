@@ -227,14 +227,14 @@ function drawTefaBall() {
   const x = ball.x, y = ball.y - camY + ball.r - r; // берсерк крупнее от нижней точки: низ Тефы остаётся на платформе
   const st = tower ? platformById(tower.platforms, ball.onPlatform) : null;
   if (st) { ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(x, st.y - camY + 6, r * 0.9, 8, 0, 0, 7); ctx.fill(); } // тень на платформе
-  const pose = { sx: 1 + ball.sq, sy: 1 - ball.sq, tilt: ball.tilt, face: ball.face, mouth: ball.mouth, blink: ball.blink > 0, hot: ball.hot, berserk: bz,
+  const pose = { t: tGame, sx: 1 + ball.sq, sy: 1 - ball.sq, tilt: ball.tilt, face: ball.face, mouth: ball.mouth, blink: ball.blink > 0, hot: ball.hot, berserk: bz,
     alpha: run && run.invuln > 0 && Math.floor(tGame * 12) % 2 === 0 ? 0.45 : 1,
     hp: { cur: ball.mass, max: massMax() }, charged: powerReady(),
     tint: ball.mass === 1 ? 0.5 + 0.5 * Math.sin(tGame * Math.PI * 3) : 0, // последний кусок мигает ≈ 1.5 раза в секунду
     heal: ball.healT > 0 ? 1 - ball.healT / HEAL_T : 0,
     bake: radiusFor(ball.mass) * (bz ? 1.6 : 1) }; // кэш тела печётся под целевой радиус массы, пока ball.r его догоняет
   drawTefa(ctx, x, y, r, pose);
-  const cm = chargesMax(), top = y - r * 1.16 - 14 - (bz ? r * 0.55 : 0); // заряды над головой; в берсерке выше пламени
+  const cm = chargesMax(), top = y - r * 1.16 - 14 - (bz ? r * 0.95 : 0); // заряды над головой; в берсерке выше пламени
   for (let i = 0; i < cm; i++) { ctx.fillStyle = i < ball.charges ? '#f6c343' : 'rgba(255,255,255,0.2)'; ctx.beginPath(); ctx.arc(x - (cm - 1) * 7 + i * 14, top, 4, 0, 7); ctx.fill(); }
 }
 // шкала суперсилы сверху слева (спека v2.1.1 §3.3): копится оранжевой, полна — золотая и пульсирует, в берсерке показывает
