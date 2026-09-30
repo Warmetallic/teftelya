@@ -102,5 +102,13 @@ async function runNoReward(opts) {
   for (const k of ['ready', 'start', 'stop', 'inter', 'reward', 'setData']) assert.ok(log.includes(k), 'реальный API вызван: ' + k);
   const log3 = []; const d3 = await runNoReward({ YaGames: fakeYaGames(log3, { noReward: true }) });
   assert.ok(log3.includes('reward'), 'rewarded показан'); assert.strictEqual(d3.run.usedContinue, 0, 'без награды продолжение не потрачено');
+  // выбор башни ссылкой для плейтеста (?tower=N): только на локальном адресе — на площадке башню так не перепрыгнуть
+  for (const [host, search, want, msg] of [['127.0.0.1', '?tower=3', 3, 'локально ?tower=3 открывает башню 3'], ['localhost', '?x=1&tower=5', 5, 'параметр не первый'],
+      ['yandex.ru', '?tower=3', 1, 'на площадке параметр не действует'], ['127.0.0.1', '?tower=abc', 1, 'мусор в параметре — башня из сохранения'], ['127.0.0.1', '', 1, 'без параметра — башня из сохранения']]) {
+    global.location = { hostname: host, search, protocol: 'http:' };
+    const g = require('./_env')(ctx, { dist }); await g.boot(); const d = g.dbg();
+    assert.strictEqual(d.tower.tp.N, want, msg); assert.strictEqual(d.state, 'title'); assert.strictEqual(d.save.tower, 1, 'сохранение параметром не меняется');
+  }
+  delete global.location;
   console.log('smoke ok' + (dist ? ' (dist)' : ''));
 })().catch(e => { console.error(e); process.exit(1); });

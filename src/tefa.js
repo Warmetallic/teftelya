@@ -284,34 +284,94 @@ function tefaChargeRim(c, x, y, r) { // золотой кант изнутри �
   c.fillStyle = g; c.fillRect(x - r * 1.5, y - r * 1.5, r * 3, r * 3);
   c.restore();
 }
-function tefaBerserkAura(c, x, y, r) { // огненная аура: три слоя языков пламени от края вверх-наружу (за телом)
-  const v = TEFA_VARIANT, g = c.createRadialGradient(x, y, r * 0.8, x, y, r * 1.7);
-  g.addColorStop(0, 'rgba(255,110,30,0.55)'); g.addColorStop(1, 'rgba(255,80,20,0)');
-  c.fillStyle = g; tefaEll(c, x, y, r * 1.7, r * 1.7);
-  for (const [col, k] of [['rgba(214,52,20,0.9)', 1], ['rgba(255,132,30,0.95)', 0.74], ['rgba(255,222,110,0.95)', 0.5]]) {
-    const R = tefaRng(777); c.fillStyle = col; // один сид на все слои — языки вложены друг в друга
-    for (let i = 0; i < 14; i++) {
-      const t = i / 13, a = 2.75 + t * 3.93; // от нижне-левого бока через макушку к нижне-правому
-      const ex = x + Math.cos(a) * r * v.sx * 0.9, ey = y + Math.sin(a) * r * v.sy * 0.9;
-      let dx = Math.cos(a), dy = Math.sin(a) - 1.4; const dl = Math.hypot(dx, dy); dx /= dl; dy /= dl; // наружу и вверх
-      const len = r * (0.32 + 0.26 * Math.sin(t * Math.PI) + R() * 0.2) * k, w = r * (0.2 + R() * 0.06) * k;
-      const nx = -dy, ny = dx, curl = (R() - 0.5) * 0.5; // поперёк языка; кончик чуть загнут
-      c.beginPath(); c.moveTo(ex - nx * w, ey - ny * w);
-      c.quadraticCurveTo(ex - nx * w * 0.6 + dx * len * 0.55, ey - ny * w * 0.6 + dy * len * 0.55, ex + dx * len + nx * len * curl * 0.3, ey + dy * len + ny * len * curl * 0.3);
-      c.quadraticCurveTo(ex + nx * w * 0.6 + dx * len * 0.55, ey + ny * w * 0.6 + dy * len * 0.55, ex + nx * w, ey + ny * w);
-      c.closePath(); c.fill();
-    }
+// ---------- берсерк: живой огонь и лицо «Азарт» (плейтест 30.09, лист design_berserk_round2, вариант A) ----------
+// Владелец: «слишком простое лицо, пару чёрточек, и огонь картонный»; первый круг (рёв с клыками) — «слишком злобный».
+// Тефа в берсерке в ударе, а не злая: радостный боевой клич, огонёк в глазах. t — время (pose.t), огонь живёт по нему.
+function tefaBzGlow(c, x, y, rad, rgb, a) { // мягкий светящийся сгусток
+  if (rad <= 0.5 || a <= 0.004) return;
+  const g = c.createRadialGradient(x, y, 0, x, y, rad); g.addColorStop(0, `rgba(${rgb},${a})`); g.addColorStop(0.45, `rgba(${rgb},${a * 0.5})`); g.addColorStop(1, `rgba(${rgb},0)`);
+  c.fillStyle = g; c.fillRect(x - rad, y - rad, rad * 2, rad * 2);
+}
+// языки пламени от левого бока через макушку к правому: у каждого своя частота дыхания и качания кончика, цвет тает к кончику
+function tefaBzTongues(c, r, t, n, k, rgb0, rgb1, a, seed) {
+  const v = TEFA_VARIANT, R = tefaRng(seed);
+  for (let i = 0; i < n; i++) {
+    const u = (i + 0.5) / n, ang = Math.PI * 0.93 + u * Math.PI * 1.14, top = Math.max(0, -Math.sin(ang));
+    const w1 = 5 + R() * 5, p1 = R() * 6.28, w2 = 3 + R() * 4, p2 = R() * 6.28, jit = R();
+    const ex = Math.cos(ang) * r * v.sx * 0.9, ey = Math.sin(ang) * r * v.sy * 0.9;
+    let dx = Math.cos(ang) * 0.7, dy = Math.sin(ang) * 0.7 - 1.5; const dl = Math.hypot(dx, dy); dx /= dl; dy /= dl; // наружу и вверх
+    const len = r * (0.42 + 0.6 * Math.pow(top, 1.3) + jit * 0.22) * k * (0.72 + 0.28 * Math.sin(t * w1 + p1));
+    const w = r * (0.21 + jit * 0.06) * k, nx = -dy, ny = dx, curl = Math.sin(t * w2 + p2) * 0.5;
+    const tx = ex + dx * len + nx * len * curl * 0.35, ty = ey + dy * len + ny * len * curl * 0.35, mx = dx * len * 0.5 + nx * len * curl * 0.22, my = dy * len * 0.5 + ny * len * curl * 0.22;
+    const g = c.createLinearGradient(ex, ey, tx, ty); g.addColorStop(0, `rgba(${rgb0},${a})`); g.addColorStop(0.62, `rgba(${rgb1},${a * 0.85})`); g.addColorStop(1, `rgba(${rgb1},0)`);
+    c.fillStyle = g; c.beginPath(); c.moveTo(ex - nx * w, ey - ny * w);
+    c.quadraticCurveTo(ex - nx * w * 0.75 + mx, ey - ny * w * 0.75 + my, tx, ty); c.quadraticCurveTo(ex + nx * w * 0.75 + mx, ey + ny * w * 0.75 + my, ex + nx * w, ey + ny * w);
+    c.closePath(); c.fill();
   }
 }
-function tefaEmbers(c, x, y, r) { // угольки над макушкой
-  const R = tefaRng(99);
-  for (let i = 0; i < 7; i++) {
-    const px = x + (R() - 0.5) * r * 1.6, py = y - r * (1.25 + R() * 0.45), s = Math.max(1.2, r * (0.02 + R() * 0.02));
-    c.fillStyle = `rgba(255,${(170 + R() * 70) | 0},60,${(0.6 + R() * 0.4).toFixed(2)})`; tefaEll(c, px, py, s, s);
+const TEFA_BZ_FLAME = [[0, '255,246,190'], [0.2, '255,200,76'], [0.48, '255,122,30'], [0.78, '206,48,18']]; // цвет язычка по возрасту: белый жар → жёлтый → оранжевый → красный
+function tefaBerserkAura(c, x, y, r, t) { // за телом: свечение, три слоя языков, отрывающиеся язычки над пламенем
+  c.save(); c.translate(x, y);
+  tefaBzGlow(c, 0, -r * 0.2, r * 2.2, '255,110,30', 0.42);
+  tefaBzTongues(c, r, t, 15, 1, '226,60,22', '255,112,30', 0.92, 777);
+  c.globalCompositeOperation = 'lighter';
+  tefaBzTongues(c, r, t + 0.7, 13, 0.76, '255,150,36', '255,190,70', 0.85, 778); tefaBzTongues(c, r, t + 1.9, 11, 0.5, '255,238,160', '255,214,96', 0.9, 779);
+  const v = TEFA_VARIANT, R = tefaRng(57);
+  for (let i = 0; i < 18; i++) { // язычки рождаются у макушки, поднимаются, сужаются и остывают
+    const u = R(), sp = 0.75 + R() * 0.6, ph = R(), wob = R() * 6.28, sz = 0.75 + R() * 0.5;
+    const k = (t * sp * 1.8 + ph) % 1, a = Math.PI * (1.12 + 0.76 * u), top = Math.pow(Math.max(0, -Math.sin(a)), 0.7);
+    let col = TEFA_BZ_FLAME[0][1]; for (const [k0, cc] of TEFA_BZ_FLAME) if (k >= k0) col = cc;
+    tefaBzGlow(c, Math.cos(a) * r * v.sx * 1.15 * (1 - 0.35 * k * top) + Math.sin(wob + t * 6) * r * 0.07 * k, Math.sin(a) * r * v.sy * 1.15 - k * r * 1.5 * (0.45 + 0.75 * top),
+      r * 0.17 * sz * (1 - 0.72 * k), col, 0.75 * Math.pow(1 - k, 1.1) * Math.min(1, k * 8));
+  }
+  c.restore();
+}
+function tefaBerserkRim(c, r, lvl) { // огонь освещает края тела (мимо укусов)
+  c.save(); const bites = tefaBitesOf(0, 0, r, lvl); if (bites.length) tefaClipOutBites(c, 0, 0, r, bites);
+  tefaSil(c, 0, 0, r); c.clip(); c.globalCompositeOperation = 'lighter';
+  const g = c.createRadialGradient(0, r * 0.2, r * 0.5, 0, r * 0.2, r * 1.22); g.addColorStop(0, 'rgba(255,140,40,0)'); g.addColorStop(1, 'rgba(255,140,40,0.45)');
+  c.fillStyle = g; c.fillRect(-r * 1.4, -r * 1.4, r * 2.8, r * 2.8); c.restore();
+}
+function tefaEmbers(c, x, y, r, t) { // перед телом: искры-чёрточки улетают вверх и гаснут
+  const R = tefaRng(99); c.save(); c.translate(x, y); c.globalCompositeOperation = 'lighter'; c.lineCap = 'round';
+  for (let i = 0; i < 13; i++) {
+    const x0 = (R() - 0.5) * r * 1.9, sp = 0.5 + R() * 0.7, ph = R(), sway = R() * 6.28, k = (t * sp + ph) % 1;
+    const px = x0 + Math.sin(sway + t * 4) * r * 0.12, py = -r * (0.55 + k * 2);
+    c.strokeStyle = `rgba(255,${205 + (i * 17) % 50},120,${0.95 * (1 - k)})`; c.lineWidth = Math.max(1.2, r * 0.035 * (1 - k * 0.6));
+    c.beginPath(); c.moveTo(px, py); c.lineTo(px - Math.cos(sway + t * 4) * r * 0.035, py + r * 0.1); c.stroke();
+  }
+  c.restore();
+}
+function tefaBzEye(c, cx, cy, er, s, look) { // глаз берсерка (белок уже залит): тёмный зрачок с огоньком внутри, веко едва опущено
+  const T = TEFA_VARIANT.T, kx = cx + er * 0.08 + look, ky = cy + er * 0.1, pr = er * 0.55;
+  c.fillStyle = '#231610'; c.beginPath(); c.arc(kx, ky, pr, 0, TEFA_TAU); c.fill();
+  c.save(); c.beginPath(); c.arc(kx, ky, pr, 0, TEFA_TAU); c.clip(); const fg = c.createRadialGradient(kx, ky + pr * 0.75, 0, kx, ky + pr * 0.75, pr * 1.05);
+  fg.addColorStop(0, 'rgba(255,214,110,0.95)'); fg.addColorStop(0.5, 'rgba(255,130,36,0.7)'); fg.addColorStop(1, 'rgba(255,110,30,0)'); c.fillStyle = fg; c.fillRect(kx - pr, ky - pr, pr * 2, pr * 2); c.restore();
+  c.fillStyle = '#fff'; c.beginPath(); c.arc(kx - er * 0.18, ky - er * 0.22, er * 0.22, 0, TEFA_TAU); c.fill(); c.beginPath(); c.arc(kx + er * 0.26, ky - er * 0.02, er * 0.09, 0, TEFA_TAU); c.fill();
+  const xo = cx + s * er * 1.1, xi = cx - s * er * 1.1, yo = cy - er + er * 0.26, yi = yo + er * 0.24;
+  c.save(); c.beginPath(); c.arc(cx, cy, er * 1.01, 0, TEFA_TAU); c.clip(); c.fillStyle = tefaMix(T.warm, T.lit, 0.3);
+  c.beginPath(); c.moveTo(xo, yo); c.lineTo(xi, yi); c.lineTo(xi, cy - er * 1.3); c.lineTo(xo, cy - er * 1.3); c.closePath(); c.fill(); c.restore();
+  c.save(); c.beginPath(); c.arc(cx, cy, er * 1.12, 0, TEFA_TAU); c.clip(); c.strokeStyle = tefaHexa(T.char, 0.9); c.lineWidth = tefaLw(er, 0.17); c.lineCap = 'round'; c.beginPath(); c.moveTo(xo, yo); c.lineTo(xi, yi); c.stroke(); c.restore();
+}
+function tefaBzBrows(c, x, y, r, ex, ey, er) { // брови-клинья с умеренным наклоном: задор, без складки гнева
+  for (const s of [-1, 1]) {
+    const cx = x + s * ex, cy = y + ey, ox = cx + s * er * 1.1, oy = cy - er * 1.68, ix = cx - s * er * 0.84, iy = cy - er * 1.26, to = er * 0.1, ti = er * 0.25;
+    c.strokeStyle = 'rgba(255,190,140,0.4)'; c.lineWidth = tefaLw(r, 0.03); c.lineCap = 'round'; c.beginPath(); c.moveTo(ox, oy + to + er * 0.1); c.lineTo(ix, iy + ti + er * 0.08); c.stroke(); // светлая подводка
+    c.fillStyle = '#1b0c05'; c.strokeStyle = '#1b0c05'; c.lineJoin = 'round'; c.lineWidth = tefaLw(r, 0.022);
+    c.beginPath(); c.moveTo(ox, oy); c.quadraticCurveTo((ox + ix) / 2, (oy + iy) / 2 - er * 0.1, ix, iy); c.lineTo(ix + s * er * 0.04, iy + ti); c.quadraticCurveTo((ox + ix) / 2, (oy + iy) / 2 + (to + ti) / 2, ox, oy + to); c.closePath(); c.fill(); c.stroke();
   }
 }
-
-// ---------- лицо: mood из состояния, поверх — моргание, взгляд и открытый рот при еде ----------
+function tefaBzMouth(c, x, my0, r, mw) { // радостный боевой клич: открытый улыбающийся рот, ровный ряд зубов, язык
+  const w = mw * 1.18, top = my0 - r * 0.01, bot = my0 + r * 0.4;
+  const mouth = () => { c.beginPath(); c.moveTo(x - w, top - r * 0.03); c.quadraticCurveTo(x, top + r * 0.08, x + w, top - r * 0.03); c.quadraticCurveTo(x + w * 0.98, bot + r * 0.02, x, bot); c.quadraticCurveTo(x - w * 0.98, bot + r * 0.02, x - w, top - r * 0.03); c.closePath(); };
+  c.save(); c.translate(0, r * 0.035); c.fillStyle = 'rgba(255,190,140,0.35)'; mouth(); c.fill(); c.restore(); // тёплая подсветка нижней губы
+  c.fillStyle = '#3a0f0a'; mouth(); c.fill();
+  c.save(); mouth(); c.clip();
+  c.fillStyle = '#e06a58'; tefaEll(c, x, bot - r * 0.02, w * 0.66, r * 0.15); c.fillStyle = 'rgba(255,190,170,0.4)'; tefaEll(c, x - w * 0.14, bot - r * 0.08, w * 0.2, r * 0.035); // язык с бликом
+  c.fillStyle = '#f6efe2'; c.beginPath(); c.moveTo(x - w, top - r * 0.06); c.quadraticCurveTo(x, top + r * 0.08, x + w, top - r * 0.06); c.lineTo(x + w, top + r * 0.05); c.quadraticCurveTo(x, top + r * 0.17, x - w, top + r * 0.05); c.closePath(); c.fill(); // зубы
+  c.restore();
+  c.strokeStyle = '#1b0c05'; c.lineWidth = tefaLw(r, 0.028); c.lineJoin = 'round'; mouth(); c.stroke();
+}
 // happy — утверждённое лицо; determined, worried, scared — жизни; ready — полная шкала; fierce — берсерк
 function tefaFace(c, x, y, r, pose, mood) {
   const T = TEFA_VARIANT.T, ex = r * 0.30, ey = -r * 0.07, my = r * 0.31, mw = r * 0.27;
@@ -321,7 +381,7 @@ function tefaFace(c, x, y, r, pose, mood) {
   c.fillStyle = g; tefaEll(c, x, y + r * 0.06, r * 0.66, r * 0.52); // успокаиваем фактуру под лицом
   const look = clamp(pose.face || 0, -1, 1) * er * 0.42; // взгляд сдвигает зрачок с бликами
   // веко: [доля глаза под веком у внешнего края, насколько край ниже у переносицы] — собранный, готовый, злой взгляд
-  const lid = { determined: [0.3, 0.22], ready: [0.26, 0.16], fierce: [0.34, 0.46] }[mood];
+  const lid = { determined: [0.3, 0.22], ready: [0.26, 0.16] }[mood];
   const pr = scared ? 0.3 : mood === 'worried' ? 0.46 : 0.52; // испуг — зрачок-точка
   for (const s of [-1, 1]) {
     const cx = x + s * ex, cy = y + ey;
@@ -334,6 +394,7 @@ function tefaFace(c, x, y, r, pose, mood) {
       continue;
     }
     c.fillStyle = '#fff'; tefaEll(c, cx, cy, er, er);
+    if (mood === 'fierce') { tefaBzEye(c, cx, cy, er, s, look); continue; }
     if (mood === 'happy') { // утверждённое лицо дословно (drawFace4 листа 4): зрачок и два блика
       c.fillStyle = '#231610'; c.beginPath(); c.arc(cx + er * 0.08 + look, cy + er * 0.1, er * 0.52, 0, TEFA_TAU); c.fill();
       c.fillStyle = '#fff'; c.beginPath(); c.arc(cx - er * 0.16 + look, cy - er * 0.2, er * 0.22, 0, TEFA_TAU); c.fill();
@@ -357,10 +418,11 @@ function tefaFace(c, x, y, r, pose, mood) {
   }
   // брови: [внешний край x, высота; внутренний край x, высота] в долях er от центра глаза; светлая подводка снизу
   const brow = { determined: [0.95, 1.5, 0.8, 1.26], ready: [0.95, 1.5, 0.8, 1.3], worried: [0.95, 1.38, 0.72, 1.74],
-    scared: [0.95, 1.55, 0.7, 1.98], fierce: [1.05, 1.66, 0.82, 0.98] }[mood];
+    scared: [0.95, 1.55, 0.7, 1.98] }[mood];
+  if (mood === 'fierce') tefaBzBrows(c, x, y, r, ex, ey, er);
   if (brow) for (const s of [-1, 1]) {
     const cx = x + s * ex, cy = y + ey, [xo, ho, xi, hi] = brow;
-    for (const [col, dy, w] of [['rgba(255,190,140,0.35)', er * 0.14, 0.06], ['#1b0c05', 0, mood === 'fierce' ? 0.068 : 0.052]]) {
+    for (const [col, dy, w] of [['rgba(255,190,140,0.35)', er * 0.14, 0.06], ['#1b0c05', 0, 0.052]]) {
       c.strokeStyle = col; c.lineWidth = tefaLw(r, w); c.lineCap = 'round';
       c.beginPath(); c.moveTo(cx + s * er * xo, cy - er * ho + dy); c.lineTo(cx - s * er * xi, cy - er * hi + dy); c.stroke();
     }
@@ -389,15 +451,7 @@ function tefaFace(c, x, y, r, pose, mood) {
   } else if (mood === 'scared') { // маленький открытый рот «о»
     c.fillStyle = warm; tefaEll(c, x, my0 + r * 0.1, r * 0.11, r * 0.13);
     c.fillStyle = dark; tefaEll(c, x, my0 + r * 0.08, r * 0.095, r * 0.115);
-  } else if (mood === 'fierce') { // оскал: широкий открытый рот, сверху ряд зубов
-    const mouth = () => { c.beginPath(); c.moveTo(x - mw * 1.08, my0 - r * 0.03); c.quadraticCurveTo(x, my0 + r * 0.07, x + mw * 1.08, my0 - r * 0.03);
-      c.quadraticCurveTo(x, my0 + r * 0.4, x - mw * 1.08, my0 - r * 0.03); c.closePath(); };
-    c.save(); c.translate(0, r * 0.03); c.fillStyle = warm; mouth(); c.fill(); c.restore(); // тёплая подсветка нижней губы
-    c.fillStyle = dark; mouth(); c.fill();
-    c.save(); mouth(); c.clip(); c.fillStyle = '#f6efe2'; c.fillRect(x - mw * 1.1, my0 - r * 0.1, mw * 2.2, r * 0.18);
-    c.strokeStyle = tefaHexa(T.crev, 0.5); c.lineWidth = tefaLw(r, 0.012);
-    for (const k of [-0.5, 0, 0.5]) { c.beginPath(); c.moveTo(x + mw * k, my0); c.lineTo(x + mw * k, my0 + r * 0.08); c.stroke(); }
-    c.restore();
+  } else if (mood === 'fierce') { tefaBzMouth(c, x, my0, r, mw); // берсерк: радостный боевой клич
   }
 }
 
@@ -437,7 +491,7 @@ function tefaHealCached(c, rd, rb, pool, lvl, heal) {
   c.restore();
 }
 // (x, y) — центр столкновений, r — радиус столкновений; поза задаётся трансформацией контекста.
-// pose: sx, sy, tilt, face, mouth, blink, hot 0..1, berserk, alpha, flag (лужица соуса; по умолчанию есть),
+// pose: t — время для живого огня берсерка, sx, sy, tilt, face, mouth, blink, hot 0..1, berserk, alpha, flag (лужица соуса; по умолчанию есть),
 //   hp { cur, max } — жизни (по умолчанию полная), tint 0..1 — красное мигание последнего куска,
 //   charged — шкала суперсилы полна, heal 0..1 — укус зарастает (0 и 1 — заживления нет),
 //   bake — целевой радиус (как r), под который печётся кэш тела, пока r его догоняет; по умолчанию r
@@ -452,7 +506,7 @@ function drawTefa(c, x, y, r, pose = {}) {
   c.save();
   c.globalAlpha = a0;
   c.translate(x, y + r); c.rotate(pose.tilt || 0); c.scale(sx, sy); c.translate(0, -r); // сквош от нижней точки
-  if (pose.berserk) tefaBerserkAura(c, 0, 0, rd);
+  if (pose.berserk) tefaBerserkAura(c, 0, 0, rd, pose.t || 0);
   if (pose.charged) tefaChargeGlow(c, 0, 0, rd);
   if (tint) tefaAlarm(c, 0, 0, rd, tint);
   if (heal) tefaHealCached(c, rd, rb, pool, lvl, heal);
@@ -467,6 +521,7 @@ function drawTefa(c, x, y, r, pose = {}) {
     if (pose.charged) tefaChargeRim(c, 0, 0, rd);
     c.restore();
   }
+  if (pose.berserk) tefaBerserkRim(c, rd, lvl);
   tefaFace(c, 0, 0, rd, pose, mood);
   if (mood === 'worried') tefaSweat(c, 0, 0, rd);
   if (pose.charged) for (const [a, d, s] of TEFA_SPARKS) tefaSparkle(c, Math.cos(a) * rd * TEFA_VARIANT.sx * d, Math.sin(a) * rd * TEFA_VARIANT.sy * d, rd * s);
@@ -475,7 +530,7 @@ function drawTefa(c, x, y, r, pose = {}) {
     tefaSparkle(c, B0.cx - Math.cos(a) * B0.b * 0.35, B0.cy - Math.sin(a) * B0.b * 0.35, rd * 0.17);
     tefaSparkle(c, B0.cx + Math.cos(a + 1.2) * B0.b * 0.7, B0.cy + Math.sin(a + 1.2) * B0.b * 0.7, rd * 0.08);
   }
-  if (pose.berserk) tefaEmbers(c, 0, 0, rd);
+  if (pose.berserk) tefaEmbers(c, 0, 0, rd, pose.t || 0);
   c.restore();
 }
 expose({ drawTefa, tefaHpLevel, TEFA_VARIANT, TEFA_FIT, get tefaCacheSize() { return tefaCache.size; } });

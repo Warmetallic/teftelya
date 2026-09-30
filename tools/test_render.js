@@ -129,8 +129,9 @@ const ctx = new Proxy({}, { get: (t, k) => k === 'fillText' ? s => texts.push(St
     const towerOf = { kitchen: 1, fridge: 2, oven: 3, sink: 4, feast: 5 };
     for (const theme of Object.keys(d4.ART_SRC)) { // каждая тема на своей башне: картинки-заглушки по списку имён, слои, покрытие поля, бюджет памяти
       d4.startTower(towerOf[theme]); d4.ART_IMG[theme] = Object.fromEntries(d4.ART_SRC[theme].map((n, i) => [n, pic(n === 'back' ? 96 : 30 + i * 7, n === 'back' ? 140 : 72, n === 'back' ? '#889' : '#a75')]));
-      await d4.artPrepare(theme); const a = d4.ART[theme]; assert.ok(a && a.back.length >= 2 && a.front.length >= 1 && typeof a.anim === 'function', 'слои темы ' + theme + ' испечены');
-      const mpx = a.back.concat(a.front).reduce((s, l) => s + l.c.width * l.c.height, 0) / 1e6; assert.ok(mpx <= 6, theme + ': холсты слоёв ' + mpx.toFixed(1) + ' МПкс, не больше 6');
+      await d4.artPrepare(theme); const a = d4.ART[theme]; assert.ok(a && a.back.length >= 2 && typeof a.anim === 'function', 'слои темы ' + theme + ' испечены');
+      assert.ok(!a.front && typeof d4.artFg === 'undefined', theme + ': арт ничего не рисует поверх мира — размытая вещь у края закрывала Тефу и платформы (плейтест владельца 30.09)');
+      const mpx = a.back.reduce((s, l) => s + l.c.width * l.c.height, 0) / 1e6; assert.ok(mpx <= 6, theme + ': холсты слоёв ' + mpx.toFixed(1) + ' МПкс, не больше 6');
       await d4.artPrepare(theme); assert.strictEqual(d4.ART[theme], a, 'повторный artPrepare (смерть, «Продолжить», «Заново») не печёт заново');
       assert.ok(Object.keys(d4.ART).length <= 2, 'испечены не больше двух тем — текущая и следующая, память телефона');
       for (const cy of [0, -1234, -5000, -12345]) { d4.setCamY(cy); rctx.fillStyle = '#f0f'; rctx.fillRect(0, 0, 480, 854); assert.ok(d4.artBg(theme, b), 'арт рисуется');
@@ -157,6 +158,22 @@ const ctx = new Proxy({}, { get: (t, k) => k === 'fillText' ? s => texts.push(St
     for (const cy of [-333.7, -1234.56, -777.25]) { d5.setCamY(cy); rctx.setTransform(1, 0, 0, 1, 0, 0); rctx.fillStyle = '#000'; rctx.fillRect(0, 0, 390, 844); const k = d5.view.scale * d5.view.dpr; rctx.setTransform(k, 0, 0, k, d5.view.offX * d5.view.dpr, d5.view.offY * d5.view.dpr); assert.ok(d5.artBg('fridge', b)); // как beginField
       rctx.setTransform(1, 0, 0, 1, 0, 0); const px = rctx.getImageData(0, 0, 390, 844).data; let pink = 0; for (let i = 0; i < px.length; i += 4) if (px[i] > 200 && px[i + 1] < 60 && px[i + 2] > 200) pink++;
       assert.strictEqual(pink, 0, 'camY ' + cy + ': подложка не просвечивает между повторами задника (' + pink + ' px)'); }
+    delete document.createElement; }
+  // берсерк (плейтест 30.09, лист design_berserk_round2, вариант A «Азарт»): огонь живой — кадры в разные моменты отличаются,
+  // языки поднимаются выше макушки; лицо доброе — открытый рот с языком (красный внутри), без клыков; кэш тела не растёт
+  { const { createCanvas } = require('canvas'); const cv = createCanvas(300, 380), cx = cv.getContext('2d');
+    const g6 = require('./_env')(cx); const d6 = g6.dbg(); document.createElement = () => createCanvas(1, 1);
+    const frame = t => { cx.setTransform(1, 0, 0, 1, 0, 0); cx.fillStyle = '#20242c'; cx.fillRect(0, 0, 300, 380); d6.drawTefa(cx, 150, 258, 84, { berserk: true, t, hp: { cur: 4, max: 4 } }); return cx.getImageData(0, 0, 300, 380).data; };
+    const a = frame(2), cache = d6.tefaCacheSize, b = frame(2.35);
+    let diff = 0; for (let i = 0; i < a.length; i += 4) if (Math.abs(a[i] - b[i]) + Math.abs(a[i + 1] - b[i + 1]) > 40) diff++;
+    assert.ok(diff > 1500, 'огонь берсерка живой: кадры в t = 2 и t = 2.35 отличаются (' + diff + ' px)');
+    assert.strictEqual(d6.tefaCacheSize, cache, 'кадры берсерка не пекут новых тел');
+    const px = (x, y) => { const i = (y * 300 + x) * 4; return [a[i], a[i + 1], a[i + 2]]; };
+    let hot = 0; for (let x = 100; x < 200; x += 4) { const [r, gC, bC] = px(x, 118); if (r > 200 && gC > 110 && bC < 170) hot++; } // строка на 56 px выше макушки
+    assert.ok(hot >= 3, 'языки пламени поднимаются выше макушки: ' + hot);
+    let tongue = 0; for (let y = 306; y < 330; y++) for (let x = 130; x < 170; x++) { const [r, gC, bC] = px(x, y); if (r > 190 && gC > 80 && gC < 150 && bC > 60 && bC < 130) tongue++; } // рот: x 120–180, y 290–328
+    assert.ok(tongue > 40, 'рот открыт, виден язык: ' + tongue);
+    assert.doesNotThrow(() => d6.drawTefa(cx, 150, 258, 84, { berserk: true }), 'без pose.t берсерк рисуется');
     delete document.createElement; }
   // высокий телефон 390×844: поле короче экрана, под ним виден фон — полоса продолжается сплошной заливкой своего
   // нижнего цвета до низа экрана, а не висит над плиткой (финальное ревью v2.2a)

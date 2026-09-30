@@ -4,11 +4,17 @@ const AD_INTERVAL = 180; // секунд между межстраничными
 const BZ_TAP = 12;        // кнопка берсерка ловит тап чуть шире своего круга
 let booted = false, paused = false, awaitTap = false, adBusy = false;
 let plays = 0, lastAdAt = 0, sessionT = 0; // lastAdAt = 0: первые AD_INTERVAL секунд сессии без межстраничной — осознанная отсрочка
+// башня из адреса для плейтеста без консоли: http://127.0.0.1:8765/?tower=3. Только localhost/127.0.0.1 — на площадке не действует
+function devTower() {
+  if (typeof location === 'undefined' || !/^(localhost|127\.0\.0\.1)$/.test(location.hostname || '')) return 0;
+  const m = /[?&]tower=(\d{1,3})(&|$)/.exec(location.search || ''); return m ? Math.max(1, +m[1]) : 0;
+}
 async function boot() {
   await YG.init();
   setLang(YG.lang);
   await loadSave();
-  startTower(save.tower, save.cp); state = 'title';
+  const dev = devTower(); // плейтест: ?tower=N на локальном адресе открывает башню N, сохранение не трогает
+  startTower(dev || save.tower, dev ? 0 : save.cp); state = 'title';
   YG.onPause(pauseGame); YG.onResume(resumeGame);
   await artPrepare(tower.tp.theme); // экран загрузки ждёт картинки первой темы (не дольше ART_WAIT_MS) и печёт её слои
   booted = true; artWarmLoop();
