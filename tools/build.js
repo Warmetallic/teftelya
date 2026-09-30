@@ -15,7 +15,9 @@ const out = html.replace(m[0], () => inline);
 fs.mkdirSync(DIST, { recursive: true });
 fs.writeFileSync(path.join(DIST, 'index.html'), out);
 execSync('node tools/smoke.js --dist', { cwd: ROOT, stdio: 'inherit' });
+fs.rmSync(path.join(DIST, 'assets'), { recursive: true, force: true });
+if (fs.existsSync(path.join(ROOT, 'assets'))) fs.cpSync(path.join(ROOT, 'assets'), path.join(DIST, 'assets'), { recursive: true }); // картинки арта рядом с index.html
 fs.rmSync(path.join(DIST, 'teftelya.zip'), { force: true });
-execSync('zip -q -j dist/teftelya.zip dist/index.html', { cwd: ROOT, stdio: 'inherit' });
+execSync('cd dist && zip -q -r teftelya.zip index.html' + (fs.existsSync(path.join(DIST, 'assets')) ? ' assets' : ''), { cwd: ROOT, stdio: 'inherit' });
 const kb = f => (fs.statSync(path.join(DIST, f)).size / 1024).toFixed(1) + ' КБ';
 console.log('dist/index.html ' + kb('index.html') + ', dist/teftelya.zip ' + kb('teftelya.zip'));

@@ -10,7 +10,8 @@ async function boot() {
   await loadSave();
   startTower(save.tower, save.cp); state = 'title';
   YG.onPause(pauseGame); YG.onResume(resumeGame);
-  booted = true;
+  await artPrepare(tower.tp.theme); // экран загрузки ждёт картинки первой темы (не дольше ART_WAIT_MS) и печёт её слои
+  booted = true; artWarmLoop();
   draw();       // титул на экране — игра готова к взаимодействию
   YG.ready();
 }
@@ -40,6 +41,7 @@ async function goPlay(kind) {
   plays++;
   if (plays > 1 && sessionT - lastAdAt >= AD_INTERVAL) { const r = await showAd(() => YG.showInterstitial()); if (r.shown) lastAdAt = sessionT; }
   if (kind === 'cp') restartFromCp(); else if (kind === 'restart') restartTower(); else if (kind === 'next') nextTower(); else state = 'play';
+  artPrepare(tower.tp.theme, 0).then(artWarmLoop); // тема башни печётся до первого кадра (обычно уже испечена прогревом), дальше греем следующую
   YG.gameplayStart();
 }
 async function tryContinue() {
@@ -108,7 +110,11 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
-expose({ get paused() { return paused; }, get awaitTap() { return awaitTap; }, get adBusy() { return adBusy; }, forceAdReady() { lastAdAt = -1e9; }, pauseGame, resumeGame, goPlay });
+// отладка из консоли: прыгнуть на башню N с артом её темы (прямой startTower обходит запекание — фон был бы старый)
+function jumpTower(N) { startTower(N, 0); state = 'play'; return artPrepare(tower.tp.theme, 0).then(artWarmLoop); }
+expose({ get paused() { return paused; }, get awaitTap() { return awaitTap; }, get adBusy() { return adBusy; }, forceAdReady() { lastAdAt = -1e9; }, pauseGame, resumeGame, goPlay, jumpTower });
+let warmTimer = null; // прогрев темы следующей башни между кадрами (спека v2.2c §6): один таймер, перезапускается при переходе
+function artWarmLoop() { clearInterval(warmTimer); warmTimer = setInterval(() => { if (artWarm()) clearInterval(warmTimer); }, 700); }
 // старт загрузки: в продакшене сразу при загрузке скрипта; тесты ставят CFG.manualBoot и зовут startBoot() сами
 function startBoot() { if (!DBG.boot) DBG.boot = boot().catch(e => { console.error('boot failed', e); booted = true; if (!tower) startTower(1, 0); state = 'title'; YG.ready(); }); return DBG.boot; }
 expose({ startBoot });

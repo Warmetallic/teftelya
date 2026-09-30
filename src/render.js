@@ -48,8 +48,9 @@ const BG_DRAW = {
 function drawBg() {
   const b = fieldBounds();
   const h = tower ? clamp(-camY / tower.tp.height, 0, 1) : 0, theme = tower ? tower.tp.theme : 'kitchen';
-  (BG_DRAW[theme] || BG_DRAW.kitchen)(b, h);
-  if (theme !== 'kitchen' && h > 0) { ctx.fillStyle = `rgba(0,0,0,${0.35 * h})`; ctx.fillRect(b.x0, b.y0, b.x1 - b.x0, b.y1 - b.y0); } // к крыше темнее
+  const art = artBg(theme, b); // арт темы из картинок (спека v2.2c); нет картинок — старый фон темы
+  if (!art) (BG_DRAW[theme] || BG_DRAW.kitchen)(b, h);
+  if ((art || theme !== 'kitchen') && h > 0) { ctx.fillStyle = `rgba(0,0,0,${0.35 * h})`; ctx.fillRect(b.x0, b.y0, b.x1 - b.x0, b.y1 - b.y0); } // к крыше темнее
   if (b.x0 < 0) { // боковые зоны на десктопе/landscape: затемнены, поле обведено
     ctx.fillStyle = 'rgba(0,0,0,0.35)';
     ctx.fillRect(b.x0, b.y0, -b.x0, b.y1 - b.y0); ctx.fillRect(W, b.y0, b.x1 - W, b.y1 - b.y0);
@@ -322,6 +323,7 @@ function drawWorld() { // всё внутри поля; вызывающий с�
     else { ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x, p.y - camY, p.size, 0, 7); ctx.fill(); }
   }
   ctx.globalAlpha = 1;
+  artFg(tower.tp.theme); // передний план арта поверх мира, под полосой
   drawBand();
   for (const t of texts) {
     const k = t.t; ctx.globalAlpha = 1 - k * k; ctx.fillStyle = t.color; ctx.textAlign = 'center';
