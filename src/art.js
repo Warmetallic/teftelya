@@ -6,7 +6,7 @@
 // полках; запекает один раз (свет ламп, холодная тонировка, размытие глубины) и двигает с
 // параллаксом. Пока картинки грузятся или их нет (тесты в Node), рисуется старый фон темы.
 const ART_SRC = {
-  fridge: ['back', 'watermelon', 'milk', 'eggs', 'pickles', 'grapes', 'broccoli', 'yogurt', 'bottle'],
+  fridge: ['back', 'watermelon', 'milk', 'eggs', 'pickles', 'broccoli', 'yogurt', 'bottle'], // без винограда: гроздь «стояла» на полке
   kitchen: ['back', 'pot', 'board', 'grater', 'flour', 'towel', 'kettle', 'spoon'],
   oven: ['back', 'buns', 'chicken', 'pie', 'potato', 'tongs', 'mitt'],
   sink: ['back', 'soap', 'plates', 'cup', 'brush', 'foam'], // без губки: жёлто-зелёный брусок не отличить от платформы-сыра
@@ -163,9 +163,10 @@ const ART_BAKE = {
         const base = s => s - 18;
         for (const s of [800, 1600]) glassShelf(g, s, 36);
         glassShelf(g, T - 14, 36); g.save(); g.translate(0, -T); glassShelf(g, T - 14, 36); g.restore(); // полка на стыке повтора: низ тайла и её продолжение сверху
-        prop(g, im.watermelon, 120, base(800), 300); prop(g, im.eggs, 380, base(800), 150);
-        prop(g, im.pickles, 95, base(1600), 290); prop(g, im.grapes, 240, base(1600), 230); prop(g, im.milk, 400, base(1600), 390);
-        prop(g, im.broccoli, 115, base(T - 14), 300); prop(g, im.yogurt, 290, base(T - 14), 150); prop(g, im.bottle, 410, base(T - 14), 300);
+        // размеры вещей — в одном масштабе, ≈ 12 px поля на сантиметр (плейтест 30.09: «почему брокколи больше бутылки молока?»)
+        prop(g, im.watermelon, 120, base(800), 300); prop(g, im.eggs, 380, base(800), 130);
+        prop(g, im.pickles, 95, base(1600), 215); prop(g, im.yogurt, 240, base(1600), 100); prop(g, im.milk, 400, base(1600), 290);
+        prop(g, im.broccoli, 110, base(T - 14), 180); prop(g, im.yogurt, 250, base(T - 14), 100); prop(g, im.bottle, 410, base(T - 14), 310);
         g.globalCompositeOperation = 'source-atop'; g.fillStyle = 'rgba(120,160,210,0.16)'; g.fillRect(0, 0, W, T); g.fillStyle = rgb(FOG, 0.22); g.fillRect(0, 0, W, T); g.globalCompositeOperation = 'source-over';
       }),
     ];
