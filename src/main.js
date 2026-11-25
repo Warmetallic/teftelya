@@ -12,7 +12,7 @@ function devTower() {
 function biomePreview() {
   if (typeof location === 'undefined' ||
       !(location.protocol === 'file:' || /^(localhost|127\.0\.0\.1)$/.test(location.hostname))) return 0;
-  const match = /[?&]biome=([1-5])(?:&|$)/.exec(location.search || '');
+  const match = /[?&]biome=([1-6])(?:&|$)/.exec(location.search || '');
   return match ? Number(match[1]) : 0;
 }
 async function boot() {

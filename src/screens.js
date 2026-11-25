@@ -25,9 +25,14 @@ function titleScreen() {
   ctx.font = '600 22px system-ui, sans-serif'; ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.fillText(T('theme.' + tower.tp.theme), W / 2, H * 0.22 + 36);
   if (save.cp) { ctx.fillStyle = '#8ff0a4'; ctx.font = '600 18px system-ui, sans-serif'; ctx.fillText(T('checkpoint', save.cp), W / 2, H * 0.22 + 64); }
   ctx.font = '500 19px system-ui, sans-serif'; ctx.fillStyle = 'rgba(255,255,255,0.85)';
-  [T('hint1'), T('hint2'), T('hint.' + tower.tp.theme)].forEach((l, i) => ctx.fillText(l, W / 2, H * 0.36 + i * 28, W - 32));
+  const hint = tower.tp.N === PENDULUM_TOWER ? 'hint.pendulum' : 'hint.' + tower.tp.theme;
+  [T('hint1'), T('hint2'), T(hint)].forEach((l, i) => ctx.fillText(l, W / 2, H * 0.36 + i * 28, W - 32));
   if (tower.tp.mods.length) { ctx.fillStyle = '#ffe08a'; ctx.font = '700 16px system-ui'; ctx.fillText(modifiersText(tower.tp), W / 2, H * 0.36 + 86, W - 32); }
   button('play', W / 2, H * 0.5, 260, 60, T('play'), '', false);
+  if (tower.tp.N < PENDULUM_TOWER) {
+    ctx.font = '600 17px system-ui'; ctx.fillStyle = '#ffe4a3';
+    ctx.fillText(T('untilPendulum', PENDULUM_TOWER - tower.tp.N), W / 2, H * 0.5 + 62, W - 32);
+  }
 }
 function deadScreen(active) {
   clearButtons(); dim(0.72);
@@ -55,8 +60,17 @@ function finishScreen(active) {
   rows.forEach(([ok, l], i) => { ctx.fillStyle = ok ? '#8ff0a4' : 'rgba(255,255,255,0.5)'; ctx.fillText((ok ? '✓ ' : '✗ ') + l, W / 2, H * 0.42 + i * 28); });
   ctx.fillStyle = '#ffe08a'; ctx.font = '700 22px system-ui, sans-serif';
   ctx.fillText(T('bonus') + ' +' + run.bonus + '   ● ' + run.runCoins + (run.usedDouble ? '  ×2' : ''), W / 2, H * 0.42 + 100);
+  const unlocked = N + 1 === PENDULUM_TOWER;
+  if (unlocked) {
+    const y = H * 0.60;
+    ctx.fillStyle = '#3d3022'; rrect(W / 2 - 150, y - 25, 300, 50, 13); ctx.fill();
+    ctx.save(); ctx.translate(W / 2 - 109, y - 17); ctx.rotate(0.64); ctx.scale(0.43, 0.43);
+    drawCleaver(); ctx.restore();
+    ctx.fillStyle = '#ffe4a3'; ctx.font = '700 20px system-ui';
+    ctx.fillText(T('unlockPendulum'), W / 2 + 8, y + 7, 220);
+  }
   if (!active) return;
-  let y = H * 0.62;
+  let y = H * (unlocked ? 0.70 : 0.62);
   if (!run.usedDouble && run.runCoins >= DOUBLE_MIN_COINS) { button('double', W / 2, y, 300, 60, T('doubleAd'), T('forAd'), true); y += 76; }
   button('next', W / 2, y, 300, 60, T('next'), '', false);
 }

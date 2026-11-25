@@ -23,6 +23,19 @@ const ctx = new Proxy({}, { get: (t, k) => k === 'fillText' ? s => texts.push(St
     d.YG.adStub = { kind: 'rewarded', until: 0 }; d.adStubScreen(); d.YG.adStub = null; d.adStubScreen();
   }
   const g = require('./_env')(ctx); const d = g.dbg(); await d.YG.init(); await d.loadSave(); d.startTower(1);
+  for (const lang of ['ru', 'en', 'tr']) {
+    d.setLang(lang);
+    d.startTower(5); texts.length = 0; d.titleScreen();
+    assert.ok(texts.includes(d.T('untilPendulum', 1)));
+    d.state = 'play'; d.finishTower(); texts.length = 0; d.finishScreen(true);
+    assert.ok(texts.includes(d.T('unlockPendulum')));
+    assert.ok(d.buttons.find(b => b.id === 'next').y < 820);
+    d.nextTower(); assert.equal(d.tower.tp.N, 6);
+    assert.ok(d.hazards.some(h => h.type === 'pendulum'));
+    texts.length = 0; d.titleScreen(); assert.ok(texts.includes(d.T('hint.pendulum')));
+    assert.ok(!texts.includes(d.T('untilPendulum',0)));
+  }
+  d.setLang('ru'); d.startTower(1);
   // уровни жизней по таблице спеки v2.1.1 §3.2: последний кусок — паника при любом максимуме
   const lv = (c, m) => d.tefaHpLevel(c, m);
   assert.deepStrictEqual([lv(4, 4), lv(3, 4), lv(2, 4), lv(1, 4)], [0, 1, 2, 3]);

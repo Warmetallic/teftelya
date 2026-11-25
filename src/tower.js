@@ -112,10 +112,20 @@ function buildTower(N, worldSeed = 0) {
   if (N >= 2 && !hazards.some(h => h.type === 'knife') && knifeSlots.length) knife(...knifeSlots[0]); // первый нож башни гарантирован
   placeBlades(platforms, hazards, path);
   if (N >= 2) placeUniques(N, tp, platforms, hazards, path, worldSeed);
+  if (N === PENDULUM_TOWER) {
+    // Первые два ряда — знакомство с маятником. Убираем соседние ножи и лопасти после генерации,
+    // чтобы прежние маршруты, чекпоинты и последовательность случайных чисел сохранились.
+    for (let i = hazards.length - 1; i >= 0; i--) {
+      const h = hazards[i];
+      if (h.y < -2 * ROW_H - 60) continue;
+      if (h.board !== undefined) platforms.find(p => p.id === h.board).type = 'plate';
+      hazards.splice(i, 1);
+    }
+  }
   if (tp.theme === 'kitchen' && !platforms.some(p => p.type === 'board')) {
     // Учебная доска в стороне от основного пути. Прежние платформы, их id и чекпоинты остаются на местах.
     const wall = EDGE + BOARD_W / 2;
-    for (let row = 2; row < tp.rows; row++) {
+    for (let row = N === PENDULUM_TOWER ? 3 : 2; row < tp.rows; row++) {
       const board = [wall, W - wall].map(x => ({ id, row, x, y: -row * ROW_H, w: BOARD_W, type: 'board', cp: 0 }))
         .find(p => boardOk(p, hazards, platforms));
       if (!board) continue;

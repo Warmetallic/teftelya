@@ -28,6 +28,41 @@ const ctx = new Proxy({}, { get: (_, k) => /Gradient$/.test(k) ? () => ({ addCol
     d.updateHazards(1/60, [fresh], env); b.y = fresh.y - 170;
     for (let i = 0; i < 125; i++) assert.equal(d.updateHazards(1/60, [fresh], env).length, 0, type + ' evaded');
   }
+  // Первое знакомство: на стартовой тарелке можно переждать любой размах.
+  assert.ok(!d.buildTower(5,42).hazards.some(h => h.type === 'pendulum'));
+  for (let seed = 0; seed < 64; seed++) {
+    const level = d.buildTower(6, seed);
+    assert.deepEqual(level.hazards.filter(h => h.y >= -300).map(h => h.type), ['pendulum']);
+    assert.ok(level.hazards.some(h => h.type === 'knife' && h.board !== undefined));
+  }
+  for (const seed of [0,42,71,0xffffffff]) {
+    d.save.worldSeed = seed; d.startTower(6);
+    const h = d.hazards.find(h => h.type === 'pendulum');
+    assert.equal(h.host, b.onPlatform);
+    assert.ok(d.items.some(i => i.x === h.x && i.y === h.y + 130));
+    const env = { camY: d.camY, tp: d.tower.tp, invuln: 0 };
+    const tick = () => d.updateHazards(1/60, [h], env);
+    b.onPlatform = null;
+    for (let i = 0; i < 80; i++) assert.deepEqual(tick(), []);
+    assert.equal(h.phase,'idle');
+    b.onPlatform = h.host; tick();
+    assert.equal(h.phase,'warn');
+    for (let i = 0; i < Math.floor(d.PENDULUM_WARN * 60) - 1; i++) assert.deepEqual(tick(), []);
+    assert.equal(h.phase,'warn');
+    for (let i = 0; i < 375; i++) assert.deepEqual(tick(), []);
+    assert.equal(h.phase,'active');
+    b.onPlatform = null;
+    function placeOnSwing(distance) {
+      const a = d.pendulumAngle(h);
+      b.x = h.x - Math.sin(a) * distance; b.y = h.y + Math.cos(a) * distance;
+    }
+    placeOnSwing(24); assert.deepEqual(tick(), []);
+    placeOnSwing(133); assert.equal(tick()[0]?.reason,'pendulum');
+    env.invuln = 1; assert.deepEqual(tick(), []);
+    env.berserk = true; assert.equal(tick()[0]?.type,'smash');
+    assert.ok(h.gone); assert.deepEqual(tick(), []);
+  }
+  d.save.worldSeed = 0;
   d.startTower(2);
   const frozen = d.platforms.find(p => p.type === 'plate');
   assert.ok(d.platforms.every(p => p.ice)); b.x = frozen.x; b.vx = 300;
@@ -73,7 +108,7 @@ const ctx = new Proxy({}, { get: (_, k) => /Gradient$/.test(k) ? () => ({ addCol
     }
   } finally { Math.random = original; }
   // Preview navigation and its checkpoint/finish writes must be isolated from the real save.
-  for (const n of [1,2,3,4,5]) {
+  for (const n of [1,2,3,4,5,6]) {
     global.location = {protocol:'file:',hostname:'',search:'?biome='+n};
     const pg = require('./_env')(ctx), originalSave = JSON.stringify({v:5,worldSeed:71,tower:44,cp:2});
     pg.store.set('teft_save', originalSave);

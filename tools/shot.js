@@ -80,6 +80,11 @@ const finish = async (g, d) => { d.state = 'play'; d.run.foodEaten = Math.round(
   await shoot('fly_warn', 480, 854, async (g, d) => { await up(g, d, 2); d.spawnFly(true); steps(g, 3); });
   await shoot('dead', 480, 854, dead);
   await shoot('finish', 480, 854, finish);
+  await shoot('pendulum_unlock', 480, 854, finish, towerN(5));
+  await shoot('pendulum', 480, 854, async (g, d) => {
+    d.state = 'play';
+    steps(g, 122); // первое предупреждение прошло, тесак пересекает проём над стартовой площадкой
+  }, towerN(6));
   await shoot('desktop', 1280, 720, play);
   await shoot('en_finish', 480, 854, finish, { lang: 'en-US' });
   await shoot('tr_dead', 480, 854, dead, { lang: 'tr-TR' });

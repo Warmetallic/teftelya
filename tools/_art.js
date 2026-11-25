@@ -3,6 +3,7 @@
 const path = require('path'), sharp = require('sharp'), { loadImage } = require('canvas');
 const ROOT = path.join(__dirname, '..', 'assets', 'art');
 async function loadArt(dbg) {
+  dbg.trapSprites.pendulum = await loadImage(path.join(ROOT, 'traps', 'pendulum.png'));
   for (const [theme, names] of Object.entries(dbg.ART_SRC)) {
     const imgs = {};
     for (const name of names) {

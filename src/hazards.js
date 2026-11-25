@@ -47,7 +47,10 @@ function updateHazards(dt, hazards, env) {
   flies = flies.filter(f => !f.gone);
   for (const h of hazards) {
     if (h.gone || Math.abs(h.y - ball.y) > H + 100) continue;
-    if (TRAP_WARN[h.type]) {
+    if (h.type === 'pendulum') {
+      const event = tickPendulum(h, dt, env);
+      if (event) ev.push(event);
+    } else if (TRAP_WARN[h.type]) {
       const event = tickBiomeTrap(h, dt, env);
       if (event) ev.push(event);
     } else if (h.type === 'knife') {

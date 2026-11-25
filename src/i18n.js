@@ -2,6 +2,8 @@
 // ---------- i18n: ru, tr, остальные языки → en; недостающий ключ ищется в en, потом в ru ----------
 const STR = {
   ru: {
+    'hint.pendulum': 'Дождись, пока тесак качнётся в сторону, и прыгай.',
+    'die.pendulum': 'Удар маятника', untilPendulum: 'Башен до маятника: {n}', unlockPendulum: 'Открыто: маятник!',
     'hint.kitchen': 'Подожди замаха ножа и прыгай на середину доски.',
     'hint.fridge': 'Лёд несёт вперёд. Дрожит сосулька — уходи в сторону.',
     'hint.oven': 'Полки нагреваются. Перепрыгивай струю пара.',
@@ -31,6 +33,8 @@ const STR = {
     'die.fall': 'В пропасть!', 'die.fly': 'Укус мухи', 'die.blades': 'Лопасти', 'die.pan': 'Ожог на сковородке', 'die.oil': 'Горячее масло', 'die.knife': 'Нож',
   },
   en: {
+    'hint.pendulum': 'Let the cleaver swing aside, then jump.',
+    'die.pendulum': 'Pendulum strike', untilPendulum: 'Towers until the pendulum: {n}', unlockPendulum: 'Pendulum unlocked!',
     'hint.kitchen': 'Watch the knife, then aim for the middle of the board.',
     'hint.fridge': 'Ice carries you forward. Move away from shaking icicles.',
     'hint.oven': 'Surfaces heat up. Jump over the steam jet.',
@@ -60,6 +64,8 @@ const STR = {
     'die.fall': 'Into the void!', 'die.fly': 'Fly bite', 'die.blades': 'Blades', 'die.pan': 'Burnt on the pan', 'die.oil': 'Hot oil', 'die.knife': 'Knife',
   },
   tr: {
+    'hint.pendulum': 'Satır yana savrulunca zıpla.',
+    'die.pendulum': 'Sarkaç darbesi', untilPendulum: 'Sarkaca kalan kule: {n}', unlockPendulum: 'Sarkaç açıldı!',
     'hint.kitchen': 'Bıçağı izle, sonra tahtanın ortasına atla.',
     'hint.fridge': 'Buzda kayarsın. Sallanan buz sarkıtından uzaklaş.',
     'hint.oven': 'Yüzeyler ısınır. Buhar jetinin üzerinden atla.',

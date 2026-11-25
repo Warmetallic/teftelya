@@ -10,6 +10,63 @@ const BIOMES = {
 const MOD_BONUS = { heat: 20, ice: 20, swarm: 15, sharp: 15, narrow: 20, feast: 15, dark: 30, fragile: 25 };
 const TRAP_WARN = { rat: 0.8, icicle: 0.78, steam: 0.95, pepper: 0.9 };
 const PEPPER_RADIUS = 85;
+const PENDULUM_TOWER = 6, PENDULUM_WARN = 1.1, PENDULUM_SWING = 0.92;
+// Отсчёт от оси подвеса. Лезвие занимает нижнюю половину тесака.
+const CHAIN_LENGTH = 61, CLEAVER_LENGTH = 98, CLEAVER_WIDTH = 21;
+function pendulumAngle(h, time = h.time) {
+  const swing = h.phase === 'active' ? Math.cos(time * (2 * Math.PI / 2.8)) : 1;
+  return h.dir * PENDULUM_SWING * swing;
+}
+function addPendulum(level, worldSeed) {
+  const { tp, path, platforms, items, hazards } = level;
+  if (tp.N < PENDULUM_TOWER) return;
+  const rng = towerRng(tp.N, worldSeed, 2821);
+  const byId = new Map(platforms.map(p => [p.id, p]));
+  // В шестой башне учимся на старте. Дальше выбираем из устойчивых площадок перед разрывом.
+  const starts = path.filter((id, i) => {
+    const p = byId.get(id), next = byId.get(path[i + 1]);
+    return next && p.row > 2 && (p.rest || p.cp || p.type === 'plate') && next.row >= p.row + 2;
+  });
+  const host = tp.N === PENDULUM_TOWER || !starts.length ? byId.get(path[0]) : byId.get(starts[Math.floor(rng() * starts.length)]);
+  const next = byId.get(path[path.indexOf(host.id) + 1]);
+  const y = host.y - 292, midX = clamp((host.x + next.x) / 2, 136, W - 136);
+  // При нескольких проходах выбираем тот, где тесак лучше отделён от соседних платформ и ловушек.
+  const options = [midX, 132, W - 132];
+  function clearance(x) {
+    let gap = 180;
+    for (const h of hazards) gap = Math.min(gap, Math.hypot(h.x - x, h.y - (y + 123)) - 50);
+    for (const p of platforms) {
+      const dx = Math.max(0, Math.abs(p.x - x) - p.w / 2);
+      gap = Math.min(gap, Math.hypot(dx, p.y - (y + 123)));
+    }
+    return gap - Math.abs(x - midX) * 0.15;
+  }
+  const x = options.reduce((best, candidate) => clearance(candidate) > clearance(best) ? candidate : best);
+  hazards.push({ type: 'pendulum', id: 30000, host: host.id, x, y, dir: next.x < x ? -1 : 1, phase: 'idle', time: 0 });
+  items.push(mkFood(rng, x, y + 130));
+}
+function tickPendulum(h, dt, env) {
+  if (h.phase === 'idle') {
+    const tip = h.y + 120 - env.camY;
+    if (ball.onPlatform !== null && tip >= 32 && tip <= H - BAND_H) {
+      h.phase = 'warn'; h.time = PENDULUM_WARN;
+    }
+    return;
+  }
+  if (h.phase === 'warn') {
+    h.time -= dt;
+    if (h.time > 0) return;
+    h.phase = 'active'; h.time = 0;
+  }
+  h.time += dt;
+  if (env.invuln && !env.berserk) return;
+  // Центр Тефы в координатах тесака. Касание цепи и деревянной ручки безопасно.
+  const a = pendulumAngle(h), dx = ball.x - h.x, dy = ball.y - h.y;
+  const x = dx * Math.cos(a) + dy * Math.sin(a), y = dy * Math.cos(a) - dx * Math.sin(a);
+  const bladeX = clamp(x, -CLEAVER_WIDTH / 2 + 2, CLEAVER_WIDTH / 2 - 2);
+  const bladeY = clamp(y, CHAIN_LENGTH + CLEAVER_LENGTH * 0.48, CHAIN_LENGTH + CLEAVER_LENGTH - 3);
+  if (Math.hypot(x - bladeX, y - bladeY) < ball.r) return trapEvent(h, env.berserk, ball.x, ball.y);
+}
 function biomeRules(N, worldSeed) {
   const { effect } = BIOMES[themeFor(N).id];
   const effects = {}, mods = [], rng = towerRng(N, worldSeed, 5071);
@@ -52,6 +109,7 @@ function populateBiome(level, worldSeed) {
     items.push(mkFood(R, clamp(p.x - side * 12, 25, W - 25), p.y - 55));
     nextRow = p.row + 7 + Math.floor(R() * 4);
   }
+  addPendulum(level, worldSeed);
   if (tp.effects.feast) {
     for (const it of items.slice()) {
       const x = it.x > W / 2 ? it.x - 43 : it.x + 43;
@@ -135,4 +193,4 @@ function tickBiomeTrap(h, dt, env) {
 function modifiersText(tp) {
   return tp.mods.map(key => T('mod.' + key)).join(' · ') + (tp.mods.length ? '   +' + tp.bonusPct + '%' : '');
 }
-expose({ BIOMES, biomeRules, TRAP_WARN, PEPPER_RADIUS, tickBiomeTrap });
+expose({ BIOMES, biomeRules, TRAP_WARN, PEPPER_RADIUS, tickBiomeTrap, pendulumAngle, PENDULUM_TOWER, PENDULUM_WARN });

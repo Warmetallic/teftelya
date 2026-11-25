@@ -117,7 +117,50 @@ function drawPepper(h) {
   ctx.strokeStyle = '#304329'; ctx.lineWidth = 5; ctx.stroke();
   ctx.strokeStyle = '#c0d583'; ctx.lineWidth = 2.5; ctx.stroke();
 }
-const TRAP_DRAW = { icicle: drawIcicle, steam: drawSteam, rat: drawRat, pepper: drawPepper };
+const trapSprites = {};
+if (typeof Image !== 'undefined') {
+  const im = new Image();
+  im.onload = () => { trapSprites.pendulum = im; };
+  im.src = 'assets/art/traps/pendulum.png';
+}
+function drawCleaver() {
+  if (trapSprites.pendulum) {
+    ctx.drawImage(trapSprites.pendulum, -CLEAVER_WIDTH / 2, -3, CLEAVER_WIDTH, CLEAVER_LENGTH);
+    // Та же тёплая кромка опасности, что у кухонного ножа. Остальной металл сохраняет фактуру.
+    ctx.strokeStyle = '#ff8150'; ctx.lineWidth = 1.7;
+    ctx.beginPath(); ctx.moveTo(9, 44); ctx.quadraticCurveTo(11, 70, 8.8, 93);
+    ctx.lineTo(-3, 91.5); ctx.stroke();
+    return;
+  }
+  biomeEllipse(0, 1, 4, 4, '#caa56f');
+  ctx.fillStyle = '#845136'; rrect(-4, 3, 8, 41, 3); ctx.fill();
+  biomeShape('#d9e1e3', [[-8,44],[9,43],[10,92],[6,95],[-9,89]]);
+}
+function drawPendulum(h) {
+  const angle = pendulumAngle(h);
+  if (h.phase === 'warn') {
+    ctx.save(); ctx.setLineDash([5, 8]); ctx.strokeStyle = '#ffc18b'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(0, 0, 137, Math.PI / 2 - PENDULUM_SWING, Math.PI / 2 + PENDULUM_SWING);
+    ctx.stroke(); ctx.restore();
+  } else if (h.phase === 'active') {
+    const previous = pendulumAngle(h, Math.max(0, h.time - 0.13));
+    ctx.strokeStyle = 'rgba(255,158,96,0.70)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(0, 0, 150, Math.PI / 2 + previous, Math.PI / 2 + angle, previous > angle);
+    ctx.stroke();
+  }
+  ctx.save(); ctx.rotate(angle);
+  for (let y = 5, i = 0; y < CHAIN_LENGTH; y += 8, i++) {
+    ctx.beginPath(); ctx.ellipse(0, y, i % 2 ? 2 : 4, 5.5, 0, 0, 2 * Math.PI);
+    ctx.lineWidth = 4; ctx.strokeStyle = '#352b28'; ctx.stroke();
+    ctx.lineWidth = 1.6; ctx.strokeStyle = '#e7d5b4'; ctx.stroke();
+  }
+  ctx.translate(0, CHAIN_LENGTH); drawCleaver();
+  ctx.restore();
+  biomeEllipse(0, 0, 10, 10, '#332a27'); biomeEllipse(0, 0, 7.5, 7.5, '#b28556');
+  biomeEllipse(-1, -1, 4.5, 4.5, h.phase === 'warn' ? '#ffd693' : '#e0cba8');
+}
+const TRAP_DRAW = { icicle: drawIcicle, steam: drawSteam, rat: drawRat, pepper: drawPepper, pendulum: drawPendulum };
+expose({ trapSprites });
 function drawBiomeSurface(p) {
   if (p.gone) return;
   const y = p.y - camY;
