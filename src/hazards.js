@@ -46,8 +46,20 @@ function updateHazards(dt, hazards, env) {
   }
   flies = flies.filter(f => !f.gone);
   for (const h of hazards) {
-    if (h.gone || Math.abs(h.y - ball.y) > H + 100) continue;
-    if (h.type === 'pendulum') {
+    if (h.gone || h.phase === 'flee') continue;
+    if (h.type === 'mousetrap') {
+      // После взведения защёлка доходит до конца, даже если Тефа за это время ушла далеко.
+      const event = tickMousetrap(h, dt, env);
+      if (event) ev.push(event);
+    } else if (Math.abs(h.y - ball.y) > H + 100) {
+      continue;
+    } else if (h.type === 'tape' || TOOL_CYCLE[h.type]) {
+      const event = tickWorkshopTrap(h, dt, env);
+      if (event) ev.push(event);
+    } else if (KITCHEN_UNLOCKS.some(u=>u.type===h.type)) {
+      const event=tickKitchenTrap(h,dt,env);
+      if (event) ev.push(event);
+    } else if (h.type === 'pendulum') {
       const event = tickPendulum(h, dt, env);
       if (event) ev.push(event);
     } else if (TRAP_WARN[h.type]) {

@@ -12,6 +12,7 @@ function nextOnPath(d) {
 // одно решение за кадр; st — память бота между кадрами
 function botAct(d, st) {
   const b = d.ball;
+  if (b.tape) return d.jumpTo(st.next ? aimX(st.next) : b.x, st.next ? st.next.y : b.y-150);
   if (b.onPlatform !== null) {
     const on = d.platforms.find(p => p.id === b.onPlatform);
     st.on = on; st.planned = false;
@@ -85,6 +86,11 @@ function climbLive(d, maxRetries = 12) {
     if (d.run.cp > cp) { cp = d.run.cp; segmentRetries = 0; }
     const hit = b.mass < mass; mass = b.mass;
     if (d.powerReady() && (b.mass < d.massMax() || hit)) d.tryActivatePower();
+    if (b.tape) {
+      target = liveLanding(d, segmentRetries) || target;
+      d.jumpTo(target ? aimX(target) : b.x, target ? target.y : b.y - 150);
+      d.update(1 / 60); continue;
+    }
     if (b.onPlatform !== null || hit) {
       target = liveLanding(d, segmentRetries);
       if (target) {

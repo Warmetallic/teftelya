@@ -2,7 +2,7 @@
 <html lang="ru">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Тефтеля · Пять биомов</title>
+<title>Тефтеля · Башни Тефтели</title>
 <style>
 *{box-sizing:border-box}body{margin:0;background:#181712;color:#f4eddd;font:16px "Trebuchet MS",system-ui,sans-serif}
 main{min-height:100svh;display:flex;align-items:center;justify-content:center;gap:clamp(24px,6vw,88px);padding:26px}
@@ -10,24 +10,69 @@ aside{max-width:310px}h1{font:700 clamp(35px,5vw,58px)/1 Georgia,serif;margin:0 
 nav{display:grid;gap:5px}a{display:flex;align-items:center;gap:12px;color:#ddcfbc;border-radius:7px;text-decoration:none;padding:11px 12px;border:1px solid transparent}
 a::before{content:"";width:9px;height:9px;background:var(--t);border-radius:50%}a[aria-current]{background:#312c24;border-color:#645846;color:#fff1d9}
 a:hover,a:focus-visible{background:#353027}iframe{display:block;width:min(460px,calc((100svh - 52px)*.562));height:auto;aspect-ratio:480 / 854;background:#241f1a;border:1px solid #635743;border-radius:8px}
+#trap-picker{display:block;margin:12px 0 0;color:#ddcfbc}#trap-picker[hidden]{display:none}select{max-width:100%;margin:4px 0 0;padding:5px 8px;border:1px solid #645846;border-radius:5px;background:#312c24;color:#fff1d9;font:inherit}
 @media(max-width:700px){main{flex-direction:column;gap:12px;padding:10px;justify-content:flex-start}aside{width:100%;max-width:480px}h1{font-size:26px;margin:0 0 5px}p{font-size:13px;margin:0 0 6px}nav{display:flex;flex-wrap:wrap;gap:2px}a{padding:4px 6px;gap:4px;font-size:13px}a::before{width:6px;height:6px}iframe{width:min(100%,calc((100svh - 142px)*.562));min-height:300px}}
+#tower-picker{display:none}
+@media(max-width:700px){#tower-picker:not(:empty){display:block;width:100%}#tower-picker:not(:empty)+nav{display:none}}
+@media(min-width:701px){nav{max-height:60svh;overflow-y:auto;padding-right:4px}}
 </style>
 <main>
-<aside><h1>Пять биомов</h1><p>Выбери башню и нажми «Играть». Прыгай щелчком или касанием туда, где хочешь приземлиться. Прогресс просмотра хранится до смены башни.</p>
+<aside><h1>Башни Тефтели</h1><p>Выбери башню и нажми «Играть». Прыгай щелчком или касанием туда, где хочешь приземлиться. Прогресс просмотра хранится до смены башни.</p>
+<select id="tower-picker" aria-label="Выбрать башню"></select>
 <nav aria-label="Биомы">
 <a href="index.html?biome=1" target="play" style="--t:#e2b277" aria-current="true">Кухня</a>
 <a href="index.html?biome=2" target="play" style="--t:#9accdf">Холодильник</a>
 <a href="index.html?biome=3" target="play" style="--t:#f98d53">Духовка</a>
 <a href="index.html?biome=4" target="play" style="--t:#a1b28b">Погреб</a>
-<a href="index.html?biome=5" target="play" style="--t:#c39bb4">Пиршественный зал</a>
+<a id="exam-link" href="index.html?biome=5" target="play" style="--t:#c39bb4">Пиршественный зал</a>
 <a href="index.html?biome=6" target="play" style="--t:#d89563">Башня 6 · Маятник</a>
-</nav></aside>
+<a id="trap-link" href="index.html?biome=7" target="play" style="--t:#e8be63">Башня 7 · Мышеловка</a>
+<a href="index.html?biome=8" target="play" style="--t:#ef8647">Башня 8 · Конфорка</a>
+<a href="index.html?biome=9" target="play" style="--t:#dfac48">Башня 9 · Липкая лента</a>
+<a href="index.html?biome=10" target="play" style="--t:#baaa98">Башня 10 · Молоток</a>
+<a href="index.html?biome=11" target="play" style="--t:#dba16b">Башня 11 · Скалка</a>
+<a href="index.html?biome=12" target="play" style="--t:#92c5ce">Башня 12 · Вытяжка</a>
+<a href="index.html?biome=13" target="play" style="--t:#c4cccd">Башня 13 · Вилка</a>
+<a href="index.html?biome=14" target="play" style="--t:#df7959">Башня 14 · Брызги</a>
+<a href="index.html?biome=15" target="play" style="--t:#c2b89b">Башня 15 · Тёрка</a>
+<a href="index.html?biome=16" target="play" style="--t:#dba47b">Башня 16 · Двойной маятник</a>
+<a href="index.html?biome=18" target="play" style="--t:#caa776">Башня 18 · Развилка</a>
+<a id="bakery-link" href="index.html?biome=21" target="play" style="--t:#e1b991">Башня 21 · Пекарня</a>
+<a id="tea-link" href="index.html?biome=24" target="play" style="--t:#87bdd1">Башня 24 · Чайная</a>
+<a id="smokehouse-link" href="index.html?biome=29" target="play" style="--t:#c99079">Башня 29 · Коптильня</a>
+</nav>
+<label id="trap-picker" hidden>Вид мышеловки
+<select><option value="classic" selected>А · Классика (в игре)</option><option value="enamel">Б · Красная прищепка</option><option value="cloche">В · Стеклянный колпак</option></select>
+</label></aside>
 <iframe name="play" src="index.html?biome=1" title="Игровое поле"></iframe>
 </main>
 <script>
-for (const link of document.querySelectorAll('nav a')) link.addEventListener('click', () => {
+const trapLink = document.getElementById('trap-link'), picker = document.getElementById('trap-picker');
+const design = picker.querySelector('select'), play = document.querySelector('iframe');
+const towers = [...document.querySelectorAll('nav a')], towerPicker = document.getElementById('tower-picker');
+for (const link of towers) towerPicker.add(new Option(link.textContent, link.getAttribute('href')));
+towerPicker.addEventListener('change', () => towers[towerPicker.selectedIndex].click());
+for (const link of towers) link.addEventListener('click', () => {
+  towerPicker.selectedIndex = towers.indexOf(link);
   document.querySelector('[aria-current]')?.removeAttribute('aria-current');
   link.setAttribute('aria-current','true');
+  picker.hidden = link !== trapLink;
 });
+function applyDesign() {
+  if (!picker.hidden) play.contentWindow.postMessage({type:'mousetrap-design', design:design.value},
+    location.protocol === 'file:' ? '*' : location.origin);
+}
+design.addEventListener('change', () => {
+  trapLink.href = 'index.html?biome=7' + (design.value === 'classic' ? '' : '&trap=' + design.value);
+  applyDesign();
+});
+play.addEventListener('load', applyDesign);
+function openHash() {
+  const id = location.hash.slice(1);
+  if (id === 'mousetrap') trapLink.click();
+  else if (['exam','bakery','tea','smokehouse'].includes(id)) document.getElementById(id+'-link').click();
+}
+window.addEventListener('hashchange',openHash);
+openHash();
 </script>
 </html>

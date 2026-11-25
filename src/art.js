@@ -6,6 +6,9 @@ const ART_SRC = {
   oven: ['scene'],
   cellar: ['scene'],
   feast: ['scene'],
+  bakery: ['scene'],
+  tea: ['scene'],
+  smokehouse: ['scene'],
 };
 const ART_IMG = {};             // тема → { имя: Image } когда всё загружено; null — грузится; false — не вышло
 const ART = {};                 // тема → { base, back: [слои], anim } или null; поверх мира арт ничего не рисует
@@ -77,7 +80,8 @@ function artBg(theme, b) { // фон темы из картинок — толь
     const scale = Math.max(W / im.width, (height + 64) / im.height);
     const width = W / scale, visible = height / scale;
     const progress = clamp(-camY / tower.tp.height, 0, 1);
-    ctx.drawImage(im, (im.width - width) / 2, (im.height - visible) * (1 - progress), width, visible, 0, b.y0, W, height);
+    const left = (im.width - width) * (theme === 'bakery' ? 0.10 : 0.5);
+    ctx.drawImage(im, left, (im.height - visible) * (1 - progress), width, visible, 0, b.y0, W, height);
   } else {
     artDraw(a.back, b); a.anim(b);
   }

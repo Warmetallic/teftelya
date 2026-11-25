@@ -4,6 +4,7 @@ const OUT = path.join(__dirname, '..', 'shots'); fs.mkdirSync(OUT, { recursive: 
 const bot = require('./bot');
 const { loadArt } = require('./_art'); // картинки арта тем: без них снимки показывают старый фон
 async function shoot(name, w, h, scenario, opts = {}) {
+  if (process.argv.length > 2 && !process.argv.slice(2).includes(name)) return;
   const real = createCanvas(w, h), ctx = real.getContext('2d');
   const g = require('./_env')(ctx, Object.assign({ width: w, height: h }, opts));
   global.document.createElement = () => createCanvas(1, 1); // невидимые холсты: слои арта и кэш Тефы, как в браузере
@@ -81,10 +82,80 @@ const finish = async (g, d) => { d.state = 'play'; d.run.foodEaten = Math.round(
   await shoot('dead', 480, 854, dead);
   await shoot('finish', 480, 854, finish);
   await shoot('pendulum_unlock', 480, 854, finish, towerN(5));
+  await shoot('mousetrap_unlock', 480, 854, finish, towerN(6));
+  await shoot('exam_finish',480,854,finish,towerN(10));
+  for (const [n,type] of [[8,'burner'],[9,'tape'],[10,'mallet']]) {
+    await shoot(type,480,854,(g,d) => {
+      d.state='play'; d.run.bannerT=0; g.step();
+      const h=d.hazards.find(h=>h.type===type);
+      if (type==='tape') d.jumpTo(h.x,h.y);
+      const ready = () => type==='tape' ? d.ball.tape===h : h.phase==='active' && h.time>=.15;
+      for (let i=0;i<130 && !ready();i++) g.step();
+      if (!ready()) throw Error('Кадр ловушки не достигнут: '+type);
+      if (type==='tape') steps(g,68);
+    },towerN(n));
+  }
+  await shoot('mousetrap', 480, 854, async (g, d) => {
+    d.state = 'play'; d.run.bannerT = 0;
+    const trap = d.hazards.find(h => h.type === 'mousetrap');
+    d.jumpTo(trap.x, trap.y);
+    for (let i = 0; i < 90 && trap.phase !== 'warn'; i++) g.step();
+    if (trap.phase !== 'warn') throw Error('Мышеловка не взвелась после прыжка');
+    steps(g, 16); d.jumpTo(240, trap.y - 120); steps(g, 8);
+  }, towerN(7));
   await shoot('pendulum', 480, 854, async (g, d) => {
     d.state = 'play';
     steps(g, 122); // первое предупреждение прошло, тесак пересекает проём над стартовой площадкой
   }, towerN(6));
+  const preview = n => ({store:{teft_save:JSON.stringify({v:5,worldSeed:n===21?40:42,tower:n})}});
+  for (const [n,type] of [[11,'roller'],[12,'hood'],[13,'fork'],[14,'splash'],[15,'grater'],[16,'pair']]) {
+    await shoot(type,480,854,(g,d)=>{
+      d.state='play'; d.run.bannerT=0; d.resetPours(1e9);
+      const h=d.hazards.find(h=>h.type===(type==='pair'?'pendulum':type));
+      const phaseTime={roller:.40,splash:.47,pair:.58};
+      for(let i=0;i<150 && !(h.phase==='active' && h.time>=(phaseTime[type] || 0));i++) g.step();
+      if(h.phase!=='active') throw Error('Ловушка вне кадра: '+type);
+    },preview(n));
+  }
+  for (const [n,name] of [[24,'tea_lift'],[29,'smoke_damper']]) {
+    await shoot(name,480,854,async (g,d)=>{
+      const button=d.buttons.find(b=>b.id==='play'); g.tap(button.x,button.y); steps(g,102);
+      const p=d.platforms.find(p=>p.lesson);
+      g.tap(p.x,p.y-d.camY);
+      for (let i=0;i<130;i++) {
+        g.step();
+        if (d.ball.onPlatform===p.id && (n===29 || p.baseY-p.y>=54)) return;
+      }
+      throw Error('Не получилось приземлиться на '+p.type);
+    },{store:{teft_save:JSON.stringify({v:6,worldSeed:42,tower:n})}});
+  }
+  for (const [n,cp,name] of [[18,1,'risk_choice'],[21,2,'pantry'],[21,0,'bakery']]) {
+    await shoot(name,480,854,(g,d)=>{
+      d.startTower(n,cp); d.state='play'; d.run.bannerT=0; d.resetPours(1e9); steps(g,4);
+    },preview(n));
+  }
+  await shoot('exam_prize_tag',480,854,(g,d)=>{d.state='play';d.run.bannerT=0;g.step();},towerN(5));
+  await shoot('exam_invitation',480,854,(g)=>g.step(),towerN(5));
+  await shoot('exam_skin_reward',480,854,finish,towerN(5));
+  const journalStore={store:{teft_save:JSON.stringify({v:5,tower:11,worldSeed:42,
+    log:{1:{r:'B',t:86},4:{r:'A',t:97},5:{r:'S',t:111},9:{r:'B',t:127},10:{r:'S',t:138}}})}};
+  await shoot('tower_journal',480,854,(g)=>g.step(),journalStore);
+  await shoot('exam_wardrobe',480,854,(g,d)=>{
+    g.step();const tap=id=>{const b=d.buttons.find(row=>row.id===id);g.tap(b.x,b.y);g.step();};
+    tap('wardrobe');tap('skinNext');
+  },journalStore);
+  await shoot('sauce_pickup',480,854,(g,d)=>{
+    d.state='play'; const p=d.tower.pickups.find(it=>it.kind==='sauce');
+    const host=d.platforms.find(q=>q.id===p.host);
+    const prev=d.platforms.find(q=>q.id===d.tower.path[d.tower.path.indexOf(host.id)-1]);
+    d.ball.x=prev.x;d.landOn(prev);d.setCamY(prev.y-540);d.run.bannerT=0;g.step();
+  },towerN(1));
+  await shoot('exam_missed',480,854,async(g,d)=>{
+    d.state='play';d.run.time=90;d.run.foodEaten=Math.floor(d.run.foodTotal*.55);d.finishTower();steps(g,45);
+  },towerN(5));
+  await shoot('upgrade_shop',480,854,(g,d)=>{
+    g.step();const b=d.buttons.find(row=>row.id==='shop');g.tap(b.x,b.y);g.step();
+  },tower2);
   await shoot('desktop', 1280, 720, play);
   await shoot('en_finish', 480, 854, finish, { lang: 'en-US' });
   await shoot('tr_dead', 480, 854, dead, { lang: 'tr-TR' });

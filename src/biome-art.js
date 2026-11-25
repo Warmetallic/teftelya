@@ -59,7 +59,9 @@ function drawSteam(h) {
 }
 function drawRat(h) {
   ctx.scale(h.dir, 1);
-  const run = h.phase === 'active' ? Math.sin(tGame * 20) : 0;
+  const fleeing = h.phase === 'flee';
+  const run = fleeing ? Math.sin(h.time * 29) : h.phase === 'active' ? Math.sin(tGame * 20) : 0;
+  if (fleeing) ctx.translate(0, -2.5 * Math.abs(run));
   ctx.shadowBlur = 0; // светятся только глаза, силуэт и усы остаются резкими
   ctx.lineCap = 'round';
   ctx.beginPath(); ctx.moveTo(-13, 5); ctx.bezierCurveTo(-30, -3, -32, 17, -43, 6 + run * 2);
@@ -67,6 +69,10 @@ function drawRat(h) {
   ctx.strokeStyle = '#d6a599'; ctx.lineWidth = 1.9; ctx.stroke();
   biomeEllipse(-8 + run * 4, 12, 6, 2.6, '#bd9587');
   biomeEllipse(13 - run * 4, 11, 5, 2.4, '#bd9587');
+  if (fleeing) {
+    chunk(30, 7, 8.5, 6);
+    biomeEllipse(32, 5, 2.3, 1.7, '#ffd1a0');
+  }
   const fur = ctx.createLinearGradient(0, -13, 3, 11);
   fur.addColorStop(0, '#b1b6ad'); fur.addColorStop(.3, '#737b7a');
   fur.addColorStop(.65, '#484b51'); fur.addColorStop(1, '#302f36');
@@ -119,9 +125,11 @@ function drawPepper(h) {
 }
 const trapSprites = {};
 if (typeof Image !== 'undefined') {
-  const im = new Image();
-  im.onload = () => { trapSprites.pendulum = im; };
-  im.src = 'assets/art/traps/pendulum.png';
+  for (const name of ['pendulum', 'mallet','roller','grater']) {
+    const im = new Image();
+    im.onload = () => { trapSprites[name] = im; };
+    im.src = 'assets/art/traps/' + name + '.png';
+  }
 }
 function drawCleaver() {
   if (trapSprites.pendulum) {
@@ -159,12 +167,21 @@ function drawPendulum(h) {
   biomeEllipse(0, 0, 10, 10, '#332a27'); biomeEllipse(0, 0, 7.5, 7.5, '#b28556');
   biomeEllipse(-1, -1, 4.5, 4.5, h.phase === 'warn' ? '#ffd693' : '#e0cba8');
 }
-const TRAP_DRAW = { icicle: drawIcicle, steam: drawSteam, rat: drawRat, pepper: drawPepper, pendulum: drawPendulum };
+const TRAP_DRAW = { icicle: drawIcicle, steam: drawSteam, rat: drawRat, pepper: drawPepper, pendulum: drawPendulum, mousetrap: drawMousetrap,
+  burner: drawBurner, tape: drawTape, mallet: drawMallet, brew:drawBrewingSpout, smoke:drawSmokeOutlet, flour:drawFlourSack, ...KITCHEN_ART };
 expose({ trapSprites });
 function drawBiomeSurface(p) {
   if (p.gone) return;
   const y = p.y - camY;
   if (y < -32 || y > H + 32) return;
+  if (p.start && tower.tp.exam) drawExamTag(p.x,y,tower.tp.N);
+  if (p.room==='safe' || p.room==='rich' || p.room==='pantry') {
+    ctx.save();ctx.font='bold 14px system-ui';ctx.textAlign='center';
+    const label=T('room.'+p.room), width=104;
+    ctx.fillStyle='#46382d'; rrect(p.x-width/2,y+11,width,22,5);ctx.fill();
+    ctx.fillStyle=p.room==='safe'?'#b8e7c6':'#ffe19c';ctx.fillText(label,p.x,y+27);
+    ctx.restore();
+  }
   if (p.type === 'pan' && tower.tp.effects.dark) {
     ctx.strokeStyle = 'rgba(255,157,95,.65)'; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.ellipse(p.x, y + 6, p.w / 2 - 2, 13, 0, 0, 2 * Math.PI); ctx.stroke();

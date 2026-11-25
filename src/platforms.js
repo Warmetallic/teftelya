@@ -28,7 +28,7 @@ function updatePlatforms(dt, platforms, tp) {
   const ev = [];
   const standing = platformById(platforms, ball.onPlatform);
   for (const p of platforms) {
-    if (p.type === 'pan' || tp?.effects?.heat) {
+    if (p.type === 'pan' || (tp?.effects?.heat && p.room !== 'safe' && p.room !== 'pantry')) {
       if (p === standing) {
         p.hotT = (p.hotT || 0) + dt;
         if (p.hotT >= heatLimit(p, tp)) { p.hotT = 0; ev.push({ type: 'burn', p }); }
@@ -38,6 +38,13 @@ function updatePlatforms(dt, platforms, tp) {
       const px = p.x, nx = p.x + p.dir * p.speed * dt;
       if (nx > p.x1) { p.x = p.x1; p.dir = -1; } else if (nx < p.x0) { p.x = p.x0; p.dir = 1; } else p.x = nx;
       if (p === standing) ball.x += p.x - px;
+    } else if (p.type === 'teaLift') {
+      p.baseY ??= p.y;
+      const target = p === standing ? p.baseY - 72 : p.baseY;
+      p.y += clamp(target-p.y, -88*dt, 56*dt);
+    } else if (p.type === 'dough') {
+      p.press = p===standing ? (p.press||0)+dt : 0;
+      if (p.press>=.28) { p.press=0; ev.push({type:'launch',p}); }
     } else if (p.type === 'toaster') { // отсчёт идёт, пока Тефа стоит; ушла — сброшен
       if (p === standing) { p.toastT = (p.toastT || 0) + dt; if (p.toastT >= TOASTER_T) { p.toastT = 0; ev.push({ type: 'launch', p }); } }
       else p.toastT = 0;

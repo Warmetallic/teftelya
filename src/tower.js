@@ -5,6 +5,8 @@
 // в воздухе), так что один заряд из трёх остаётся в запасе.
 const ROW_H = 120;          // шаг рядов, px
 const CP_EVERY = 20;        // чекпоинт каждые 20 рядов
+const EXAM_ROWS = 8;
+const isExamTower = n => n % 5 === 0;
 const KNIFE_CYCLE = 2.1;    // нож: пауза 1.2 + замах 0.6 + удар 0.3
 // нож в пропасти (плейтест 2026-09-24: в среднем ряду он висел на площадке отдыха и бил стоящую на ней Тефу): нижняя точка
 // удара на KNIFE_LOW над тарелкой, с которой прыгают, ход вверх KNIFE_TRAVEL — ни стоящая внизу Тефа массы до 8, ни площадка
@@ -21,8 +23,9 @@ const FOOD_KINDS = { ketchup: { r: 15, coins: 1, w: 5 }, pasta: { r: 17, coins: 
 const FOOD_COLOR = { ketchup: '#e3342f', pasta: '#f6c343', meat: '#b5452b' };
 function mulberry32(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 function towerParams(N) {
-  const rows = Math.min(40 + 5 * N, 160), steps = Math.max(0.2, 0.4 - 0.01 * (N - 1)), other = 1 - steps;
-  return { N, rows, height: rows * ROW_H, heat: Math.min(0.05 * N, 1.5), speedMul: Math.min(1.48, 1 + 0.03 * N), flySpeed: Math.min(305, 220 + 5 * N),
+  const baseRows = Math.min(40 + 5 * N, 160), exam = isExamTower(N), rows = baseRows + (exam ? EXAM_ROWS : 0);
+  const steps = Math.max(0.2, 0.4 - 0.01 * (N - 1)), other = 1 - steps;
+  return { N, rows, baseRows, exam, height: rows * ROW_H, heat: Math.min(0.05 * N, 1.5), speedMul: Math.min(1.48, 1 + 0.03 * N), flySpeed: Math.min(305, 220 + 5 * N),
     pHaz: Math.min(0.15 + 0.02 * N, 0.6), pKnife: Math.min(0.85, 0.4 + 0.03 * (N - 2)), foodPerRow: Math.max(0.35, 0.8 - 0.01 * N),
     gapMax: N >= 5 ? 3 : 2, wMin: Math.max(80, 101 - N), wMax: Math.max(110, 141 - N),
     mix: N === 1 ? { plate: 0.5, pan: 0.25, tray: 0.25, cheese: 0 } : { plate: 0.5, pan: 0.2, tray: 0.15, cheese: 0.15 },
@@ -34,6 +37,20 @@ function mkFood(R, x, y) { const kind = pickKind(R); return { kind, x, y, r: FOO
 // Нулевое зерно воспроизводит раскладку v4, включая отдельный поток для особых платформ.
 function towerRng(N, worldSeed, offset) { return mulberry32(((N * 7919) ^ worldSeed) + offset); }
 function buildTower(N, worldSeed = 0) {
+  const level = generateTower(N, worldSeed, false);
+  if (N < 2 || N > 5 || N <= save.oldBiomesThrough) return level;
+  // Keep a naturally occurring first encounter, including its food and the original exam route.
+  const first = level.platforms.find(p => p.id === level.path[1]);
+  const signature = BIOMES[level.tp.theme].trap;
+  const threats = level.hazards.filter(h => h.y > -3 * ROW_H);
+  if (first.row === 1 && first.type === level.tp.uniques[0] &&
+      threats.length === 1 && threats[0].type === signature && threats[0].host === first.id) {
+    first.lesson = true;
+    return level;
+  }
+  return generateTower(N, worldSeed, true);
+}
+function generateTower(N, worldSeed, earlyLesson) {
   const tp = towerParams(N), R = towerRng(N, worldSeed, 17), rr = (a, b) => a + R() * (b - a), ri = (a, b) => a + Math.floor(R() * (b - a + 1));
   const platforms = [], hazards = [], items = [], path = [];
   let id = 0, hid = 1, lastBlades = -99;
@@ -70,10 +87,10 @@ function buildTower(N, worldSeed = 0) {
     return p;
   };
   const knife = (x, baseY) => { const low = baseY - KNIFE_LOW; hazards.push({ id: hid++, type: 'knife', x, y: low + 80, t: R() * KNIFE_CYCLE, phase: 'rest', by: low - KNIFE_TRAVEL }); };
-  const gap = (cur, e) => { // e пустых рядов, за ними площадка отдыха; нож поперёк полёта в пустоте, дуга еды в пустоте
+  const gap = (cur, e, exam = false) => { // e пустых рядов, за ними площадка отдыха; нож поперёк полёта в пустоте, дуга еды в пустоте
     const q = walk(rest(cur.row + e + 1, cur.x + rr(-150, 150)));
     const kx = (cur.x + q.x) / 2; // на линии полёта: посередине между тарелкой старта и площадкой
-    if (N >= 2) { if (R() < tp.pKnife) knife(kx, cur.y); else knifeSlots.push([kx, cur.y]); }
+    if (N >= 2) { if (exam || R() < tp.pKnife) knife(kx, cur.y); else knifeSlots.push([kx, cur.y]); }
     if (R() < 0.5) arc(cur, q, ri(3, 5));
     return q;
   };
@@ -96,8 +113,34 @@ function buildTower(N, worldSeed = 0) {
   };
   const pickFrag = () => { let q = R(); for (const k of ['steps', 'gap', 'side', 'fork']) { q -= tp.frag[k]; if (q <= 0) return k; } return 'steps'; };
   let cur = walk(add(0, 'plate', W / 2, 220, { start: true }));
-  for (let cpRow = Math.min(CP_EVERY, tp.rows); ; cpRow = Math.min(cpRow + CP_EVERY, tp.rows)) {
+  const roomRng=towerRng(N,worldSeed,26741);
+  const lateLesson = tp.theme === 'tea' || tp.theme === 'smokehouse';
+  if (earlyLesson || lateLesson) {
+    const x = roomRng() < .5 ? 148 : W - 148;
+    cur = walk(add(1, tp.uniques[0], x, 144, {lesson:true}));
+    cur = walk(rest(2, W - x));
+  } else if (N === 21) {
+    const doughX = roomRng() < .5 ? 146 : W - 146;
+    cur = walk(add(1, 'dough', doughX, 140));
+    cur = walk(rest(3, W - doughX));
+  }
+  const pantry=N===21 || (N>21 && roomRng()<.28);
+  for (let cpRow = Math.min(CP_EVERY, tp.baseRows); ; cpRow = Math.min(cpRow + CP_EVERY, tp.baseRows)) {
     const lim = cpRow - 1;
+    if (N>=18 && cur.cp===1) {
+      const side=roomRng()<.5?1:-1, richX=W/2+side*133;
+      const safe=walk(add(cur.row+1,'plate',W-richX,126,{room:'safe'}));
+      const rich=add(safe.row,'plate',richX,136,{room:'rich'});
+      const prongs={id:31018,type:'fork',host:rich.id,x:rich.x-side*38,y:rich.y+4,dir:side,phase:'idle',time:0};
+      hazards.push(prongs);
+      for (let k=0;k<4;k++) items.push({...mkFood(roomRng,richX+side*(k-1)*19,rich.y-43-Math.sin(k)*22),kind:'meat',r:FOOD_KINDS.meat.r});
+      cur=walk(add(safe.row+2,'plate',W/2,172,{room:'join'}));
+    }
+    if (pantry && cur.cp===2) {
+      const shelf=walk(add(cur.row+1,'plate',W/2,224,{room:'pantry'}));
+      for (let k=0;k<7;k++) items.push(mkFood(roomRng,shelf.x+(k-3)*27,shelf.y-50-28*Math.sin(Math.PI*k/6)));
+      cur=walk(add(shelf.row+1,'plate',roomRng()<.5?110:W-110,128,{room:'exit'}));
+    }
     while (cpRow - cur.row > PATH_MAX_ROWS) {
       const room = lim - cur.row, f = pickFrag(), e = ri(2, tp.gapMax);
       if (f === 'gap' && e + 1 <= room) cur = gap(cur, e);
@@ -105,15 +148,25 @@ function buildTower(N, worldSeed = 0) {
       else if (f === 'side' && room >= 2) cur = side(cur, lim);
       else cur = steps(cur, ri(3, 5), lim);
     }
-    const top = cpRow === tp.rows ? add(cpRow, 'plate', W / 2, 360, { roof: true }) : add(cpRow, 'plate', W / 2, 240, { cp: cpRow / CP_EVERY });
+    const top = cpRow === tp.rows ? add(cpRow, 'plate', W / 2, 360, { roof: true }) :
+      cpRow % CP_EVERY === 0 ? add(cpRow, 'plate', W / 2, 240, { cp: cpRow / CP_EVERY }) : rest(cpRow,W/2);
     cur = walk(top);
-    if (top.roof) break;
+    if (cpRow === tp.baseRows) break;
+  }
+  if (tp.exam) {
+    // Дополнительный участок выше прежней крыши. Старая нумерация чекпоинтов сохраняется.
+    cur = gap(cur,3,true);
+    const row = cur.row + 1;
+    cur = row % CP_EVERY === 0 ? walk(add(row,'plate',W/2,240,{cp:row/CP_EVERY})) :
+      walk(plat(row,cur.x < W/2 ? 95 : W-95));
+    side(cur,tp.rows-1);
+    walk(add(tp.rows,'plate',W/2,360,{roof:true}));
   }
   if (N >= 2 && !hazards.some(h => h.type === 'knife') && knifeSlots.length) knife(...knifeSlots[0]); // первый нож башни гарантирован
   placeBlades(platforms, hazards, path);
   if (N >= 2) placeUniques(N, tp, platforms, hazards, path, worldSeed);
-  if (N === PENDULUM_TOWER) {
-    // Первые два ряда — знакомство с маятником. Убираем соседние ножи и лопасти после генерации,
+  if (hasTrapDebut(N) || N === 21 || earlyLesson || lateLesson) {
+    // Первые два ряда — знакомство с новой ловушкой. Убираем соседние ножи и лопасти после генерации,
     // чтобы прежние маршруты, чекпоинты и последовательность случайных чисел сохранились.
     for (let i = hazards.length - 1; i >= 0; i--) {
       const h = hazards[i];
@@ -125,7 +178,7 @@ function buildTower(N, worldSeed = 0) {
   if (tp.theme === 'kitchen' && !platforms.some(p => p.type === 'board')) {
     // Учебная доска в стороне от основного пути. Прежние платформы, их id и чекпоинты остаются на местах.
     const wall = EDGE + BOARD_W / 2;
-    for (let row = N === PENDULUM_TOWER ? 3 : 2; row < tp.rows; row++) {
+    for (let row = hasTrapDebut(N) ? 3 : 2; row < tp.rows; row++) {
       const board = [wall, W - wall].map(x => ({ id, row, x, y: -row * ROW_H, w: BOARD_W, type: 'board', cp: 0 }))
         .find(p => boardOk(p, hazards, platforms));
       if (!board) continue;
@@ -137,12 +190,19 @@ function buildTower(N, worldSeed = 0) {
   }
   const built = { tp, platforms, hazards, items, path };
   populateBiome(built, worldSeed);
+  built.pickups = placePickups(built, worldSeed);
   return built;
 }
 // уникальности темы (спека v2.2a §6–§7): пятая часть обычных платформ башни, за счёт тарелок; старт, чекпоинты, крыша и
 // площадки отдыха не трогаются. Решения берутся из своего потока случайных чисел, поэтому раскладка башни та же, что без
 // уникальностей, — меняются только типы. У каждого типа своё правило, можно ли его сюда поставить
 const UNIQUE_RULES = {
+  teaLift: { ok: () => true },
+  damper: { ok(p, hazards, path, byId, platforms) {
+    return !platforms.some(q => (q.type === 'damper' && Math.abs(q.row-p.row) < 7) ||
+      ((q.room === 'safe' || q.room === 'pantry') && Math.abs(q.row-p.row) <= 3));
+  } },
+  dough: { ok: (p,hz,path,byId) => !launchBlocked(p,hz) && !afterLaunchBlocked(p,hz,path,byId), launch:true },
   shelf: { ok: () => true },                 // полка холодильника: скользкая, ставится где угодно
   toaster: { ok: (p, hz, path, byId) => !launchBlocked(p, hz) && !afterLaunchBlocked(p, hz, path, byId), launch: true }, // тостер и лопатка подбрасывают: столб полёта над ними
   board: { ok: (p, hz, path, byId, platforms) => boardOk(p, hz, platforms), make: (p, hz, R) => makeBoard(p, hz, R() * KNIFE_CYCLE) }, // доска с ножом у стены
@@ -167,8 +227,18 @@ const boardOk = (p, hazards, platforms) => {
     for (const m of [1, 4, 8]) { const R = radiusFor(m), y = q.y - R;
       for (let x = x0; x <= x1; x += 5) for (let ky = k.by; ky <= k.y - 80; ky += 4) if (Math.abs(x - k.x) < R + 8 && Math.abs(y - (ky + 40)) < R + 40) return false; }
   }
-  for (const h of hazards) if (h.type === 'blades') for (const m of [1, 4, 8]) { const R = radiusFor(m);
-    for (let x = b.x - BOARD_W / 2; x <= b.x + BOARD_W / 2; x += 5) if (Math.hypot(x - h.x, p.y - R - h.y) < R + BLADES_R) return false; }
+  // Проверяем также прежние ножи: новая доска шире исходной тарелки.
+  for (const h of hazards) {
+    if (Math.abs(h.y - p.y) > 3 * ROW_H) continue;
+    const dx = Math.max(0, Math.abs(h.x - b.x) - BOARD_W / 2);
+    for (const m of [1, 4, 8]) {
+      const r = radiusFor(m), y = p.y - r;
+      if (h.type === 'blades' && Math.hypot(dx, y - h.y) <= r + BLADES_R) return false;
+      // С широкой доски можно начать прыжок ближе к лопастям, чем с прежней тарелки.
+      if (h.type === 'blades' && h.y < y && y - h.y <= JUMP_MAX_H && dx <= r + BLADES_R + BLADE_GAP) return false;
+      if (h.type === 'knife' && dx < r + 8 && y > h.by - r && y < h.y + r) return false;
+    }
+  }
   return true;
 };
 function makeBoard(p, hazards, time) {
@@ -193,14 +263,14 @@ function placeUniques(N, tp, platforms, hazards, path, worldSeed = 0) {
   const kinds = tp.uniques.filter(u => UNIQUE_RULES[u]); if (!kinds.length) return;
   const RU = towerRng(N, worldSeed, 99), byId = new Map(platforms.map(p => [p.id, p]));
   for (const p of platforms) {
-    if (p.type !== 'plate' || p.start || p.cp || p.roof || p.rest) continue;
+    if (p.type !== 'plate' || p.start || p.cp || p.roof || p.rest || p.room) continue;
     if (RU() >= UNIQUE_SHARE / tp.mix.plate) continue;
     const u = kinds[Math.floor(RU() * kinds.length)];
     if (UNIQUE_RULES[u].ok(p, hazards, path, byId, platforms)) { p.type = u; if (UNIQUE_RULES[u].make) UNIQUE_RULES[u].make(p, hazards, RU); }
   }
   for (const u of kinds) {
     if (u === 'board' || platforms.some(p => p.type === u)) continue;
-    const fallback = platforms.find(p => !p.start && !p.roof && !p.cp && !p.rest && p.type !== 'tray' &&
+    const fallback = platforms.find(p => !p.start && !p.roof && !p.cp && !p.rest && !p.room && p.type !== 'tray' &&
       UNIQUE_RULES[u].ok(p, hazards, path, byId, platforms));
     if (fallback) fallback.type = u;
   }

@@ -16,7 +16,7 @@ const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addCol
   for (const n of [1, 2, 6, 9]) { const tp = d.towerParams(n); assert.strictEqual(tp.theme, d.themeFor(n).id); assert.deepStrictEqual(tp.uniques, d.uniquesFor(n)); }
   // параметры роста
   const p1 = d.towerParams(1), p5 = d.towerParams(5), p9 = d.towerParams(9), p50 = d.towerParams(50);
-  assert.strictEqual(p1.rows, 45); assert.strictEqual(p50.rows, 160); assert.strictEqual(p9.dmg, undefined, 'урон не растёт с номером башни');
+  assert.strictEqual(p1.rows, 45); assert.strictEqual(d.towerParams(49).rows, 160); assert.strictEqual(p50.rows, 168); assert.strictEqual(p9.dmg, undefined, 'урон не растёт с номером башни');
   assert.ok(p9.pHaz > p1.pHaz && p9.heat > p1.heat && p9.flySpeed > p1.flySpeed); assert.strictEqual(p1.par, 45 * 2.4); assert.strictEqual(p1.height, 45 * d.ROW_H);
   assert.strictEqual(p1.gapMax, 2); assert.strictEqual(p5.gapMax, 3, 'с башни 5 пропасть до 3 пустых рядов');
   assert.deepStrictEqual([p1.wMin, p1.wMax], [100, 140]); assert.deepStrictEqual([p50.wMin, p50.wMax], [80, 110], 'платформы уже, не меньше 80');
@@ -34,6 +34,11 @@ const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addCol
   const BASE = ['plate', 'pan', 'tray', 'cheese'], share = { plate: 0, pan: 0, tray: 0, cheese: 0 }, ushare = { plate: 0, uniq: 0, all: 0 }, r8 = d.radiusFor(8); let air = 0, links = 0;
   for (let N = 1; N <= 100; N++) {
     const t = d.buildTower(N), P = t.platforms, byId = new Map(P.map(p => [p.id, p]));
+    if (N%5===0) {
+      assert.equal(P.find(p=>p.roof).row,t.tp.baseRows+8);
+      assert.ok(t.hazards.some(h=>h.type==='knife' && h.y < -t.tp.baseRows*d.ROW_H));
+      for(let row=20;row<t.tp.rows;row+=20) assert.ok(P.some(p=>p.row===row && p.cp===row/20));
+    }
     for (const p of P) {
       if (!(p.cp || p.roof || p.start)) assert.ok(p.x - p.w / 2 >= 20 && p.x + p.w / 2 <= 460, 'башня ' + N + ': платформа в поле');
       if (p.type === 'tray') assert.ok(p.x0 - p.w / 2 >= 20 - 1e-9 && p.x1 + p.w / 2 <= 460 + 1e-9, 'башня ' + N + ': поднос не выезжает за поле');

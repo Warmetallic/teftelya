@@ -110,6 +110,32 @@ function drawPlatform(p) {
       ctx.fillStyle = '#c9c2b4'; ctx.beginPath(); ctx.ellipse(p.x, y + 8, p.w / 2 - 30, 9, 0, 0, 7); ctx.fill();
     }
     if (p.cp) { ctx.fillStyle = '#8ff0a4'; ctx.beginPath(); ctx.arc(p.x + p.w / 2 - 10, y + 2, 5, 0, 7); ctx.fill(); } // метка чекпоинта
+  } else if (p.type === 'teaLift' || p.type === 'damper') {
+    ctx.save(); ctx.translate(p.x,y); drawLatePlatform(p); ctx.restore();
+  } else if (p.type==='dough') {
+    const press=Math.min(1,(p.press||0)/.28);
+    const w=p.w/2;
+    ctx.save(); ctx.translate(p.x,y); ctx.scale(1+.06*press,1-.35*press);
+    const dough=ctx.createLinearGradient(0,-8,0,20);
+    dough.addColorStop(0,'#fff1d1'); dough.addColorStop(.33,'#efcf9d');
+    dough.addColorStop(.78,'#d4a773'); dough.addColorStop(1,'#a77b57');
+    ctx.beginPath(); ctx.moveTo(-w,7);
+    ctx.bezierCurveTo(-w,-3,-w*.7,-9,-w*.41,-6);
+    ctx.bezierCurveTo(-w*.13,-11,w*.03,-7,w*.23,-7);
+    ctx.bezierCurveTo(w*.65,-11,w*.98,-3,w,7);
+    ctx.bezierCurveTo(w,18,w*.52,21,w*.17,19);
+    ctx.bezierCurveTo(-w*.28,23,-w,20,-w,7);
+    trapFinish(dough,'#76573f',2);
+    for(let i=-1;i<=1;i++) {
+      const x=i*w*.50;
+      ctx.beginPath(); ctx.moveTo(x-8,12); ctx.quadraticCurveTo(x+1,8,x+5,0);
+      ctx.strokeStyle='#c7a078';ctx.lineWidth=2.4;ctx.stroke();
+    }
+    for(let i=0;i<21;i++) {
+      const x=w*((i*47%93)/50-.91),y=(i*7%13)-4;
+      biomeEllipse(x,y,1.4+(i%3)*.35,.9,'#f8e6bf');
+    }
+    ctx.restore();
   } else if (p.type === 'pan') {
     const heat = panHeat(p, tower.tp);
     ctx.fillStyle = '#2a2624'; ctx.beginPath(); ctx.ellipse(p.x, y + 8, p.w / 2, 16, 0, 0, 7); ctx.fill(); drawLedgeRim(y - 8, y + 24);
@@ -282,8 +308,12 @@ function drawTefaBall() {
     heal: ball.healT > 0 ? 1 - ball.healT / HEAL_T : 0,
     bake: radiusFor(ball.mass) * (bz ? 1.6 : 1) }; // кэш тела печётся под целевой радиус массы, пока ball.r его догоняет
   drawTefa(ctx, x, y, r, pose);
-  const cm = chargesMax(), top = y - r * 1.16 - 14 - (bz ? r * 0.95 : 0); // заряды над головой; в берсерке выше пламени
-  for (let i = 0; i < cm; i++) { ctx.fillStyle = i < ball.charges ? '#f6c343' : 'rgba(255,255,255,0.2)'; ctx.beginPath(); ctx.arc(x - (cm - 1) * 7 + i * 14, top, 4, 0, 7); ctx.fill(); }
+  if (save.skin!=='none') {
+    ctx.save();ctx.globalAlpha=pose.alpha;ctx.translate(x,y+r);ctx.rotate(pose.tilt);
+    ctx.scale(pose.sx,pose.sy);drawWornSkin(save.skin,0,-r,r);ctx.restore();
+  }
+  const cm = chargesMax(), top = y - r * 1.16 - (save.skin === 'none' ? 14 : 27) - (bz ? r * 0.95 : 0); // заряды над головой; в берсерке выше пламени
+  for (let i = 0; i < cm; i++) { ctx.fillStyle = i < ball.charges ? (run.parsleyTime > 0 && i === cm-1 ? '#b5ee98' : '#f6c343') : 'rgba(255,255,255,0.2)'; ctx.beginPath(); ctx.arc(x - (cm - 1) * 7 + i * 14, top, 4, 0, 7); ctx.fill(); }
 }
 // шкала суперсилы сверху слева (спека v2.1.1 §3.3): копится оранжевой, полна — золотая и пульсирует, в берсерке показывает
 // остаток его времени, исчерпана — серая; при лимите больше одного справа остаток берсерков
@@ -317,7 +347,7 @@ function drawBzBtn() {
   ctx.restore();
 }
 function drawHUD() { // жизни показывает сама Тефа; здесь шкала силы, кнопка берсерка, монеты, номер башни и прогресс
-  drawPowerMeter(); if (powerReady()) drawBzBtn();
+  drawPowerMeter(); drawPickupStatus(); if (powerReady()) drawBzBtn();
   ctx.textAlign = 'right'; ctx.font = '700 22px system-ui, sans-serif'; ctx.fillStyle = '#ffe08a'; ctx.fillText('● ' + run.runCoins, W - 16, 40);
   ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.font = '600 15px system-ui, sans-serif'; ctx.fillText(T('tower') + ' ' + tower.tp.N, W - 16, 64);
   const x = W - 14, y0 = 110, y1 = H - 110; // прогресс башни с отметками чекпоинтов
@@ -330,16 +360,16 @@ function drawHUD() { // жизни показывает сама Тефа; зд�
     ctx.lineJoin = 'round'; ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(20,12,8,0.7)'; ctx.fillStyle = '#fff';
     const s = T('tower') + ' ' + tower.tp.N + ' · ' + T('theme.' + tower.tp.theme);
     ctx.strokeText(s, W / 2, H * 0.3); ctx.fillText(s, W / 2, H * 0.3);
-    if (tower.tp.mods.length) {
+    if (tower.tp.mods.length || tower.tp.exam) {
       ctx.font = '700 17px system-ui'; ctx.fillStyle = '#ffe08a';
-      const mods = modifiersText(tower.tp);
+      const mods = [tower.tp.exam && T('exam'), modifiersText(tower.tp)].filter(Boolean).join(' · ');
       ctx.strokeText(mods, W / 2, H * .3 + 30, W - 28); ctx.fillText(mods, W / 2, H * .3 + 30, W - 28);
     }
     ctx.globalAlpha = 1;
   }
 }
 // нижний цвет полосы темы: им же заливается экран под полем на высоких телефонах (drawBg)
-const BAND_BOTTOM = { fridge: 'rgba(160,200,235,0.95)', oven: 'rgba(40,14,8,0.97)', cellar: 'rgba(21,26,20,0.97)', feast: 'rgba(0,0,0,0.98)', kitchen: 'rgba(8,6,5,0.97)' };
+const BAND_BOTTOM = { tea:'#503118', smokehouse:'#392d30', bakery: 'rgba(102,72,49,0.97)', fridge: 'rgba(160,200,235,0.95)', oven: 'rgba(40,14,8,0.97)', cellar: 'rgba(21,26,20,0.97)', feast: 'rgba(0,0,0,0.98)', kitchen: 'rgba(8,6,5,0.97)' };
 // нижняя смертельная полоса темы (спека v2.2a §4): едет с камерой, верхний край колышется; поверх мира, под надписями и HUD.
 // Низ уходит за край поля: тряска камеры не открывает щель над заливкой из drawBg
 function drawBand() {
@@ -349,6 +379,23 @@ function drawBand() {
   if (theme === 'fridge') { // иней с сосульками
     g.addColorStop(0, 'rgba(210,235,255,0.55)'); g.addColorStop(1, bottom); edge(); ctx.fillStyle = g; ctx.fill();
     ctx.fillStyle = 'rgba(235,248,255,0.85)'; for (let x = 6; x < W; x += 18) { ctx.beginPath(); ctx.moveTo(x - 6, y0 + wave(x) + 2); ctx.lineTo(x, y0 - 10 + wave(x)); ctx.lineTo(x + 6, y0 + wave(x) + 2); ctx.fill(); }
+  } else if (theme === 'tea' || theme === 'smokehouse') {
+    g.addColorStop(0,theme === 'tea' ? '#d69d42' : '#b6a39b'); g.addColorStop(1,bottom);
+    edge(); ctx.fillStyle=g; ctx.fill();
+    for (let i=0;i<15;i++) {
+      const x=(i*53+tGame*(theme==='tea'?8:15))%(W+20)-10;
+      const y=y0+wave(x)+Math.sin(i+tGame)*3;
+      biomeEllipse(x,y,theme==='tea'?6:12,theme==='tea'?1.7:4,theme==='tea'?'#ffe4a5':'#b6a39b');
+    }
+  } else if (theme === 'bakery') {
+    g.addColorStop(0, 'rgba(237,213,174,.82)'); g.addColorStop(1, bottom);
+    edge(); ctx.fillStyle = g; ctx.fill();
+    ctx.fillStyle = 'rgba(255,236,196,.6)';
+    for (let i = 0; i < 35; i++) {
+      const x = (i * 71 + Math.sin(tGame + i) * 3) % W;
+      const lift = (tGame * 8 + i * 11) % 17;
+      ctx.fillRect(x, y0 + wave(x) + 4 - lift, i % 3 + 1, 1.4);
+    }
   } else if (theme === 'oven') { // тлеющие угли, приглушённые — не цвет опасности
     g.addColorStop(0, 'rgba(90,36,20,0.6)'); g.addColorStop(1, bottom); edge(); ctx.fillStyle = g; ctx.fill();
     for (let x = 12; x < W; x += 26) { ctx.fillStyle = `rgba(200,${90 + (x % 50)},50,${0.4 + 0.2 * Math.sin(tGame * 4 + x)})`; ctx.beginPath(); ctx.arc(x, y0 + 12 + (x % 11), 2.5, 0, 7); ctx.fill(); }
@@ -366,6 +413,8 @@ function drawBand() {
 }
 function drawWorld() { // всё внутри поля; вызывающий ставит clip и shake
   if (!tower) return;
+  if (tower.tp.theme === 'smokehouse')
+    for (const h of tower.hazards) if (h.type === 'smoke') drawDamperLink(h);
   for (const p of tower.platforms) drawPlatform(p);
   for (const it of tower.items) if (!it.dead) drawItem(it);
   const dark = tower.tp.effects.dark;
@@ -374,9 +423,16 @@ function drawWorld() { // всё внутри поля; вызывающий с�
   ctx.save();
   if (dark) { ctx.shadowColor = '#e5b079'; ctx.shadowBlur = 7; }
   for (const h of tower.hazards) drawHazard(h);
+  for (const p of tower.pickups) drawPickup(p);
   for (const f of flies) drawFly(f);
   drawPours(); ctx.restore();
   if (ball.alive || state === 'title' || state === 'finish') drawTefaBall();
+  if (ball.alive && ball.tape) {
+    ctx.save(); ctx.font = 'bold 17px system-ui'; ctx.textAlign = 'center'; ctx.lineJoin = 'round';
+    const label = T('tape.release'), x = clamp(ball.x,92,W-92), y = ball.y-camY+ball.r+25;
+    ctx.lineWidth = 4; ctx.strokeStyle = '#392b28'; ctx.strokeText(label,x,y);
+    ctx.fillStyle = '#ffe69e'; ctx.fillText(label,x,y); ctx.restore();
+  }
   for (const p of particles) {
     ctx.globalAlpha = clamp(p.t / p.life, 0, 1);
     if (p.meat) { ctx.save(); ctx.translate(p.x, p.y - camY); ctx.rotate(p.rot); chunk(0, 0, p.size, p.size * 0.78); ctx.restore(); }

@@ -6,7 +6,7 @@ const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addCol
   const g = require('./_env')(ctx); const d = g.dbg();
   const up0 = { meat: 0, crust: 0, appetite: 0, spice: 0, nerve: 0, grit: 0, repel: 0, charge: 0, fury: 0 };
   // мусор и старые версии
-  assert.deepStrictEqual(d.migrate(null), { v: 5, worldSeed: null, legacyThrough: 0, earned: 0, spent: 0, up: up0, skins: [], skin: 'none', tower: 1, log: {}, cp: 0 });
+  assert.deepStrictEqual(d.migrate(null), { v: 6, worldSeed: null, legacyThrough: 0, oldBiomesThrough: 0, earned: 0, spent: 0, up: up0, skins: [], skin: 'none', tower: 1, log: {}, cp: 0 });
   assert.deepStrictEqual(d.migrate({ v: 1, best: 300, coins: 77 }).earned, 77);
   const m3 = d.migrate({ v: 3, best: 5, earned: 500, spent: 360, up: { jumps: 2, magnet: 1 }, floor: 4, startFloor: 5, skin: 'crown' });
   assert.strictEqual(m3.earned, 500); assert.strictEqual(m3.spent, 0, 'потраченное на старые апгрейды возвращается'); assert.deepStrictEqual(m3.up, up0);
@@ -27,7 +27,7 @@ const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addCol
   // снимок не делит ссылки с save; coins()
   await d.YG.init(); await d.loadSave(); d.save.earned = 50; d.save.spent = 20; assert.strictEqual(d.coins(), 30);
   d.save.log[1] = { r: 'B', t: 10 }; d.persist(); const snap = JSON.parse(g.store.get('teft_save'));
-  assert.strictEqual(snap.v, 5); assert.deepStrictEqual(snap.log, { 1: { r: 'B', t: 10 } }); assert.strictEqual(snap.earned, 50);
+  assert.strictEqual(snap.v, 6); assert.deepStrictEqual(snap.log, { 1: { r: 'B', t: 10 } }); assert.strictEqual(snap.earned, 50);
   assert.deepStrictEqual(d.RANK, ['D', 'C', 'B', 'A', 'S']);
   async function openWorld(seed, local, cloud) {
     const env = require('./_env')(ctx, { worldSeed: seed });
@@ -61,5 +61,18 @@ const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addCol
   assert.strictEqual((await openWorld(1, cloudAhead, localBehind)).save.worldSeed, firstSave.worldSeed);
   assert.strictEqual((await openWorld(1, localBehind, { ...cloudAhead, cp: 1 })).save.worldSeed, firstSave.worldSeed);
   assert.strictEqual((await openWorld(1, { ...firstSave, worldSeed: -1 }, snap)).save.worldSeed, 0, 'нулевое зерно действительно');
+  const previous = await openWorld(99,{v:5,worldSeed:42,tower:29,cp:2});
+  assert.equal(previous.tower.tp.theme,'fridge');
+  assert.equal(previous.run.cp,2);
+  assert.equal(previous.themeFor(24).id,'oven');
+  assert.equal(previous.themeFor(32).id,'tea');
+  for(const type of ['tea','smokehouse']) {
+    const u=previous.towerMilestones().find(u=>u.type===type);
+    assert.ok(u.tower>29 && previous.themeFor(u.tower).id===type);
+    for(let n=30;n<u.tower;n++) assert.notEqual(previous.themeFor(n).id,type);
+  }
+  const reopened = await openWorld(77,null,previous.snapshot());
+  assert.deepStrictEqual(reopened.tower,previous.tower);
+  assert.equal(reopened.save.oldBiomesThrough,29);
   console.log('test_save ok');
 })().catch(e => { console.error(e); process.exit(1); });

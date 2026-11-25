@@ -12,14 +12,17 @@ function devTower() {
 function biomePreview() {
   if (typeof location === 'undefined' ||
       !(location.protocol === 'file:' || /^(localhost|127\.0\.0\.1)$/.test(location.hostname))) return 0;
-  const match = /[?&]biome=([1-6])(?:&|$)/.exec(location.search || '');
+  const match = /[?&]biome=([1-9]|1\d|2\d|30)(?:&|$)/.exec(location.search || '');
   return match ? Number(match[1]) : 0;
 }
+if (biomePreview() === 7) setMousetrapDesign(new URLSearchParams(location.search).get('trap'));
 async function boot() {
   await YG.init();
-  setLang(YG.lang);
+  let preferredLang;
+  try { preferredLang=YG.storage?.getItem('teft_language'); } catch {}
+  setLang(['ru','en','tr'].includes(preferredLang) ? preferredLang : YG.lang);
   const preview = biomePreview();
-  if (preview) Object.assign(save, migrate(null), { worldSeed: 42, tower: preview });
+  if (preview) Object.assign(save, migrate(null), { worldSeed: preview === 21 ? 40 : 42, tower: preview });
   else await loadSave();
   const dev = preview || devTower(); // плейтест: ?tower=N на локальном адресе открывает башню N, сохранение не трогает
   startTower(dev || save.tower, dev ? 0 : save.cp); state = 'title';
@@ -43,6 +46,10 @@ function resumeGame() {
 document.addEventListener('visibilitychange', () => { if (document.hidden) pauseGame(); else resumeGame(); });
 window.addEventListener('blur', pauseGame);
 window.addEventListener('focus', resumeGame);
+window.addEventListener('message', event => {
+  if (event.source === window.parent && window.parent !== window && biomePreview() === 7 &&
+      event.data?.type === 'mousetrap-design') setMousetrapDesign(event.data.design);
+});
 // общий каркас показа рекламы: блокируем ввод и цикл, глушим звук; если вкладку скрыли во время рекламы — после неё пауза
 async function showAd(fn) {
   adBusy = true; muteAudio();
@@ -78,7 +85,7 @@ function onTap(x, y) {
     if (powerReady() && Math.hypot(x - BZ_BTN.x, y - BZ_BTN.y) <= BZ_BTN.r + BZ_TAP) { tryActivatePower(); return; }
     jumpTo(clamp(x, 0, W), y + camY); return;
   }
-  if (state !== 'title' && tGame < 0.6) return;
+  if ((state === 'dead' || state === 'finish') && tGame < 0.6) return;
   const b = hitButton(x, y); if (!b) return;
   if (b.id === 'play') goPlay('start');
   else if (b.id === 'continue') tryContinue();
@@ -86,8 +93,46 @@ function onTap(x, y) {
   else if (b.id === 'restart') goPlay('restart');
   else if (b.id === 'double') tryDouble();
   else if (b.id === 'next') goPlay('next');
+  else if (b.id === 'home') {
+    startTower(save.tower,save.cp); state='title';
+    artPrepare(tower.tp.theme).then(artWarmLoop);
+  } else if (b.id === 'wearReward') equipSkin(examSkin(tower.tp.N));
+  else if (b.id === 'wardrobe') openWardrobe();
+  else if (b.id === 'skinPrev') wardrobeIndex=Math.max(0,wardrobeIndex-1);
+  else if (b.id === 'skinNext') wardrobeIndex=Math.min(ownedLooks().length-1,wardrobeIndex+1);
+  else if (b.id === 'wear') equipSkin(ownedLooks()[wardrobeIndex]);
+  else if (b.id === 'language') {
+    const languages=['ru','en','tr'];setLang(languages[(languages.indexOf(LANG)+1)%languages.length]);
+    if (!biomePreview()) {try {YG.storage?.setItem('teft_language',LANG);} catch {}}
+  }
+  else if (b.id === 'shop' || b.id === 'shopUp') openShop();
+  else if (b.id === 'shopLooks') openShop('looks');
+  else if (b.id.startsWith('offer_')) shopSelected=b.id.slice(6);
+  else if (b.id === 'buy') buyOffer(shopSelected);
+  else if (b.id === 'equipShop') equipSkin(shopSelected);
+  else if (b.id === 'backTitle') state='title';
+  else if (b.id === 'journalUp' || b.id === 'journalDown') scrollJournal(b.id==='journalUp'?-1:1);
+  clearButtons();
 }
-cv.addEventListener('pointerdown', e => { e.preventDefault(); const [x, y] = toGame(e); onTap(x, y); });
+let journalTouch=null;
+function inJournal(x,y) {
+  return state==='title' && journalRows.length>JOURNAL_ROWS && x>=48 && x<=W-48 && y>=JOURNAL_TOP-10 && y<=JOURNAL_TOP+130;
+}
+cv.addEventListener('pointerdown', e => {
+  e.preventDefault(); const [x,y]=toGame(e);
+  if(inJournal(x,y) && !hitButton(x,y)) {journalTouch={id:e.pointerId,y};cv.setPointerCapture?.(e.pointerId);return;}
+  onTap(x,y);
+});
+cv.addEventListener('pointermove',e=>{
+  if(!journalTouch || journalTouch.id!==e.pointerId) return;
+  const [,y]=toGame(e), rows=Math.trunc((journalTouch.y-y)/29);
+  if(rows) {scrollJournal(rows);journalTouch.y-=rows*29;}
+});
+for(const end of ['pointerup','pointercancel','lostpointercapture']) cv.addEventListener(end,()=>{journalTouch=null;});
+cv.addEventListener('wheel',e=>{
+  if(!inJournal(...toGame(e)) || !e.deltaY) return;
+  e.preventDefault();scrollJournal(Math.sign(e.deltaY));
+},{passive:false});
 cv.addEventListener('contextmenu', e => e.preventDefault());
 window.addEventListener('keydown', e => {
   if (e.repeat) return;
@@ -109,6 +154,8 @@ function draw() {
   ctx.restore();
   if (state === 'play') drawHUD();
   if (state === 'title') titleScreen();
+  if (state === 'wardrobe') wardrobeScreen();
+  if (state === 'shop') shopScreen();
   if (state === 'dead') deadScreen(tGame > 0.6);
   if (state === 'finish') finishScreen(tGame > 0.6);
   if (paused || awaitTap) pausedScreen(awaitTap && !paused);

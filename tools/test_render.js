@@ -25,27 +25,41 @@ const ctx = new Proxy({}, { get: (t, k) => k === 'fillText' ? s => texts.push(St
   const g = require('./_env')(ctx); const d = g.dbg(); await d.YG.init(); await d.loadSave(); d.startTower(1);
   for (const lang of ['ru', 'en', 'tr']) {
     d.setLang(lang);
-    d.startTower(5); texts.length = 0; d.titleScreen();
-    assert.ok(texts.includes(d.T('untilPendulum', 1)));
+    d.save.tower = 5; d.startTower(5); texts.length = 0; d.titleScreen();
+    assert.ok(texts.includes(d.T('until.pendulum', 1)));
     d.state = 'play'; d.finishTower(); texts.length = 0; d.finishScreen(true);
-    assert.ok(texts.includes(d.T('unlockPendulum')));
+    assert.ok(texts.includes(d.T('unlock.pendulum')));
     assert.ok(d.buttons.find(b => b.id === 'next').y < 820);
     d.nextTower(); assert.equal(d.tower.tp.N, 6);
     assert.ok(d.hazards.some(h => h.type === 'pendulum'));
     texts.length = 0; d.titleScreen(); assert.ok(texts.includes(d.T('hint.pendulum')));
-    assert.ok(!texts.includes(d.T('untilPendulum',0)));
+    assert.ok(texts.includes(d.T('until.mousetrap',1)));
+    d.state = 'play'; d.finishTower(); texts.length = 0; d.finishScreen(true);
+    assert.ok(texts.includes(d.T('unlock.mousetrap')));
+    d.nextTower(); assert.equal(d.tower.tp.N, 7);
+    assert.ok(d.hazards.some(h => h.type === 'mousetrap'));
+    texts.length = 0; d.titleScreen(); assert.ok(texts.includes(d.T('hint.mousetrap')));
+    assert.ok(!texts.includes(d.T('until.mousetrap',0)));
+    for (const [n,type] of [[8,'burner'],[9,'tape'],[10,'mallet'],[11,'roller'],[12,'hood'],[13,'fork'],[14,'splash'],[15,'grater']]) {
+      assert.ok(texts.includes(d.T('until.'+type,1)));
+      d.state = 'play'; d.finishTower(); texts.length = 0; d.finishScreen(true);
+      assert.ok(texts.includes(d.T('unlock.'+type)));
+      d.nextTower(); assert.equal(d.tower.tp.N,n);
+      assert.ok(d.hazards.some(h => h.type === type));
+      texts.length = 0; d.titleScreen(); assert.ok(texts.includes(d.T('hint.'+type)));
+    }
   }
-  d.setLang('ru'); d.startTower(1);
+  d.setLang('ru'); d.save.log={}; d.save.skins=[]; d.startTower(1);
   // уровни жизней по таблице спеки v2.1.1 §3.2: последний кусок — паника при любом максимуме
   const lv = (c, m) => d.tefaHpLevel(c, m);
   assert.deepStrictEqual([lv(4, 4), lv(3, 4), lv(2, 4), lv(1, 4)], [0, 1, 2, 3]);
   assert.deepStrictEqual([lv(6, 6), lv(5, 6), lv(4, 6), lv(3, 6), lv(2, 6), lv(1, 6)], [0, 1, 1, 2, 2, 3]);
   // Тефа рисуется без светлого ободка: ни одного stroke-эллипса вокруг неё в drawWorld нет (проверяется глазами на снимках)
   // титул: башня, тема, кнопка «Играть»; с чекпоинтом — строка чекпоинта
-  texts.length = 0; d.state = 'title'; d.titleScreen(); assert.ok(texts.includes('Башня 1') && texts.includes('Кухня')); assert.deepStrictEqual(d.buttons.map(b => b.id), ['play']);
+  texts.length = 0; d.state = 'title'; d.titleScreen(); assert.ok(texts.includes('Башня 1') && texts.includes('Кухня')); assert.deepStrictEqual(d.buttons.map(b => b.id), ['play','shop','language']);
   d.save.cp = 1; texts.length = 0; d.titleScreen(); assert.ok(texts.includes('Чекпоинт 1')); d.save.cp = 0;
   // темы (спека v2.2a §5): фон каждой темы рисуется, на титуле её название; при старте башни плашка «Башня N · Тема» на 1.5 с
-  for (let n = 1; n <= 6; n++) { d.startTower(n); d.state = 'title'; d.drawBg(); d.drawWorld(); d.drawBand(); texts.length = 0; d.titleScreen(); assert.ok(texts.includes(d.T('theme.' + d.themeFor(n).id)), 'на титуле тема башни ' + n); }
+  for (const n of [1,2,3,4,5,6,21,24,27,29]) { d.startTower(n); d.state = 'title'; d.drawBg(); d.drawWorld(); d.drawBand(); texts.length = 0; d.titleScreen(); assert.ok(texts.includes(d.T('theme.' + d.themeFor(n).id)+(n===5?' · '+d.T('exam'):'')), 'на титуле тема башни ' + n); }
   d.startTower(2); d.state = 'play'; texts.length = 0; d.drawHUD(); assert.ok(texts.includes('Башня 2 · Холодильник'), 'плашка темы при старте');
   for (let i = 0; i < 100; i++) d.update(0.016); texts.length = 0; d.drawHUD(); assert.ok(!texts.some(t => t.includes(' · ')), 'через 1.6 с плашки нет');
   for (const [lang, want] of [['en', 'Tower 2 · Fridge'], ['tr', 'Kule 2 · Buzdolabı']]) { d.setLang(lang); d.startTower(2); d.state = 'play'; texts.length = 0; d.drawHUD(); assert.ok(texts.includes(want), lang + ': плашка ' + want); }
@@ -94,8 +108,8 @@ const ctx = new Proxy({}, { get: (t, k) => k === 'fillText' ? s => texts.push(St
   // финиш: буква, галочки, награда, кнопки; после удвоения кнопки ×2 нет
   d.startTower(1); d.state = 'play'; d.run.foodEaten = d.run.foodTotal; d.setRunCoins(3); d.finishTower(); texts.length = 0; d.finishScreen(true);
   assert.ok(texts.includes('Башня 1 пройдена!') && texts.includes('S') && texts.some(t => t.startsWith('✓ Без смертей')) && texts.some(t => t.includes('Награда +40')));
-  assert.deepStrictEqual(d.buttons.map(b => b.id), ['double', 'next']);
-  d.doubleCoins(); texts.length = 0; d.finishScreen(true); assert.deepStrictEqual(d.buttons.map(b => b.id), ['next']); assert.ok(texts.some(t => t.includes('×2')));
+  assert.deepStrictEqual(d.buttons.map(b => b.id), ['double', 'next','home']);
+  d.doubleCoins(); texts.length = 0; d.finishScreen(true); assert.deepStrictEqual(d.buttons.map(b => b.id), ['next','home']); assert.ok(texts.some(t => t.includes('×2')));
   d.startTower(1); d.state = 'play'; d.run.deaths = 1; d.run.foodEaten = d.run.foodTotal; d.finishTower(); texts.length = 0; d.finishScreen(true); assert.ok(texts.includes('A') && texts.some(t => t.startsWith('✗ Без смертей')));
   // названия тем на трёх языках
   for (const lang of ['ru', 'en', 'tr']) { d.setLang(lang); for (const id of ['kitchen', 'fridge', 'oven', 'cellar', 'feast']) assert.ok(d.T('theme.' + id) && d.T('theme.' + id) !== 'theme.' + id, lang + ': название темы ' + id); }
@@ -139,7 +153,7 @@ const ctx = new Proxy({}, { get: (t, k) => k === 'fillText' ? s => texts.push(St
     const t0 = Date.now(); d4.ART_IMG.oven = null; await d4.artPrepare('oven', 60); assert.ok(Date.now() - t0 < 1000 && !d4.ART.oven, 'картинки не пришли — ждём не дольше maxMs и живём без арта');
     assert.strictEqual(d4.artWarm(), false, 'прогрев: следующая тема ещё не готова'); d4.ART_IMG.oven = undefined; delete d4.ART_IMG.oven;
     const pic = (w, h, c) => { const cv = createCanvas(w, h), g = cv.getContext('2d'); g.fillStyle = c; g.fillRect(0, 0, w, h); return cv; };
-    const towerOf = { kitchen: 1, fridge: 2, oven: 3, cellar: 4, feast: 5 };
+    const towerOf = { kitchen: 1, fridge: 2, oven: 3, cellar: 4, feast: 5, bakery:21, tea:24, smokehouse:29 };
     for (const theme of Object.keys(d4.ART_SRC)) { // каждая тема на своей башне: картинки-заглушки по списку имён, слои, покрытие поля, бюджет памяти
       d4.startTower(towerOf[theme]); d4.ART_IMG[theme] = Object.fromEntries(d4.ART_SRC[theme].map((n, i) => [n, pic(n === 'back' ? 96 : 30 + i * 7, n === 'back' ? 140 : 72, n === 'back' ? '#889' : '#a75')]));
       const imgs = d4.ART_IMG[theme];
@@ -215,5 +229,23 @@ const ctx = new Proxy({}, { get: (t, k) => k === 'fillText' ? s => texts.push(St
     const b = d3.fieldBounds(); assert.ok(b.y1 > 854 + 50, 'экран выше поля: ' + b.y1);
     for (let n = 1; n <= 5; n++) { d3.startTower(n); rects.length = 0; d3.drawBg(); const bottom = (d3.BAND_BOTTOM || {})[d3.themeFor(n).id];
       assert.ok(bottom && rects.some(r => r.fill === bottom && r.y <= 854 + 1 && r.y + r.h >= b.y1 - 1 && r.x <= 0 && r.x + r.w >= 480), 'под полем заливка полосы, башня ' + n); } }
+  { const { createCanvas } = require('canvas');
+    const canvas = createCanvas(120, 84), pen = canvas.getContext('2d');
+    const dbg = require('./_env')(pen).dbg();
+    const render = phase => {
+      pen.clearRect(0, 0, 120, 84); pen.save(); pen.translate(60, 72);
+      dbg.drawMousetrap(phase); pen.restore();
+      return canvas.toBuffer('image/png').toString('base64');
+    };
+    const idle = { phase: 'idle' }, original = render(idle), openPoses = new Set();
+    for (const name of ['classic', 'enamel', 'cloche']) {
+      dbg.setMousetrapDesign(name);
+      const before = render(idle); openPoses.add(before);
+      const poses = [before, render({ phase: 'warn', time: .2 }), render({ phase: 'snap', time: .05 }), render({ phase: 'spent' })];
+      assert.equal(new Set(poses).size, 4, name + ': предупреждение, щелчок и закрытая поза различимы');
+    }
+    assert.equal(openPoses.size, 3, 'у трёх мышеловок разные силуэты');
+    dbg.setMousetrapDesign('unknown'); assert.equal(render(idle), original);
+  }
   console.log('test_render ok');
 })().catch(e => { console.error(e); process.exit(1); });
