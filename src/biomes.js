@@ -12,6 +12,8 @@ const BIOMES = {
 };
 const MOD_BONUS = { heat: 20, ice: 20, swarm: 15, sharp: 15, narrow: 20, feast: 15, dark: 30, fragile: 25 };
 const TRAP_WARN = { rat: 0.8, icicle: 0.78, steam: 0.95, pepper: 0.9, flour:.9, brew:.85, smoke:1.15 };
+const FIRST_POUR_WARN = 1.5, DAMPER_HOLD = 2.4;
+const BREW_LENGTH = 175, BREW_SPEED = 490;
 const PEPPER_RADIUS = 85;
 const RAT_FLEE_SPEED = 310, RAT_PATROL_INSET = 15;
 const PENDULUM_TOWER = 6, PENDULUM_WARN = 1.1, PENDULUM_SWING = 0.92;
@@ -166,8 +168,11 @@ function populateBiome(level, worldSeed) {
   const { tp, hazards, platforms, items } = level;
   Object.assign(tp, biomeRules(tp.N, worldSeed));
   const R = towerRng(tp.N, worldSeed, 1601);
+  const firstVisit = (tp.theme === 'tea' || tp.theme === 'smokehouse') &&
+    towerMilestones().some(u => u.type === tp.theme && u.tower === tp.N);
   for (const p of platforms) {
-    p.ice = !!tp.effects.ice && p.room !== 'safe' && p.room !== 'pantry';
+    if (firstVisit && (p.start || p.lesson)) p.teachingSurface = true;
+    p.ice = !p.teachingSurface && !!tp.effects.ice && p.room !== 'safe' && p.room !== 'pantry';
     if (p.start || p.roof || p.cp || p.rest || p.room) continue;
     if (tp.effects.narrow && p.type !== 'board') p.w = Math.max(72, p.w * 0.84);
     if (tp.effects.fragile && p.type === 'plate' && R() < 0.34) p.type = 'cheese';
@@ -188,6 +193,8 @@ function populateBiome(level, worldSeed) {
       // Spout and outlet point toward the passage, leaving the landing open.
       h.x = clamp(p.x - side * (p.w/2 + 28), 42, W-42);
       h.y = p.y - (type === 'brew' ? 188 : 116);
+      if (type === 'brew' && p.lesson && firstVisit) h.firstPour = true;
+      if (type === 'smoke') p.outletId = h.id;
     }
     if (type === 'rat') { h.left = p.x - p.w / 2 + RAT_PATROL_INSET; h.right = p.x + p.w / 2 - RAT_PATROL_INSET; }
     if (type === 'pepper') h.y = p.y - 22;
@@ -244,7 +251,7 @@ function tickBiomeTrap(h, dt, env) {
   // passed under during a jump, with a full tell before either can hurt the player.
   if (h.type === 'smoke' && ball.onPlatform === h.host) {
     if (h.phase !== 'vent') tone(390, 590, .14, 'triangle', .06);
-    h.phase = 'vent'; h.time = 2.4;
+    h.phase = 'vent'; h.time = DAMPER_HOLD;
     return;
   }
   if (h.phase === 'vent') {
@@ -266,7 +273,10 @@ function tickBiomeTrap(h, dt, env) {
     let trigger;
     switch (h.type) {
       case 'icicle': trigger = below > 10 && below < 320 && Math.abs(ball.x - h.x) < ball.r + 22; break;
-      case 'brew': case 'smoke':
+      case 'brew':
+        trigger = h.firstPour ? ball.onPlatform === h.host : Math.abs(below) < 310 && ball.onPlatform !== null;
+        break;
+      case 'smoke':
         trigger = Math.abs(below) < 310 && ball.onPlatform !== null;
         break;
       case 'flour': trigger=ball.onPlatform!==null && below>0 && below<300 && Math.abs(ball.x-h.x)<190; break;
@@ -275,8 +285,11 @@ function tickBiomeTrap(h, dt, env) {
       case 'steam': trigger = Math.abs(below) < 255 && ball.onPlatform !== null; break;
     }
     if (trigger) {
-      h.phase = 'warn'; h.time = TRAP_WARN[h.type];
-      if (h.type === 'steam') tone(320, 720, 0.2, 'triangle', 0.045);
+      h.phase = 'warn';
+      h.warnDuration = h.firstPour ? FIRST_POUR_WARN : TRAP_WARN[h.type];
+      h.time = h.warnDuration;
+      if (h.firstPour) h.firstPour = false;
+      if (screenY >= 0 && screenY < H - BAND_H) biomeTell[h.type]?.();
     }
     return;
   }
@@ -289,7 +302,7 @@ function tickBiomeTrap(h, dt, env) {
   const r = ball.r;
   switch (h.type) {
     case 'brew': {
-      const reach = Math.min(175, h.time * 490);
+      const reach = Math.min(BREW_LENGTH, h.time * BREW_SPEED);
       if (h.time >= .95) { h.phase = 'cool'; h.time = 2.1; break; }
       if (Math.abs(ball.x-h.x) < r+5 && ball.y+r >= h.y && ball.y-r <= h.y+reach)
         return trapEvent(h,env.berserk,ball.x,ball.y);

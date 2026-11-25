@@ -23,6 +23,9 @@ const AC = class extends FakeAC { constructor() { super(); ac = this; } };
   d.tone(200, 300, 0.1); assert.strictEqual(ac.created, 1);
   d.muteAudio(); assert.strictEqual(ac.state, 'suspended'); assert.strictEqual(d.audioMuted, true); d.tone(200, 300, 0.1); assert.strictEqual(ac.created, 1);
   d.unmuteAudio(); assert.strictEqual(ac.state, 'running'); assert.strictEqual(d.audioMuted, false); d.tone(200, 300, 0.1); assert.strictEqual(ac.created, 2);
+  d.setSound(false);d.muteAudio();d.unmuteAudio();d.tone(200,300,.1);
+  assert.equal(ac.created,2);assert.equal(ac.state,'suspended');
+  d.setSound(true);d.tone(200,300,.1);assert.equal(ac.created,3);
 }
 { // десктоп 1280x720: поле по центру, тап в центре окна = центр поля по x
   const g = require('./_env')(ctx, { width: 1280, height: 720, lang: 'en-US' }); const d = g.dbg();

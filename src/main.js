@@ -19,33 +19,43 @@ if (biomePreview() === 7) setMousetrapDesign(new URLSearchParams(location.search
 async function boot() {
   await YG.init();
   let preferredLang;
-  try { preferredLang=YG.storage?.getItem('teft_language'); } catch {}
+  try {
+    preferredLang=YG.storage?.getItem('teft_language');
+    setSound(YG.storage?.getItem('teft_sound') !== 'off');
+  } catch {}
   setLang(['ru','en','tr'].includes(preferredLang) ? preferredLang : YG.lang);
   const preview = biomePreview();
   if (preview) Object.assign(save, migrate(null), { worldSeed: preview === 21 ? 40 : 42, tower: preview });
   else await loadSave();
   const dev = preview || devTower(); // плейтест: ?tower=N на локальном адресе открывает башню N, сохранение не трогает
   startTower(dev || save.tower, dev ? 0 : save.cp); state = 'title';
-  YG.onPause(pauseGame); YG.onResume(resumeGame);
+  YG.onPause(() => pauseGame('sdk')); YG.onResume(() => resumeGame('sdk'));
   await artPrepare(tower.tp.theme); // экран загрузки ждёт картинки первой темы (не дольше ART_WAIT_MS) и печёт её слои
   booted = true; artWarmLoop();
   draw();       // титул на экране — игра готова к взаимодействию
   YG.ready();
 }
-// --- пауза: событие SDK, скрытие вкладки, потеря фокуса; во время рекламы игнорируется ---
-function pauseGame() {
-  if (paused || adBusy) return;
+// Вкладка, окно и площадка снимают только собственную причину паузы.
+const pauseReasons = new Set();
+function pauseGame(reason = 'sdk') {
+  pauseReasons.add(reason);
+  if (paused) return;
   paused = true; muteAudio();
   if (state === 'play') YG.gameplayStop();
 }
-function resumeGame() {
-  if (!paused) return;
-  paused = false; unmuteAudio();
-  if (state === 'play' && ball.alive) awaitTap = true; // в забег возвращаемся только по тапу
+function resumeGame(reason = 'sdk') {
+  if (!pauseReasons.delete(reason) || pauseReasons.size) return;
+  paused = false;
+  if (adBusy) return;
+  if (state === 'play' && ball.alive) awaitTap = true;
+  if (!awaitTap) unmuteAudio();
 }
-document.addEventListener('visibilitychange', () => { if (document.hidden) pauseGame(); else resumeGame(); });
-window.addEventListener('blur', pauseGame);
-window.addEventListener('focus', resumeGame);
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) pauseGame('hidden'); else resumeGame('hidden');
+});
+// Рекламный iframe сам забирает фокус у игры. Скрытие вкладки отслеживаем отдельно.
+window.addEventListener('blur', () => { if (!adBusy) pauseGame('blur'); });
+window.addEventListener('focus', () => resumeGame('blur'));
 window.addEventListener('message', event => {
   if (event.source === window.parent && window.parent !== window && biomePreview() === 7 &&
       event.data?.type === 'mousetrap-design') setMousetrapDesign(event.data.design);
@@ -53,9 +63,12 @@ window.addEventListener('message', event => {
 // общий каркас показа рекламы: блокируем ввод и цикл, глушим звук; если вкладку скрыли во время рекламы — после неё пауза
 async function showAd(fn) {
   adBusy = true; muteAudio();
-  let r; try { r = await fn(); } finally { adBusy = false; unmuteAudio(); }
-  if (document.hidden) pauseGame();
-  return r;
+  try { return await fn(); }
+  finally {
+    adBusy = false;
+    if (document.hidden) pauseGame('hidden');
+    if (!paused && !awaitTap) unmuteAudio();
+  }
 }
 // старт забега: 'start' с титула, 'cp' с чекпоинта, 'restart' заново, 'next' следующая башня. Межстраничная — не на первом старте сессии и не чаще AD_INTERVAL
 async function goPlay(kind) {
@@ -63,12 +76,15 @@ async function goPlay(kind) {
   if (plays > 1 && sessionT - lastAdAt >= AD_INTERVAL) { const r = await showAd(() => YG.showInterstitial()); if (r.shown) lastAdAt = sessionT; }
   if (kind === 'cp') restartFromCp(); else if (kind === 'restart') restartTower(); else if (kind === 'next') nextTower(); else state = 'play';
   artPrepare(tower.tp.theme, 0).then(artWarmLoop); // тема башни печётся до первого кадра (обычно уже испечена прогревом), дальше греем следующую
-  YG.gameplayStart();
+  if (!paused && !awaitTap) YG.gameplayStart();
 }
 async function tryContinue() {
   if (run.usedContinue) return;
   const r = await showAd(() => YG.showRewarded());
-  if (r.rewarded) { lastAdAt = sessionT; continueRun(); YG.gameplayStart(); }
+  if (r.rewarded) {
+    lastAdAt = sessionT; continueRun();
+    if (!paused && !awaitTap) YG.gameplayStart();
+  }
 }
 async function tryDouble() {
   if (run.usedDouble || run.runCoins < DOUBLE_MIN_COINS) return;
@@ -79,9 +95,12 @@ async function tryDouble() {
 function onTap(x, y) {
   if (!booted || adBusy || paused) return;
   audio();
-  if (awaitTap) { awaitTap = false; YG.gameplayStart(); return; } // первый тап после паузы — не прыжок
+  if (awaitTap) { awaitTap = false; unmuteAudio(); YG.gameplayStart(); return; } // первый тап после паузы — не прыжок
   if (state === 'play') { // тап по кнопке берсерка (видна при полной шкале) — суперсила, иначе прыжок в точку (тап по боковой зоне = у края поля)
     if (!ball.alive) return;
+    if (Math.abs(x-PAUSE_BTN.x)<=PAUSE_BTN.radius && Math.abs(y-PAUSE_BTN.y)<=PAUSE_BTN.radius) {
+      awaitTap=true; muteAudio(); YG.gameplayStop(); return;
+    }
     if (powerReady() && Math.hypot(x - BZ_BTN.x, y - BZ_BTN.y) <= BZ_BTN.r + BZ_TAP) { tryActivatePower(); return; }
     jumpTo(clamp(x, 0, W), y + camY); return;
   }
@@ -101,6 +120,11 @@ function onTap(x, y) {
   else if (b.id === 'skinPrev') wardrobeIndex=Math.max(0,wardrobeIndex-1);
   else if (b.id === 'skinNext') wardrobeIndex=Math.min(ownedLooks().length-1,wardrobeIndex+1);
   else if (b.id === 'wear') equipSkin(ownedLooks()[wardrobeIndex]);
+  else if (b.id === 'sound') {
+    setSound(!soundEnabled);
+    if (!biomePreview()) {try { YG.storage?.setItem('teft_sound',soundEnabled?'on':'off'); } catch {}}
+    if (soundEnabled) tone(660,760,.07,'sine',.1);
+  }
   else if (b.id === 'language') {
     const languages=['ru','en','tr'];setLang(languages[(languages.indexOf(LANG)+1)%languages.length]);
     if (!biomePreview()) {try {YG.storage?.setItem('teft_language',LANG);} catch {}}
@@ -138,10 +162,15 @@ window.addEventListener('keydown', e => {
   if (e.repeat) return;
   const left = e.code === 'ArrowLeft' || e.code === 'KeyA', right = e.code === 'ArrowRight' || e.code === 'KeyD';
   const up = e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW' || e.code === 'Enter', act = e.code === 'KeyE';
-  if (!left && !right && !up && !act) return;
+  const pauseKey=e.code==='Escape' || e.code==='KeyP';
+  if (!left && !right && !up && !act && !pauseKey) return;
   e.preventDefault();
   if (!booted || adBusy || paused) return;
   if (awaitTap) { onTap(W / 2, H / 2); return; }
+  if (pauseKey) {
+    if (state==='play') onTap(PAUSE_BTN.x,PAUSE_BTN.y);
+    return;
+  }
   if (state === 'play') { if (!ball.alive) return; if (act) { tryActivatePower(); return; } jumpTo(left ? ball.x - 170 : right ? ball.x + 170 : ball.x, ball.y - (up ? 300 : 150)); return; } // E — суперсила
   if (up) { const id = state === 'title' ? 'play' : state === 'dead' ? (run.cp > 0 ? 'cp' : 'restart') : 'next'; const b = buttons.find(b => b.id === id); if (b) onTap(b.x, b.y); }
 });

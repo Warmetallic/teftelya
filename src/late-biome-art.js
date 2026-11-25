@@ -3,7 +3,9 @@
 function drawLatePlatform(p) {
   const w = p.w / 2;
   if (p.type === 'damper') {
-    const open = p.id !== undefined && ball.onPlatform === p.id;
+    const outlet = p.outletId === undefined ? null : tower.hazards.find(h => h.id === p.outletId);
+    const open = outlet?.phase === 'vent' && !outlet.gone;
+    const held = open ? clamp(outlet.time/DAMPER_HOLD,0,1) : 0;
     const rim = ctx.createLinearGradient(0,-4,0,19);
     rim.addColorStop(0,'#e5ca99'); rim.addColorStop(.38,'#816648'); rim.addColorStop(1,'#493b32');
     ctx.fillStyle = rim; rrect(-w,-3,p.w,21,6); ctx.fill();
@@ -11,9 +13,13 @@ function drawLatePlatform(p) {
     for (let x=-w+9; x<w-9; x+=13) {
       biomeShape(open?'#b69067':'#baa58b',[[x,0],[x+9,0],[x+(open?5:9),open?10:6],[x-3,open?10:6]]);
     }
-    const stem = open ? 1 : -12;
+    const stem = -12 + 13*held;
     toolLine([[w-14,10],[w-6,stem]],'#e2c295',4);
     biomeEllipse(w-6,stem,6,4,open?'#b4d99d':'#bf714e');
+    if (open) {
+      toolLine([[-w+12,15],[w-20,15]],'#4c4840',3);
+      toolLine([[-w+12,15],[-w+12+(p.w-32)*held,15]],'#cce6ab',3);
+    }
     for (const x of [-w+5,w-5]) biomeEllipse(x,12,2,2,'#f5d2a2');
     return;
   }
@@ -63,7 +69,8 @@ function drawBrewingSpout(h) {
   toolLine([[54,-43],[41,-40],[39,-15]],'#715c40',4);
   toolLine([[54,-44],[41,-41],[39,-15]],'#ceb487',1.5);
   biomeEllipse(54,-43,2.5,2.5,'#ebd4a6');
-  const tilt = h.phase==='active' ? -.26 : h.phase==='warn' ? -.22*(1-h.time/TRAP_WARN.brew) : 0;
+  const winding = h.phase === 'warn' ? 1-h.time/(h.warnDuration || TRAP_WARN.brew) : 0;
+  const tilt = h.phase === 'active' ? -.32 : -.32*winding;
   ctx.rotate(tilt);
   ctx.strokeStyle='#9dbbc2'; ctx.lineWidth=4;
   ctx.beginPath(); ctx.ellipse(57,-12,9,10,0,0,2*Math.PI); ctx.stroke();
@@ -75,10 +82,13 @@ function drawBrewingSpout(h) {
   biomeEllipse(39,-11,5,4,'#537d94'); biomeEllipse(34,-14,2,2,'#7198a8');
   ctx.restore();
   if (h.phase==='warn') {
-    const t=1-h.time/TRAP_WARN.brew;
-    biomeEllipse(0,3+t*4,3+t,3+4*t,'#f9ba58');
+    ctx.save();
+    ctx.setLineDash([3,10]); ctx.lineDashOffset = -winding*26;
+    toolLine([[0,12],[0,BREW_LENGTH]],'rgba(255,222,147,.76)',2);
+    ctx.restore();
+    biomeEllipse(0,3+winding*4,3+winding,3+4*winding,'#ffcf78');
   } else if (h.phase==='active') {
-    const reach=Math.min(175,h.time*490);
+    const reach=Math.min(BREW_LENGTH,h.time*BREW_SPEED);
     toolLine([[0,0],[0,reach]],'#995127',9);
     toolLine([[-1,0],[-1,reach]],'#ffd078',4);
     biomeEllipse(0,reach,6,3,'#f7d483');

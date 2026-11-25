@@ -346,8 +346,54 @@ function drawBzBtn() {
   ctx.beginPath(); ctx.moveTo(3, -11); ctx.lineTo(-6, 1); ctx.lineTo(-1, 1); ctx.lineTo(-3, 11); ctx.lineTo(6, -2); ctx.lineTo(1, -2); ctx.closePath(); ctx.fill();
   ctx.restore();
 }
+const PAUSE_BTN = {x:W/2, y:33, radius:22};
+function drawPauseControl() {
+  ctx.save(); ctx.translate(PAUSE_BTN.x,PAUSE_BTN.y);
+  ctx.fillStyle='rgba(42,37,32,.78)'; rrect(-19,-17,38,34,9); ctx.fill();
+  ctx.fillStyle='#f0e4d2';
+  for (const x of [-7,2]) { rrect(x,-7,5,14,1.5); ctx.fill(); }
+  ctx.restore();
+}
+function drawDesktopNotes() {
+  const margin=-fieldBounds().x0;
+  if (margin < 248) return;
+  const width=Math.min(margin-38,308), left=-margin/2, right=W+margin/2, tp=tower.tp;
+  const top=H*.45-78;
+  ctx.save();
+  for (const x of [left,right]) {
+    ctx.fillStyle='rgba(41,34,28,.92)';rrect(x-width/2,top,width,152,10);ctx.fill();
+    ctx.fillStyle='#bf9f72';ctx.fillRect(x-width/2+20,top+19,35,2);
+  }
+  ctx.textAlign='left';const x=left-width/2+20, inner=width-40;
+  ctx.fillStyle='#f2cf96';ctx.font='600 17px system-ui';ctx.fillText(T('tower')+' '+tp.N,x,top+47);
+  ctx.fillStyle='#fff0d6';ctx.font='bold 29px Georgia,serif';
+  ctx.fillText(T('theme.'+tp.theme),x,top+81,inner);
+  const hint=T('hint.'+tp.theme);
+  ctx.fillStyle='#e1d6c4';ctx.font='16px system-ui';
+  // All theme hints fit in two or three lines at the narrowest supported side panel.
+  let line='', y=top+105;
+  for (const word of hint.split(' ')) {
+    const next=line ? line+' '+word : word;
+    if (line && (ctx.measureText(next)?.width ?? 0)>inner) {
+      ctx.fillText(line,x,y,inner); line=word; y+=19;
+    } else line=next;
+  }
+  ctx.fillText(line,x,y,inner);
+  const rx=right-width/2+20;
+  ctx.fillStyle='#f2cf96';ctx.font='600 17px system-ui';
+  ctx.fillText(tp.exam?T('exam.title',tp.N):T('rating')+' S',rx,top+47,inner);
+  const rows=[[T('chk.time'),fmtTime(run.time)+' / '+fmtTime(tp.par)],
+    [T('chk.food'),run.foodEaten+' / '+Math.ceil(run.foodTotal*FOOD_SHARE)],
+    [T('chk.noDeath'),run.deaths===0?'✓':'×']];
+  for (let i=0;i<rows.length;i++) {
+    const y=top+77+26*i;
+    ctx.textAlign='left';ctx.fillStyle='#e1d6c4';ctx.font='16px system-ui';ctx.fillText(rows[i][0],rx,y,inner*.49);
+    ctx.textAlign='right';ctx.fillStyle='#fff0d6';ctx.font='bold 19px system-ui';ctx.fillText(rows[i][1],rx+inner,y,inner*.49);
+  }
+  ctx.restore();
+}
 function drawHUD() { // жизни показывает сама Тефа; здесь шкала силы, кнопка берсерка, монеты, номер башни и прогресс
-  drawPowerMeter(); drawPickupStatus(); if (powerReady()) drawBzBtn();
+  drawDesktopNotes(); drawPowerMeter(); drawPickupStatus(); drawPauseControl(); if (powerReady()) drawBzBtn();
   ctx.textAlign = 'right'; ctx.font = '700 22px system-ui, sans-serif'; ctx.fillStyle = '#ffe08a'; ctx.fillText('● ' + run.runCoins, W - 16, 40);
   ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.font = '600 15px system-ui, sans-serif'; ctx.fillText(T('tower') + ' ' + tower.tp.N, W - 16, 64);
   const x = W - 14, y0 = 110, y1 = H - 110; // прогресс башни с отметками чекпоинтов

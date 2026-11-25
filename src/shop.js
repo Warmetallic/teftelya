@@ -1,6 +1,14 @@
 'use strict';
 // Prices in tower coins. Each additional level costs 30% more.
 const SHOP_BASE = {meat:60,crust:45,appetite:65,spice:55,nerve:110,grit:95,repel:60,charge:150,fury:180};
+// A level is worth 1–3 points according to its effect on a run. Cosmetic purchases carry no points.
+const STRENGTH_WEIGHT = {meat:2, crust:1, appetite:1, spice:1, nerve:2, grit:2, repel:1, charge:3, fury:3};
+function tefaStrength() {
+  return Object.entries(STRENGTH_WEIGHT).reduce((sum,[key,weight])=>sum+save.up[key]*weight,0);
+}
+function suggestedStrength(n) {
+  return Math.min(n-1,29) + (isExamTower(n) ? 2 : 0);
+}
 const CHARGE_EXAMS = [3,10,25];
 const TAILOR_PRICES = {bow:100,glasses:220,mustache:340};
 let shopTab='upgrades', shopSelected='meat';
@@ -38,7 +46,7 @@ function shopScreen() {
   clearButtons();dim(.89);
   ctx.textAlign='center';ctx.fillStyle='#f8e7cb';ctx.font='bold 33px system-ui';
   ctx.fillText(T('shop'),W/2,80);
-  ctx.font='bold 19px system-ui';ctx.fillStyle='#ffdc86';ctx.fillText('● '+coins(),W/2,110);
+  ctx.font='bold 19px system-ui';ctx.fillStyle='#ffdc86';ctx.fillText('● '+coins()+'     ·     '+T('strength',tefaStrength()),W/2,110,W-36);
   const upgrades=shopTab==='upgrades', keys=Object.keys(upgrades?SHOP_BASE:TAILOR_PRICES);
   button('shopUp',137,154,186,43,T('upgrades'),'',false,upgrades?'neutral':'dim');
   button('shopLooks',343,154,186,43,T('looks'),'',false,upgrades?'dim':'neutral');
@@ -55,6 +63,10 @@ function shopScreen() {
   ctx.fillStyle='#f7e9d2';ctx.textAlign='center';ctx.font='bold 23px system-ui';ctx.fillText(heading,W/2,544);
   ctx.font='17px system-ui';ctx.fillStyle='#ddceba';
   ctx.fillText(upgrades?T('effect.'+shopSelected):T('cosmetic'),W/2,577,W-40);
+  if (upgrades && !offer.full) {
+    ctx.fillStyle='#c8dfb4';ctx.font='bold 17px system-ui';
+    ctx.fillText(T('afterUpgrade',tefaStrength()+STRENGTH_WEIGHT[shopSelected]),W/2,607,W-40);
+  }
   if(!upgrades && offer.full && shopSelected!==save.skin) button('equipShop',W/2,645,220,53,T('equip'),'',false);
   else if(!offer.full && !offer.locked && coins()>=offer.price) button('buy',W/2,645,255,53,T('buy')+'  ● '+offer.price,'',false);
   else {
@@ -64,3 +76,5 @@ function shopScreen() {
   }
   button('backTitle',W/2,754,200,48,T('back'),'',false,'neutral');
 }
+
+expose({ tefaStrength, suggestedStrength });

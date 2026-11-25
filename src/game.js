@@ -204,14 +204,15 @@ function updateRun(dt) {
   run.flyCd = Math.max(0, run.flyCd - dt);
   const grounded = ball.onPlatform !== null; // новые угрозы ждут посадки: в полёте среагировать нечем (плейтест владельца v2.2a)
   const swarm = tp.effects.swarm || tp.effects.feast;
-  if (grounded && run.flyCd <= 0 && flyWanted(dt, power.flyStreak, run.campT, isBerserk(), powerReady(), swarm, run.foodEaten - run.lastFlyMeal)) {
+  const allowAmbient = grounded && !st?.teachingSurface;
+  if (allowAmbient && run.flyCd <= 0 && flyWanted(dt, power.flyStreak, run.campT, isBerserk(), powerReady(), swarm, run.foodEaten - run.lastFlyMeal)) {
     spawnFly(); run.flyCd = swarm ? FLY_CD * 0.65 : FLY_CD;
     run.lastFlyMeal = run.foodEaten; run.campT = 0;
   }
   for (const p of tower.pickups) {
     if (!p.dead && Math.hypot(p.x-ball.x,p.y-ball.y) < ball.r*.92+15) collectPickup(p);
   }
-  const hev = updateHazards(dt, tower.hazards, { tp, berserk: isBerserk(), invuln: run.invuln, camY }).concat(updatePours(dt, { tp, berserk: isBerserk(), camY, platforms: tower.platforms, grounded }));
+  const hev = updateHazards(dt, tower.hazards, { tp, berserk: isBerserk(), invuln: run.invuln, camY }).concat(updatePours(dt, { tp, berserk: isBerserk(), camY, platforms: tower.platforms, grounded: allowAmbient }));
   for (const e of hev) {
     if (e.type === 'hit') {
       const tookDamage = damage(1, e.reason, e.x, e.y);

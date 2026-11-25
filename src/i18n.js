@@ -2,6 +2,11 @@
 // ---------- i18n: ru, tr, остальные языки → en; недостающий ключ ищется в en, потом в ru ----------
 const STR = {
   ru: {
+    soundOn: "Звук вкл.",
+    soundOff: "Звук выкл.",
+    strength: "Сила Тефы {n}",
+    suggestedStrength: "Ориентир башни {n}",
+    afterUpgrade: "Сила после покупки {n}",
     'theme.tea': "Чайная",
     'theme.smokehouse': "Коптильня",
     'hint.tea': "Пар поднимет блюдце. Дай чайнику закончить налив.",
@@ -141,6 +146,11 @@ const STR = {
     'die.fall': 'В пропасть!', 'die.fly': 'Укус мухи', 'die.blades': 'Лопасти', 'die.pan': 'Ожог на сковородке', 'die.oil': 'Горячее масло', 'die.knife': 'Нож',
   },
   en: {
+    soundOn: "Sound on",
+    soundOff: "Sound off",
+    strength: "Strength {n}",
+    suggestedStrength: "Suggested {n}",
+    afterUpgrade: "Strength after upgrade {n}",
     'theme.tea': "Tea Room",
     'theme.smokehouse': "Smokehouse",
     'hint.tea': "Steam lifts the saucer. Wait for the teapot to finish pouring.",
@@ -280,6 +290,11 @@ const STR = {
     'die.fall': 'Into the void!', 'die.fly': 'Fly bite', 'die.blades': 'Blades', 'die.pan': 'Burnt on the pan', 'die.oil': 'Hot oil', 'die.knife': 'Knife',
   },
   tr: {
+    soundOn: "Ses açık",
+    soundOff: "Ses kapalı",
+    strength: "Köftenin gücü {n}",
+    suggestedStrength: "Önerilen güç {n}",
+    afterUpgrade: "Yükseltme sonrası güç {n}",
     'theme.tea': "Çay Odası",
     'theme.smokehouse': "Tütsü Evi",
     'hint.tea': "Buhar tabağı kaldırır. Çaydanlığın çayı dökmesini bekle.",

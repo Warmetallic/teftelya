@@ -84,6 +84,9 @@ function titleScreen() {
   ctx.font = '600 22px system-ui, sans-serif'; ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.fillText(T('theme.' + tower.tp.theme) + (tower.tp.exam ? ' · '+T('exam') : ''), W / 2, H * 0.22 + 36, W-30);
   if (save.cp) { ctx.fillStyle = '#8ff0a4'; ctx.font = '600 18px system-ui, sans-serif'; ctx.fillText(T('checkpoint', save.cp), W / 2, H * 0.22 + 64); }
   ctx.font = '500 19px system-ui, sans-serif'; ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  ctx.fillStyle='#d7e4c9';ctx.font='600 17px system-ui';
+  ctx.fillText(T('strength',tefaStrength())+'   ·   '+T('suggestedStrength',suggestedStrength(tower.tp.N)),W/2,277,W-32);
+  ctx.fillStyle='rgba(255,255,255,0.85)';ctx.font='500 19px system-ui';
   const debut = towerMilestones().find(u => u.tower === tower.tp.N);
   const hint = 'hint.' + (debut ? debut.type : tower.tp.theme);
   [T('hint1'), T('hint2'), T(hint)].forEach((l, i) => ctx.fillText(l, W / 2, H * 0.36 + i * 28, W - 32));
@@ -101,7 +104,8 @@ function titleScreen() {
   const hasLooks=save.skins.length || save.skin!=='none';
   button('shop',hasLooks?143:W/2,806,184,43,T('shop'),'',false,'neutral',19);
   if (hasLooks) button('wardrobe',337,806,184,43,T('wardrobe'),'',false,'neutral',19);
-  button('language',W-46,41,60,37,LANG.toUpperCase(),'',false,'dim',15);
+  button('sound',83,41,134,37,T(soundEnabled?'soundOn':'soundOff'),'',false,'dim',15);
+  button('language',W-62,41,100,37,({ru:'Русский',en:'English',tr:'Türkçe'})[LANG],'',false,'dim',15);
 }
 function deadScreen(active) {
   clearButtons(); dim(0.72);

@@ -13,6 +13,10 @@ const bot=require('./bot');
     const b=button(id);assert.ok(b,'visible control: '+id);
     g.tap(b.x,b.y);g.step();
   }
+  tap('sound');assert.equal(d.soundEnabled,false);assert.equal(g.store.get('teft_sound'),'off');
+  d.muteAudio();d.unmuteAudio();assert.equal(d.soundEnabled,false);
+  tap('sound');assert.equal(d.soundEnabled,true);
+  assert.equal(d.tefaStrength(),0);assert.deepEqual([1,5,30,99,100].map(n=>d.suggestedStrength(n)),[0,6,31,29,31]);
   tap('language');assert.equal(d.lang,'en');tap('language');tap('language');
   assert.equal(d.lang,'ru');assert.equal(g.store.get('teft_language'),'ru');
   // A saved log earns the same prize as a live finish, including later editions.
@@ -37,7 +41,8 @@ const bot=require('./bot');
   tap('wardrobe');tap('skinPrev');tap('wear');assert.equal(d.save.skin,'none');tap('backTitle');
   tap('shop');tap('buy');assert.equal(d.save.up.meat,1);assert.equal(d.ball.mass,5);
   tap('offer_charge');tap('buy');assert.equal(d.save.up.charge,1);assert.equal(d.ball.charges,4);assert.ok(!button('buy'));
-  tap('shopLooks');tap('buy');tap('equipShop');assert.equal(d.save.skin,'bow');
+  assert.equal(d.tefaStrength(),5);
+  tap('shopLooks');tap('buy');tap('equipShop');assert.equal(d.save.skin,'bow');assert.equal(d.tefaStrength(),5);
   const paid=d.save.spent;assert.ok(!button('buy'));tap('backTitle');
   const saved=JSON.parse(g.store.get('teft_save'));assert.equal(saved.spent,paid);assert.equal(saved.skin,'bow');
   d.startTower(10);d.state='play';d.finishTower();assert.equal(d.run.rating.letter,'A');assert.ok(!d.save.skins.includes('exam_10'));

@@ -28,7 +28,7 @@ function updatePlatforms(dt, platforms, tp) {
   const ev = [];
   const standing = platformById(platforms, ball.onPlatform);
   for (const p of platforms) {
-    if (p.type === 'pan' || (tp?.effects?.heat && p.room !== 'safe' && p.room !== 'pantry')) {
+    if (p.type === 'pan' || (tp?.effects?.heat && !p.teachingSurface && p.room !== 'safe' && p.room !== 'pantry')) {
       if (p === standing) {
         p.hotT = (p.hotT || 0) + dt;
         if (p.hotT >= heatLimit(p, tp)) { p.hotT = 0; ev.push({ type: 'burn', p }); }

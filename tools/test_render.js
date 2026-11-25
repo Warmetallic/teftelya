@@ -56,7 +56,7 @@ const ctx = new Proxy({}, { get: (t, k) => k === 'fillText' ? s => texts.push(St
   assert.deepStrictEqual([lv(6, 6), lv(5, 6), lv(4, 6), lv(3, 6), lv(2, 6), lv(1, 6)], [0, 1, 1, 2, 2, 3]);
   // Тефа рисуется без светлого ободка: ни одного stroke-эллипса вокруг неё в drawWorld нет (проверяется глазами на снимках)
   // титул: башня, тема, кнопка «Играть»; с чекпоинтом — строка чекпоинта
-  texts.length = 0; d.state = 'title'; d.titleScreen(); assert.ok(texts.includes('Башня 1') && texts.includes('Кухня')); assert.deepStrictEqual(d.buttons.map(b => b.id), ['play','shop','language']);
+  texts.length = 0; d.state = 'title'; d.titleScreen(); assert.ok(texts.includes('Башня 1') && texts.includes('Кухня')); assert.deepStrictEqual(d.buttons.map(b => b.id), ['play','shop','sound','language']);
   d.save.cp = 1; texts.length = 0; d.titleScreen(); assert.ok(texts.includes('Чекпоинт 1')); d.save.cp = 0;
   // темы (спека v2.2a §5): фон каждой темы рисуется, на титуле её название; при старте башни плашка «Башня N · Тема» на 1.5 с
   for (const n of [1,2,3,4,5,6,21,24,27,29]) { d.startTower(n); d.state = 'title'; d.drawBg(); d.drawWorld(); d.drawBand(); texts.length = 0; d.titleScreen(); assert.ok(texts.includes(d.T('theme.' + d.themeFor(n).id)+(n===5?' · '+d.T('exam'):'')), 'на титуле тема башни ' + n); }

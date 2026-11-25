@@ -43,8 +43,12 @@ async function runFlow(opts) {
   assert.strictEqual(d.state, 'play'); assert.strictEqual(d.tower.tp.N, 2); assert.ok(d.YG.log.includes('inter'), 'межстраничная перед следующей башней'); assert.strictEqual(d.YG.log.at(-1), 'start');
   // смерть от лопастей → экран смерти → продолжить за rewarded → на последней платформе
   d.die('blades'); steps(g, 60); assert.strictEqual(d.state, 'dead');
-  const cont = btn(d, 'continue'); assert.ok(cont); g.tap(cont.x, cont.y); await g.flush(); g.step();
-  assert.strictEqual(d.state, 'play'); assert.ok(d.ball.alive); assert.strictEqual(d.YG.log.at(-1), 'start');
+  const cont = btn(d, 'continue'); assert.ok(cont); g.tap(cont.x, cont.y);
+  g.hide(); await g.flush(); g.step();
+  assert.strictEqual(d.state, 'play'); assert.ok(d.ball.alive);
+  assert.ok(d.paused && d.audioMuted && !d.YG.gameplayActive, 'награда в фоне не возобновляет звук и SDK');
+  g.show(); assert.ok(d.awaitTap); g.tap(220, 360);
+  assert.strictEqual(d.YG.log.at(-1), 'start');
   // вторая смерть: «Продолжить» больше нет; «Заново» строит башню с нуля
   d.die('fall'); steps(g, 60); assert.ok(!btn(d, 'continue')); const rs = btn(d, 'restart'); g.tap(rs.x, rs.y); await g.flush(); g.step();
   assert.strictEqual(d.state, 'play'); assert.strictEqual(d.run.deaths, 0); assert.strictEqual(d.ball.onPlatform, 0);
@@ -58,7 +62,13 @@ async function runFlow(opts) {
   d.die('fall'); steps(g, 60); { const b = btn(d, 'restart'); g.tap(b.x, b.y); } await g.flush(); g.step();
   assert.strictEqual(inters(), n0 + 1, 'интервал 180 с соблюдён');
   // пауза по скрытию вкладки: возврат по тапу без прыжка; клавиатура прыгает
-  const ch = d.ball.charges; d.powerAdd(d.POWER_FULL); g.hide(); assert.ok(d.paused); g.show(); assert.ok(d.awaitTap);
+  const time=d.run.time, before=d.ball.charges;
+  g.key('Escape');assert.ok(d.awaitTap);g.step();assert.equal(d.run.time,time);
+  g.tap(240,33);assert.ok(!d.awaitTap);assert.equal(d.ball.charges,before);
+  const ch = d.ball.charges; d.powerAdd(d.POWER_FULL);
+  d.pauseGame(); g.hide(); g.fire('blur'); g.show(); g.fire('focus');
+  assert.ok(d.paused && !d.YG.gameplayActive, 'возврат во вкладку не снимает паузу, запрошенную площадкой');
+  d.resumeGame(); assert.ok(d.awaitTap);
   g.tap(d.BZ_BTN.x, d.BZ_BTN.y); assert.ok(!d.awaitTap); assert.strictEqual(d.ball.charges, ch, 'тап после паузы — не прыжок');
   assert.ok(!d.isBerserk(), 'и не суперсила, даже по кнопке с полной шкалой');
   g.key('ArrowLeft'); assert.strictEqual(d.ball.charges, ch - 1);

@@ -74,6 +74,16 @@ function artGet(theme) {
 function artBg(theme, b) { // фон темы из картинок — только уже испечённой (печёт artPrepare/artWarm, не кадр игры); false — старый фон
   const a = ART[theme]; if (!a) return false;
   ctx.fillStyle = a.base; ctx.fillRect(b.x0, b.y0, b.x1 - b.x0, b.y1 - b.y0);
+  if (b.x0 < -1) {
+    // Continue the illustration in the desktop margins; the original portrait framing stays in the lane.
+    const backdrop = a.scene || ART_IMG[theme]?.back;
+    if (backdrop) {
+      const span = b.x1-b.x0, height=b.y1-b.y0;
+      const k = Math.max(span/backdrop.width,height/backdrop.height);
+      const cutW=span/k, cutH=height/k;
+      ctx.drawImage(backdrop,(backdrop.width-cutW)/2,(backdrop.height-cutH)*.56,cutW,cutH,b.x0,b.y0,span,height);
+    }
+  }
   if (a.scene) {
     // Весь видимый столб заполнен одной комнатой. При подъёме камера плавно открывает верх картины.
     const im = a.scene, height = b.y1 - b.y0;

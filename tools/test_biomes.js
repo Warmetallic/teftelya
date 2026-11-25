@@ -305,9 +305,11 @@ const ctx = new Proxy({}, { get: (_, k) => /Gradient$/.test(k) ? () => ({ addCol
     assert.equal(p.y,base);
     Object.assign(b,{x:h.x,y:h.y+90,onPlatform:0});
     const tick=()=>d.tickBiomeTrap(h,1/60,{camY:h.y-180,invuln:0,tp:d.tower.tp});
-    assert.equal(tick(),undefined); assert.equal(h.phase,'warn');
-    for(let i=0;i<48;i++) assert.equal(tick(),undefined);
-    assert.ok(Array.from({length:30},tick).some(e=>e?.reason==='brew'));
+    for(let i=0;i<120;i++) assert.equal(tick(),undefined);
+    assert.equal(h.phase,'idle'); b.onPlatform=p.id;
+    assert.equal(tick(),undefined); assert.equal(h.phase,'warn'); assert.equal(h.time,1.5);
+    for(let i=0;i<85;i++) assert.equal(tick(),undefined);
+    assert.ok(Array.from({length:45},tick).some(e=>e?.reason==='brew'));
     b.x+=100; for(let i=0;i<120;i++) assert.equal(tick(),undefined);
   }
   d.startTower(29);
@@ -323,6 +325,19 @@ const ctx = new Proxy({}, { get: (_, k) => /Gradient$/.test(k) ? () => ({ addCol
     for(let i=0;i<140;i++) {assert.equal(tick(),undefined); assert.equal(h.phase,'vent');}
     for(let i=0;i<8;i++) tick();
     assert.equal(h.phase,'idle');
+  }
+  // A new player can stop to read the setup and make the first pair of aimed jumps at base health.
+  for (const n of [24,29]) for (const seed of [0,4,9,42]) for (const wait of [0,90,132]) {
+    d.save.worldSeed=seed; d.startTower(n); d.state='play';
+    const t=d.tower, first=d.platforms.find(p=>p.lesson), next=d.platforms.find(p=>p.id===t.path[2]);
+    const advance=frames=>{for(let i=0;i<frames;i++)d.update(1/60);};
+    function jumpOnto(p) {
+      assert.ok(d.jumpTo(p.x,p.y));
+      for(let i=0;i<120 && b.onPlatform!==p.id;i++)advance(1);
+      assert.equal(b.onPlatform,p.id);
+    }
+    advance(wait); jumpOnto(first); advance(n===24?50:8); jumpOnto(next);
+    assert.equal(b.mass,d.massMax());
   }
   // Preview navigation and its checkpoint/finish writes must be isolated from the real save.
   for (let n=1;n<=30;n++) {
