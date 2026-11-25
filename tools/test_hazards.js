@@ -7,6 +7,21 @@ const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addCol
   const env = { tp, berserk: false, invuln: 0 };
   const run = (hz, n, dt = 0.016) => { const out = []; for (let i = 0; i < n; i++) out.push(...d.updateHazards(dt, hz, env)); return out; };
   ball.x = 240; ball.y = -500; ball.r = 34; ball.vx = 0; ball.vy = 0;
+  { // Первое знакомство с ножом: игрок видит полный замах с устойчивой площадки.
+    const [knife] = d.buildTower(1).hazards;
+    ball.onPlatform = 0; env.camY = knife.y;
+    run([knife], 150); assert.strictEqual(knife.t, 0, 'нож выше экрана ждёт');
+    env.camY = knife.by - 100; ball.onPlatform = null;
+    run([knife], 150); assert.strictEqual(knife.t, 0, 'в воздухе первый цикл ещё не начался');
+    ball.onPlatform = 0;
+    const phases = [];
+    for (let i = 0; i < 130; i++) {
+      run([knife], 1);
+      if (knife.phase !== phases.at(-1)) phases.push(knife.phase);
+    }
+    assert.deepStrictEqual(phases.slice(0, 3), ['rest', 'wind', 'strike']);
+    ball.onPlatform = null;
+  }
   // муха: предупреждение FLY_WARN без движения, потом летит к Тефе и кусает
   d.resetFlies(); d.spawnFly(true); assert.strictEqual(d.flies.length, 1); const f = d.flies[0]; assert.ok(f.x < 0 && f.warnT > 0);
   run([], 40); assert.ok(f.x < 0, 'во время предупреждения не влетает'); run([], 5); assert.ok(f.warnT <= 0);

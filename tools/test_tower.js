@@ -9,10 +9,10 @@ const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addCol
   const t1 = d.buildTower(1), t1b = d.buildTower(1), t2 = d.buildTower(2);
   assert.strictEqual(JSON.stringify(t1), JSON.stringify(t1b), 'одинаковая раскладка при том же N');
   assert.notStrictEqual(JSON.stringify(t1.platforms), JSON.stringify(t2.platforms), 'другая башня — другая раскладка');
-  // темы по кругу и их уникальности (спека v2.2a §3): башни 1–5 — первый круг, 6–10 — второй; кухня получает доску со второго круга
-  assert.deepStrictEqual([1, 2, 3, 4, 5, 6, 7, 11].map(n => d.themeFor(n).id), ['kitchen', 'fridge', 'oven', 'sink', 'feast', 'kitchen', 'fridge', 'kitchen']);
+  // Темы повторяются каждые пять башен. Доска знакомит игрока с ножом уже в первой кухне.
+  assert.deepStrictEqual([1, 2, 3, 4, 5, 6, 7, 11].map(n => d.themeFor(n).id), ['kitchen', 'fridge', 'oven', 'cellar', 'feast', 'kitchen', 'fridge', 'kitchen']);
   assert.deepStrictEqual([1, 5, 6, 10, 11].map(d.loopOf), [1, 1, 2, 2, 3]);
-  assert.deepStrictEqual([1, 2, 3, 4, 5, 6, 7].map(n => d.uniquesFor(n)), [[], ['shelf'], ['toaster'], ['bowl'], ['spatula'], ['board'], ['shelf']]);
+  assert.deepStrictEqual([1, 2, 3, 4, 5, 6, 7].map(n => d.uniquesFor(n)), [['board'], ['shelf'], ['toaster'], ['gum'], ['spatula'], ['board'], ['shelf']]);
   for (const n of [1, 2, 6, 9]) { const tp = d.towerParams(n); assert.strictEqual(tp.theme, d.themeFor(n).id); assert.deepStrictEqual(tp.uniques, d.uniquesFor(n)); }
   // параметры роста
   const p1 = d.towerParams(1), p5 = d.towerParams(5), p9 = d.towerParams(9), p50 = d.towerParams(50);
@@ -41,12 +41,12 @@ const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addCol
       if (p.rest) assert.ok(p.type === 'plate' && p.w === 180, 'площадка отдыха — широкая тарелка');
       if (!BASE.includes(p.type)) assert.ok(t.tp.uniques.includes(p.type), 'башня ' + N + ': уникальность ' + p.type + ' только в своей теме');
       if (!(p.cp || p.roof || p.start || p.rest)) { // доли: в башнях без уникальностей — прежние, с уникальностью — пятая часть уникальна за счёт тарелок
-        if (t.platforms.some(q => !BASE.includes(q.type))) { ushare.all++; if (p.type === 'plate') ushare.plate++; else if (!BASE.includes(p.type)) ushare.uniq++; }
-        else share[p.type]++;
+        if (N === 1) { if (BASE.includes(p.type)) share[p.type]++; } // доска добавлена сбоку, отдельно от базовой смеси
+        else { ushare.all++; if (p.type === 'plate') ushare.plate++; else if (!BASE.includes(p.type)) ushare.uniq++; }
       }
     }
     if (N === 1) assert.ok(P.filter(p => p.type === 'tray').every(p => p.speed >= 40 && p.speed <= 70), 'поднос в башне 1 медленный: 40–70 px/с');
-    if (N === 1) { assert.ok(!P.some(p => p.type === 'cheese'), 'сыра нет в башне 1'); assert.strictEqual(t.hazards.length, 0, 'в башне 1 опасностей в раскладке нет'); }
+    if (N === 1) { assert.ok(!P.some(p => p.type === 'cheese'), 'сыра нет в башне 1'); assert.strictEqual(t.hazards.length, 1, 'первая кухня знакомит с одной ловушкой'); }
     if (N === 2) assert.ok(!t.hazards.some(h => h.type === 'blades'), 'лопасти не раньше башни 3');
     // нож висит в пустоте пропасти, на линии полёта (плейтест 2026-09-24: нож лежал на площадке отдыха и бил стоящую на ней
     // Тефу, удар сбрасывал её в пропасть): картинка ножа за весь ход — от рукояти в замахе до кончика в ударе — не задевает
@@ -95,20 +95,28 @@ const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addCol
   assert.ok(Math.abs(ushare.uniq / ushare.all - 0.2) < 0.05, 'уникальностей около пятой части: ' + (ushare.uniq / ushare.all).toFixed(2));
   assert.ok(Math.abs(ushare.plate / ushare.all - 0.3) < 0.06, 'в башнях с уникальностью тарелок около 30 %: ' + (ushare.plate / ushare.all).toFixed(2));
   assert.ok([2, 7, 12].every(n => d.buildTower(n).platforms.some(p => p.type === 'shelf')), 'в холодильнике есть полки');
-  // доска с ножом — в кухне со второго круга (спека v2.2a §6.5): ширина 180, нож у конца ближе к стене в 65 px от центра;
+  // Доска с ножом в кухне: ширина 180, нож у конца ближе к стене в 65 px от центра;
   // центр доски безопасен для масс 1, 4 и 8, у ножа — удар
-  assert.ok([6, 11].every(n => d.buildTower(n).platforms.some(p => p.type === 'board')) && !d.buildTower(1).platforms.some(p => p.type === 'board'), 'доски в кухне со второго круга');
-  for (const n of [6, 11, 16, 21]) { const t = d.buildTower(n);
+  assert.ok([1, 6, 11].every(n => d.buildTower(n).platforms.some(p => p.type === 'board')), 'доски с первой кухни');
+  for (let seed = 0; seed < 128; seed++) {
+    const t = d.buildTower(1, seed), boards = t.platforms.filter(p => p.type === 'board');
+    assert.strictEqual(boards.length, 1);
+    const [board] = boards;
+    assert.ok(board.row >= 2 && board.row < d.CP_EVERY && !t.path.includes(board.id));
+    assert.ok(t.items.some(item => item.x === board.x && item.y === board.y - 60));
+    assert.strictEqual(t.hazards[0].board, board.id);
+  }
+  for (const n of [1, 6, 11, 16, 21]) { const t = d.buildTower(n);
     for (const b of t.platforms.filter(p => p.type === 'board')) {
       const ks = t.hazards.filter(h => h.board === b.id); assert.strictEqual(ks.length, 1, 'у доски один нож'); const k = ks[0];
       assert.strictEqual(b.w, 180); assert.strictEqual(k.x, b.x + (b.x < 240 ? -65 : 65), 'нож у конца доски ближе к стене');
       const inStrike = (x, R) => { for (let ky = k.by; ky <= k.y - 80; ky += 2) if (Math.abs(x - k.x) < R + 8 && Math.abs(b.y - R - (ky + 40)) < R + 40) return true; return false; };
       for (const m of [1, 4, 8]) assert.ok(!inStrike(b.x, d.radiusFor(m)), 'башня ' + n + ': центр доски безопасен, масса ' + m);
       assert.ok(inStrike(k.x, d.radiusFor(4)), 'башня ' + n + ': у ножа доски — удар'); } }
-  // миски — в раковине; миска на пути стоит только там, где до следующей платформы пути хватает одного прыжка (массы 1, 4, 8)
-  assert.ok([4, 9].every(n => d.buildTower(n).platforms.some(p => p.type === 'bowl')), 'в раковине есть миски');
+  // жвачка — в погребе; миска на пути стоит только там, где до следующей платформы пути хватает одного прыжка (массы 1, 4, 8)
+  assert.ok([4, 9].every(n => d.buildTower(n).platforms.some(p => p.type === 'gum')), 'в погребе есть липкие платформы');
   for (let N = 1; N <= 60; N++) { const t = d.buildTower(N), by = new Map(t.platforms.map(p => [p.id, p]));
-    t.path.forEach((id, i) => { const p = by.get(id); if (p.type !== 'bowl' || i + 1 >= t.path.length) return; const nx = by.get(t.path[i + 1]);
+    t.path.forEach((id, i) => { const p = by.get(id); if (p.type !== 'gum' || i + 1 >= t.path.length) return; const nx = by.get(t.path[i + 1]);
       for (const m of [1, 4, 8]) { const r = d.radiusFor(m); assert.ok(!d.jumpPlan(p.x, p.y - r, r, nx.x, nx.y).double, 'башня ' + N + ': из миски до следующей платформы пути — один прыжок'); } }); }
   // тостер в духовке, лопатка на праздничном столе; столб подброса над ними свободен от лопастей и ножей для масс 1, 4 и 8
   assert.ok([3, 8].every(n => d.buildTower(n).platforms.some(p => p.type === 'toaster')) && [5, 10].every(n => d.buildTower(n).platforms.some(p => p.type === 'spatula')), 'тостеры и лопатки в своих темах');
@@ -135,11 +143,15 @@ const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addCol
   for (const ty of ['pan', 'tray', 'cheese']) assert.ok(all.some(t => t.platforms.some(p => p.type === ty)), 'есть ' + ty);
   // бот проходит башни 1–100 по пути без режима бога: опасности, масло и мухи выключены — проверяем раскладку и прыжки
   const r0 = Math.random; Math.random = () => 1; // мухи по серии не влетают
-  for (let N = 1; N <= 100; N++) {
-    d.startTower(N); d.state = 'play'; d.resetPours(1e9);
-    bot.climb(null, d, { noHazards: true });
-    assert.strictEqual(d.state, 'finish', 'башня ' + N + ' проходима без режима бога'); assert.strictEqual(d.run.deaths, 0);
+  for (const seed of [0, 42, 0xffffffff]) {
+    d.save.worldSeed = seed;
+    for (let N = 1; N <= 100; N++) {
+      d.startTower(N); d.state = 'play'; d.resetPours(1e9);
+      bot.climb(null, d, { noHazards: true });
+      assert.strictEqual(d.state, 'finish', 'мир ' + seed + ', башня ' + N + ' проходима без режима бога'); assert.strictEqual(d.run.deaths, 0);
+    }
   }
+  d.save.worldSeed = 0;
   // лопасти не стоят на дугах прицельных прыжков (финальное ревью v2.1.1): бот идёт по пути, как игрок тапает в цель,
   // в башне оставлены только лопасти — ни одного удара; прицельный тап безопасен, лопасти наказывают неточный прыжок
   let blHits = 0, blCount = 0;

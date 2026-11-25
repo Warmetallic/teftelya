@@ -49,3 +49,74 @@ function climb(g, d, opts = {}) {
   return d.state;
 }
 module.exports = { botAct, climb, aimX, nextOnPath };
+
+// Full-game playtest. Uses only the normal jump, power and free retry controls.
+// Pick a landing from visible ledges; keep a charge for correcting a hit or a missed tray.
+function liveLanding(d, attempt) {
+  const b = d.ball, here = b.y + b.r;
+  const reach = b.charges > 1 ? 480 : 252;
+  let best = null;
+  for (const p of d.platforms) {
+    const rise = here - p.y;
+    if (p.gone || rise < 25 || rise > reach || p.y < d.camY + 12) continue;
+    if (b.charges === 1 && d.jumpPlan(b.x, b.y, b.r, aimX(p), p.y).double) continue;
+    const x = aimX(p);
+    let score = rise - Math.abs(x - b.x) * .12;
+    if (p.cp > d.run.cp || p.roof) score += 600;
+    if (p.type === 'spatula' || p.type === 'gum') score -= 85;
+    if (p.type === 'cheese' && p.crumbleT) score -= 160;
+    if (d.hazards.some(h => !h.gone && h.host === p.id && h.type === 'rat')) score -= 225;
+    if (d.hazards.some(h => h.type === 'blades' && Math.hypot(x-h.x,p.y-b.r-h.y) < b.r+55)) score -= 95;
+    score += Math.sin(p.row + attempt) * attempt * 6;
+    if (!best || score > best.score) best = {p, score};
+  }
+  return best?.p;
+}
+function climbLive(d, maxRetries = 12) {
+  const b = d.ball;
+  let target, apexTap = false, mass = b.mass, retries = 0, segmentRetries = 0, cp = 0;
+  for (let frame = 0; frame < 100000 && d.state !== 'finish'; frame++) {
+    if (d.state === 'dead') {
+      if (++segmentRetries > maxRetries) break;
+      retries++;
+      if (d.run.cp) d.restartFromCp(); else d.restartTower();
+      target = null; mass = b.mass;
+    }
+    if (d.run.cp > cp) { cp = d.run.cp; segmentRetries = 0; }
+    const hit = b.mass < mass; mass = b.mass;
+    if (d.powerReady() && (b.mass < d.massMax() || hit)) d.tryActivatePower();
+    if (b.onPlatform !== null || hit) {
+      target = liveLanding(d, segmentRetries);
+      if (target) {
+        const plan = d.jumpPlan(b.x,b.y,b.r,aimX(target),target.y);
+        apexTap = plan.double;
+        if (!hit && segmentRetries && b.onPlatform !== null && !b.stuck) {
+          const speed = d.tower.tp.speedMul * (d.tower.tp.effects.sharp ? 1.15 : 1);
+          const knives = d.hazards.filter(h => h.type === 'knife' && !h.gone &&
+            h.y > target.y - 320 && h.y < b.y + 100);
+          const path = knives.length ? d.flightPath(b.x,b.y,b.r,aimX(target),target.y) : [];
+          const blocked = path.some(([x,y], i) => knives.some(h => {
+            if (Math.abs(x-h.x) >= b.r+9 || Math.abs(y-h.by) > 210) return false;
+            const t = h.t + (i+1)*speed/60;
+            return d.knifePhase(t).phase === 'strike' && Math.abs(y - d.knifeY({...h,t}) - 40) < b.r+42;
+          }));
+          if (blocked && d.run.campT < 1.35) {
+            d.update(1 / 60); continue;
+          }
+        }
+        d.jumpTo(plan.tx,plan.ty);
+      }
+    } else if (apexTap && target && b.vy > -30) {
+      apexTap = false; d.jumpTo(aimX(target), target.y);
+    } else if (b.charges && b.vy > 100 && (!target || b.y + b.r > target.y + 6)) {
+      target = liveLanding(d, segmentRetries) || target;
+      if (target) {
+        const plan = d.jumpPlan(b.x,b.y,b.r,aimX(target),target.y);
+        apexTap = plan.double && b.charges > 1; d.jumpTo(plan.tx, plan.ty);
+      }
+    }
+    d.update(1 / 60);
+  }
+  return { state: d.state, retries };
+}
+module.exports.climbLive = climbLive;

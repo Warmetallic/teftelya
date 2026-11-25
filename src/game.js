@@ -39,7 +39,7 @@ function heal(n) {
   return ball.mass - m0;
 }
 // visited — id платформ, на которые Тефа уже садилась в этом забеге: шкала растёт только за первую посадку (спека v2.1.1 §4.1)
-function newRun() { return { time: 0, runCoins: 0, bankedCoins: 0, deaths: 0, usedContinue: 0, usedDouble: false, foodEaten: 0, foodTotal: 0, cp: 0, lastLandId: 0, visited: new Set(), campT: 0, flyCd: 0, invuln: 0, reason: '', rating: null, bonus: 0, progress: 0, finished: false, bannerT: 0 }; }
+function newRun() { return { time: 0, runCoins: 0, bankedCoins: 0, deaths: 0, usedContinue: 0, usedDouble: false, foodEaten: 0, foodTotal: 0, cp: 0, lastLandId: 0, visited: new Set(), campT: 0, flyCd: 0, lastFlyMeal: 0, invuln: 0, reason: '', rating: null, bonus: 0, progress: 0, finished: false, bannerT: 0 }; }
 function cpPlatform(k) { return tower.platforms.find(p => k ? p.cp === k : p.start) || tower.platforms[0]; }
 function placeAt(p) { // появление — не посадка: миска не липнет, полка не тащит (спека v2.2a §6.1, §6.3)
   ball.x = p.x; ball.y = p.y - ball.r; ball.vx = 0; ball.vy = 0; ball.onPlatform = p.id; ball.charges = chargesMax(); ball.stuck = false; ball.slide = 0;
@@ -50,7 +50,8 @@ function placeAt(p) { // появление — не посадка: миска 
 function respawnAt(p) { placeAt(p); camY = ball.y - H * CAM.anchor; camReset(); }
 // башня N с нуля; fromCp > 0 — старт с чекпоинта сохранения (новая сессия: считается одной смертью)
 function startTower(N, fromCp = 0) {
-  tower = buildTower(N); roofP = tower.platforms.find(p => p.roof); run = newRun(); run.foodTotal = tower.items.length; run.bannerT = BANNER_T;
+  tower = buildTower(N, N <= save.legacyThrough ? 0 : save.worldSeed);
+  roofP = tower.platforms.find(p => p.roof); run = newRun(); run.foodTotal = tower.items.length; run.bannerT = BANNER_T;
   if (fromCp && !tower.platforms.some(p => p.cp === fromCp)) fromCp = 0; // битый чекпоинт из сохранения
   resetPower(); resetFlies(); resetFx(); resetPours(5); // первый налив масла не раньше 5 с
   ball.mass = massMax(); ball.r = radiusFor(ball.mass);
@@ -131,10 +132,10 @@ function ratingFor(r, tp) {
   const n = (checks.noDeath ? 1 : 0) + (checks.time ? 1 : 0) + (checks.food ? 1 : 0);
   return { letter: r.usedContinue ? 'D' : ['C', 'B', 'A', 'S'][n], checks };
 }
-function bonusCoins(N, letter) { return Math.round(20 * N * BONUS_MULT[letter]); }
+function bonusCoins(N, letter, bonusPct = 0) { return Math.round(20 * N * BONUS_MULT[letter] * (1 + bonusPct / 100)); }
 function finishTower() {
   const N = tower.tp.N, rt = ratingFor(run, tower.tp);
-  run.rating = rt; run.bonus = bonusCoins(N, rt.letter); run.runCoins += run.bonus; run.finished = true; bank();
+  run.rating = rt; run.bonus = bonusCoins(N, rt.letter, tower.tp.bonusPct); run.runCoins += run.bonus; run.finished = true; bank();
   const prev = save.log[N], t = Math.round(run.time * 10) / 10;
   if (!prev || RANK.indexOf(rt.letter) > RANK.indexOf(prev.r) || (rt.letter === prev.r && t < prev.t)) save.log[N] = { r: rt.letter, t };
   save.tower = Math.max(save.tower, N + 1); save.cp = 0; persist();
@@ -159,7 +160,7 @@ function updateRun(dt) {
     if (e.type === 'crumble') { burst(e.p.x, e.p.y, '#f6c343', 16, 200, 0.6, 4); continue; } // сыр раскрошился
     if (e.type === 'launch') { launchUp(); continue; } // тостер или лопатка подбрасывают — и в берсерке тоже
     if (isBerserk()) continue; // спека §4.4: в берсерке Тефа не горит — ни урона, ни подброса; таймер сковородки уже сброшен в platforms.js
-    damage(1, 'pan', e.p.x, e.p.y + 40);
+    damage(1, e.p.type === 'pan' ? 'pan' : 'heat', e.p.x, e.p.y + 40);
     if (!ball.alive) return;
     ball.onPlatform = null; ball.vy = -700; ball.vx = 0; // спека §3.2: автопрыжок строго вверх — боковой отброс урона сдувал с узкой сковородки в пропасть
   }
@@ -170,11 +171,15 @@ function updateRun(dt) {
   if (ball.y + ball.r < roofP.y) { finishTower(); return; } // финиш — линия крыши: Тефа выше неё — башня пройдена, садиться не нужно, опасности уже не бьют (плейтест владельца v2.2a)
   run.campT = ball.onPlatform !== null && ball.onPlatform === wasOn ? run.campT + dt : 0;
   const st = platformById(tower.platforms, ball.onPlatform);
-  ball.hot = st && st.type === 'pan' ? clamp((st.hotT || 0) / panTime(tp), 0, 1) : Math.max(0, ball.hot - dt * 2);
+  ball.hot = st ? panHeat(st, tp) : Math.max(0, ball.hot - dt * 2);
   run.flyCd = Math.max(0, run.flyCd - dt);
   const grounded = ball.onPlatform !== null; // новые угрозы ждут посадки: в полёте среагировать нечем (плейтест владельца v2.2a)
-  if (grounded && run.flyCd <= 0 && flyWanted(dt, power.flyStreak, run.campT, isBerserk(), powerReady())) { spawnFly(); run.flyCd = FLY_CD; run.campT = 0; }
-  const hev = updateHazards(dt, tower.hazards, { tp, berserk: isBerserk(), invuln: run.invuln }).concat(updatePours(dt, { tp, berserk: isBerserk(), camY, platforms: tower.platforms, grounded }));
+  const swarm = tp.effects.swarm || tp.effects.feast;
+  if (grounded && run.flyCd <= 0 && flyWanted(dt, power.flyStreak, run.campT, isBerserk(), powerReady(), swarm, run.foodEaten - run.lastFlyMeal)) {
+    spawnFly(); run.flyCd = swarm ? FLY_CD * 0.65 : FLY_CD;
+    run.lastFlyMeal = run.foodEaten; run.campT = 0;
+  }
+  const hev = updateHazards(dt, tower.hazards, { tp, berserk: isBerserk(), invuln: run.invuln, camY }).concat(updatePours(dt, { tp, berserk: isBerserk(), camY, platforms: tower.platforms, grounded }));
   for (const e of hev) {
     if (e.type === 'hit') damage(1, e.reason, e.x, e.y); // каждая опасность снимает один кусок; сразу убивает только падение
     else if (e.type === 'flyGaveUp') { onPower(powerAdd(3)); flyStreakAdd(3); popText(e.h.x, e.h.y, T('flyGone'), 'rgba(255,255,255,0.7)'); }

@@ -25,7 +25,8 @@ function titleScreen() {
   ctx.font = '600 22px system-ui, sans-serif'; ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.fillText(T('theme.' + tower.tp.theme), W / 2, H * 0.22 + 36);
   if (save.cp) { ctx.fillStyle = '#8ff0a4'; ctx.font = '600 18px system-ui, sans-serif'; ctx.fillText(T('checkpoint', save.cp), W / 2, H * 0.22 + 64); }
   ctx.font = '500 19px system-ui, sans-serif'; ctx.fillStyle = 'rgba(255,255,255,0.85)';
-  [T('hint1'), T('hint2'), T('hint3')].forEach((l, i) => ctx.fillText(l, W / 2, H * 0.36 + i * 28));
+  [T('hint1'), T('hint2'), T('hint.' + tower.tp.theme)].forEach((l, i) => ctx.fillText(l, W / 2, H * 0.36 + i * 28, W - 32));
+  if (tower.tp.mods.length) { ctx.fillStyle = '#ffe08a'; ctx.font = '700 16px system-ui'; ctx.fillText(modifiersText(tower.tp), W / 2, H * 0.36 + 86, W - 32); }
   button('play', W / 2, H * 0.5, 260, 60, T('play'), '', false);
 }
 function deadScreen(active) {

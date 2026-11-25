@@ -231,12 +231,25 @@ function tefaHealFill(c, x, y, r, B0, B, raw) {
   c.restore();
 }
 // тело целиком для уровня lvl: мясо и глазурь мимо укусов, красный тон последнего куска, срезы
-function tefaBodyHp(c, x, y, r, pool, lvl, tint) {
+function tefaBodyHp(c, x, y, r, pool, lvl, tint, sideLight) {
   const bites = tefaBitesOf(x, y, r, lvl);
   c.save();
   if (bites.length) tefaClipOutBites(c, x, y, r, bites);
   tefaMeat(c, x, y, r);
   tefaSauce(c, x, y, r, pool, tefaSauceFor(lvl));
+  if (sideLight) {
+    // Свет скользит по верхней левой стороне глазури и обрывается на выкусах.
+    c.save(); tefaSil(c, x, y, r); c.clip();
+    const light = c.createLinearGradient(x - .84*r, y - .8*r, x + .28*r, y + .33*r);
+    light.addColorStop(0, 'rgba(255,211,159,.68)'); light.addColorStop(.4, 'rgba(255,162,101,.32)');
+    light.addColorStop(1, 'rgba(255,162,101,0)');
+    c.fillStyle = light; c.fill();
+    const glint = c.createLinearGradient(x - .85*r, y - .8*r, x + .4*r, y + .4*r);
+    glint.addColorStop(0, '#fff0cc'); glint.addColorStop(.52, 'rgba(248,188,134,.82)');
+    glint.addColorStop(.83, 'rgba(248,188,134,0)');
+    c.strokeStyle = glint; c.lineWidth = Math.max(3.6, r * .125); c.stroke();
+    c.restore();
+  }
   if (tint) tefaTint(c, x, y, r, tint); // краснеет корочка; срезы рисуются после и остаются розовыми
   if (bites.length) tefaBiteRims(c, x, y, r, bites);
   c.restore();
@@ -481,13 +494,25 @@ function tefaCached(c, rd, rb, tag, paint) { // paint(cc, r) рисует кар
   const half = rd * 1.6; // картинка шириной 3.2·rr под радиус rr, растянута под rd
   c.drawImage(cv, -half, -half, half * 2, half * 2);
 }
-function tefaBodyCached(c, rd, rb, pool, lvl, tint) { tefaCached(c, rd, rb, 'body:' + (pool ? 1 : 0) + ':' + lvl + ':' + tint, (cc, r) => tefaBodyHp(cc, 0, 0, r, pool, lvl, tint)); }
+function tefaBodyCached(c, rd, rb, pool, lvl, tint, sideLight) {
+  const tag = ['body', pool ? 1 : 0, lvl, tint, sideLight ? 1 : 0].join(':');
+  tefaCached(c, rd, rb, tag, (cc, r) => tefaBodyHp(cc, 0, 0, r, pool, lvl, tint, sideLight));
+}
 // заживление 0.3 с тоже из кэша: тело нового уровня мимо ещё открытой части укуса B, в кольце между B0 и B — сырой фарш
-function tefaHealCached(c, rd, rb, pool, lvl, heal) {
+function tefaHealCached(c, rd, rb, pool, lvl, heal, sideLight) {
   const B0 = tefaBite(0, 0, rd, lvl), B = tefaBite(0, 0, rd, lvl, heal); // был укус B0, сейчас B
   c.save(); tefaClipOutBites(c, 0, 0, rd, [B]);
-  tefaBodyCached(c, rd, rb, pool, lvl, 0);
+  tefaBodyCached(c, rd, rb, pool, lvl, 0, sideLight);
   tefaHealFill(c, 0, 0, rd, B0, B, () => tefaCached(c, rd, rb, 'raw', (cc, r) => tefaRawMince(cc, 0, 0, r, 11)));
+  c.restore();
+}
+// Узкая падающая тень отделяет Тефу от цветной посуды. Тень повторяет укусы и сквош.
+function tefaCastShadow(c, r, lvl, heal) {
+  c.save(); c.translate(r * .07, r * .09);
+  const bites = tefaBitesOf(0, 0, r, lvl);
+  if (heal) bites.push(tefaBite(0, 0, r, lvl, heal));
+  if (bites.length) tefaClipOutBites(c, 0, 0, r, bites);
+  tefaSil(c, 0, 0, r); c.fillStyle = 'rgba(30,19,28,.82)'; c.fill();
   c.restore();
 }
 // (x, y) — центр столкновений, r — радиус столкновений; поза задаётся трансформацией контекста.
@@ -509,10 +534,14 @@ function drawTefa(c, x, y, r, pose = {}) {
   if (pose.berserk) tefaBerserkAura(c, 0, 0, rd, pose.t || 0);
   if (pose.charged) tefaChargeGlow(c, 0, 0, rd);
   if (tint) tefaAlarm(c, 0, 0, rd, tint);
-  if (heal) tefaHealCached(c, rd, rb, pool, lvl, heal);
+  if (pose.castShadow) {
+    if (heal) tefaCastShadow(c, rd, lvl, heal);
+    else tefaCached(c, rd, rb, 'shadow:' + lvl, (cc, r) => tefaCastShadow(cc, r, lvl, 0));
+  }
+  if (heal) tefaHealCached(c, rd, rb, pool, lvl, heal, pose.sideLight);
   else {
-    tefaBodyCached(c, rd, rb, pool, lvl, 0);
-    if (tint) { c.globalAlpha = a0 * tint; tefaBodyCached(c, rd, rb, pool, lvl, 1); c.globalAlpha = a0; } // смесь с красной версией = мигание
+    tefaBodyCached(c, rd, rb, pool, lvl, 0, pose.sideLight);
+    if (tint) { c.globalAlpha = a0 * tint; tefaBodyCached(c, rd, rb, pool, lvl, 1, pose.sideLight); c.globalAlpha = a0; } // смесь с красной версией = мигание
   }
   const hot = clamp(pose.hot || 0, 0, 1);
   if (hot > 0 || pose.charged) { // ожог и золотой кант ложатся на тело мимо укусов

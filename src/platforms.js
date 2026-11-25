@@ -9,7 +9,7 @@ const CHEESE_T = 0.5, CHEESE_BACK = 3; // сыр крошится через 0.5
 function panTime(tp) { return Math.max(PAN_MIN, PAN_TIME + 0.25 * ((save.up && save.up.crust) || 0) - ((tp && tp.heat) || 0)); }
 function platformById(platforms, id) { return id === null || id === undefined ? null : platforms.find(p => p.id === id) || null; }
 function overPlatform(p) { return Math.abs(ball.x - p.x) <= p.w / 2 + ball.r * LAND_TOL; }
-function landOn(p) { ball.slide = p.type === 'shelf' ? SHELF_KEEP * ball.vx : 0; ball.stuck = p.type === 'bowl'; ball.y = p.y - ball.r; ball.vy = 0; ball.vx = 0; ball.onPlatform = p.id; }
+function landOn(p) { ball.slide = (p.ice || p.type === 'shelf') ? SHELF_KEEP * ball.vx : 0; ball.stuck = p.type === 'gum'; ball.y = p.y - ball.r; ball.vy = 0; ball.vx = 0; ball.onPlatform = p.id; }
 // посадка сверху с учётом пройденного за кадр пути: prevBottom — низ Тефы в прошлом кадре. Снизу и сбоку платформы проницаемы.
 function tryLand(platforms, prevBottom) {
   if (ball.vy < 0) return null;
@@ -28,13 +28,16 @@ function updatePlatforms(dt, platforms, tp) {
   const ev = [];
   const standing = platformById(platforms, ball.onPlatform);
   for (const p of platforms) {
+    if (p.type === 'pan' || tp?.effects?.heat) {
+      if (p === standing) {
+        p.hotT = (p.hotT || 0) + dt;
+        if (p.hotT >= heatLimit(p, tp)) { p.hotT = 0; ev.push({ type: 'burn', p }); }
+      } else if (p.hotT) p.hotT = Math.max(0, p.hotT - dt * 2);
+    }
     if (p.type === 'tray') {
       const px = p.x, nx = p.x + p.dir * p.speed * dt;
       if (nx > p.x1) { p.x = p.x1; p.dir = -1; } else if (nx < p.x0) { p.x = p.x0; p.dir = 1; } else p.x = nx;
       if (p === standing) ball.x += p.x - px;
-    } else if (p.type === 'pan') {
-      if (p === standing) { p.hotT = (p.hotT || 0) + dt; if (p.hotT >= panTime(tp)) { p.hotT = 0; ev.push({ type: 'burn', p }); } }
-      else p.hotT = Math.max(0, (p.hotT || 0) - dt * 2);
     } else if (p.type === 'toaster') { // отсчёт идёт, пока Тефа стоит; ушла — сброшен
       if (p === standing) { p.toastT = (p.toastT || 0) + dt; if (p.toastT >= TOASTER_T) { p.toastT = 0; ev.push({ type: 'launch', p }); } }
       else p.toastT = 0;
@@ -47,7 +50,7 @@ function updatePlatforms(dt, platforms, tp) {
       }
     }
   }
-  if (standing && standing.type === 'shelf' && ball.slide) { // Тефа скользит по полке и тормозит; съехала за край — падает (проверка ниже)
+  if (standing && !ball.stuck && (standing.ice || standing.type === 'shelf') && ball.slide) { // Тефа скользит по полке и тормозит; съехала за край — падает (проверка ниже)
     ball.x += ball.slide * dt; const dv = SHELF_FRICTION * dt; ball.slide = Math.abs(ball.slide) <= dv ? 0 : ball.slide - Math.sign(ball.slide) * dv;
   }
   if (standing) { if (standing.gone || !overPlatform(standing)) ball.onPlatform = null; else { ball.y = standing.y - ball.r; ball.vy = 0; } }
@@ -55,5 +58,6 @@ function updatePlatforms(dt, platforms, tp) {
 }
 // доля до ожога для рендера: делим на реальный таймер, а не на базовый —
 // при жаре башни и «Корочке» шкала должна совпадать с тем, когда сковородка правда сожжёт
-function panHeat(p, tp) { return p.type === 'pan' ? clamp((p.hotT || 0) / panTime(tp), 0, 1) : 0; }
+function heatLimit(p, tp) { return p.type === 'pan' ? panTime(tp) : panTime(tp) + 1.1; }
+function panHeat(p, tp) { return clamp((p.hotT || 0) / heatLimit(p, tp), 0, 1); }
 expose({ TOASTER_T, SHELF_KEEP, SHELF_FRICTION, PAN_TIME, PAN_MIN, panTime, platformById, overPlatform, landOn, tryLand, updatePlatforms, panHeat });

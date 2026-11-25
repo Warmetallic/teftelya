@@ -13,10 +13,11 @@ function spawnFly(fromLeft) {
 function resetFlies() { flies = []; }
 // политика влёта (спека v2.1.1 §4.4): лень — гарантированно; скрытая серия ≥ 6 — по шансу, полная шкала (doubled) его удваивает;
 // берсерк и лимит — никогда
-function flyWanted(dt, streakN, campT, berserk, doubled) {
-  if (berserk || flies.length >= FLY_MAX) return false;
-  if (campT >= CAMP_T) return true;
-  if (streakN >= 6) return Math.random() < dt * Math.min(0.4, 0.08 + 0.02 * (streakN - 6)) * (doubled ? 2 : 1);
+function flyWanted(dt, streakN, campT, berserk, doubled, swarm = false, meals = 0) {
+  if (berserk || flies.length >= FLY_MAX + (swarm ? 2 : 0)) return false;
+  if (swarm && meals >= 3) return true;
+  if (campT >= (swarm ? CAMP_T * 0.6 : CAMP_T)) return true;
+  if (streakN >= (swarm ? 3 : 6)) return Math.random() < dt * (swarm ? 2.4 : 1) * Math.min(0.4, 0.08 + 0.02 * Math.max(0, streakN - 6)) * (doubled ? 2 : 1);
   return false;
 }
 function knifePhase(t) { // t → { phase, k } где k — 0..1 внутри фазы
@@ -46,8 +47,15 @@ function updateHazards(dt, hazards, env) {
   flies = flies.filter(f => !f.gone);
   for (const h of hazards) {
     if (h.gone || Math.abs(h.y - ball.y) > H + 100) continue;
-    if (h.type === 'knife') {
-      h.t += dt * tp.speedMul; h.phase = knifePhase(h.t).phase;
+    if (TRAP_WARN[h.type]) {
+      const event = tickBiomeTrap(h, dt, env);
+      if (event) ev.push(event);
+    } else if (h.type === 'knife') {
+      if (h.waitingForPlayer) {
+        if (ball.onPlatform === null || h.by - 54 < env.camY || h.y > env.camY + H - BAND_H) continue;
+        h.waitingForPlayer = false;
+      }
+      h.t += dt * tp.speedMul * (tp.effects?.sharp ? 1.15 : 1); h.phase = knifePhase(h.t).phase;
       const ky = knifeY(h);
       if (h.phase === 'strike' && Math.abs(ball.x - h.x) < R + 8 && Math.abs(ball.y - (ky + 40)) < R + 40) {
         if (env.berserk) { h.gone = true; ev.push({ type: 'smash', h, x: h.x, y: ky }); } else ev.push({ type: 'hit', reason: 'knife', x: h.x, y: ky });

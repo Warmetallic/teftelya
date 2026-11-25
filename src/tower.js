@@ -1,6 +1,6 @@
 'use strict';
 // ---------- башня N: параметры роста и генерация из фрагментов (ступени, пропасть, перелёт, развилка) ----------
-// Все числа черновые (спека v2.1.1 §6). Башня собирается по сиду N. Генератор пишет безопасный путь path: id платформ
+// Все числа черновые (спека v2.1.1 §6). Башня собирается по зерну мира и номеру. Генератор пишет безопасный путь path: id платформ
 // от старта до крыши, где каждую следующую можно достать не больше чем двумя прыжками за полёт (с платформы и один
 // в воздухе), так что один заряд из трёх остаётся в запасе.
 const ROW_H = 120;          // шаг рядов, px
@@ -22,7 +22,7 @@ const FOOD_COLOR = { ketchup: '#e3342f', pasta: '#f6c343', meat: '#b5452b' };
 function mulberry32(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 function towerParams(N) {
   const rows = Math.min(40 + 5 * N, 160), steps = Math.max(0.2, 0.4 - 0.01 * (N - 1)), other = 1 - steps;
-  return { N, rows, height: rows * ROW_H, heat: Math.min(0.05 * N, 1.5), speedMul: 1 + 0.03 * N, flySpeed: 220 + 5 * N,
+  return { N, rows, height: rows * ROW_H, heat: Math.min(0.05 * N, 1.5), speedMul: Math.min(1.48, 1 + 0.03 * N), flySpeed: Math.min(305, 220 + 5 * N),
     pHaz: Math.min(0.15 + 0.02 * N, 0.6), pKnife: Math.min(0.85, 0.4 + 0.03 * (N - 2)), foodPerRow: Math.max(0.35, 0.8 - 0.01 * N),
     gapMax: N >= 5 ? 3 : 2, wMin: Math.max(80, 101 - N), wMax: Math.max(110, 141 - N),
     mix: N === 1 ? { plate: 0.5, pan: 0.25, tray: 0.25, cheese: 0 } : { plate: 0.5, pan: 0.2, tray: 0.15, cheese: 0.15 },
@@ -31,9 +31,10 @@ function towerParams(N) {
 }
 function pickKind(R) { let sum = 0; for (const k in FOOD_KINDS) sum += FOOD_KINDS[k].w; let t = R() * sum; for (const k in FOOD_KINDS) { t -= FOOD_KINDS[k].w; if (t <= 0) return k; } return 'ketchup'; }
 function mkFood(R, x, y) { const kind = pickKind(R); return { kind, x, y, r: FOOD_KINDS[kind].r, seed: R() * 10, dead: false }; }
-// buildTower(N) → { tp, platforms, hazards, items, path }; одинаково при каждом вызове с тем же N (сид = N)
-function buildTower(N) {
-  const tp = towerParams(N), R = mulberry32(N * 7919 + 17), rr = (a, b) => a + R() * (b - a), ri = (a, b) => a + Math.floor(R() * (b - a + 1));
+// Нулевое зерно воспроизводит раскладку v4, включая отдельный поток для особых платформ.
+function towerRng(N, worldSeed, offset) { return mulberry32(((N * 7919) ^ worldSeed) + offset); }
+function buildTower(N, worldSeed = 0) {
+  const tp = towerParams(N), R = towerRng(N, worldSeed, 17), rr = (a, b) => a + R() * (b - a), ri = (a, b) => a + Math.floor(R() * (b - a + 1));
   const platforms = [], hazards = [], items = [], path = [];
   let id = 0, hid = 1, lastBlades = -99;
   const knifeSlots = []; // пропасти без ножа: из первой берётся гарантированный нож башни
@@ -110,8 +111,23 @@ function buildTower(N) {
   }
   if (N >= 2 && !hazards.some(h => h.type === 'knife') && knifeSlots.length) knife(...knifeSlots[0]); // первый нож башни гарантирован
   placeBlades(platforms, hazards, path);
-  placeUniques(N, tp, platforms, hazards, path); // после лопастей: уникальности подстраиваются под опасности, а не наоборот
-  return { tp, platforms, hazards, items, path };
+  if (N >= 2) placeUniques(N, tp, platforms, hazards, path, worldSeed);
+  if (tp.theme === 'kitchen' && !platforms.some(p => p.type === 'board')) {
+    // Учебная доска в стороне от основного пути. Прежние платформы, их id и чекпоинты остаются на местах.
+    const wall = EDGE + BOARD_W / 2;
+    for (let row = 2; row < tp.rows; row++) {
+      const board = [wall, W - wall].map(x => ({ id, row, x, y: -row * ROW_H, w: BOARD_W, type: 'board', cp: 0 }))
+        .find(p => boardOk(p, hazards, platforms));
+      if (!board) continue;
+      makeBoard(board, hazards, 0).waitingForPlayer = true;
+      platforms.push(board);
+      food(board.x, board.y - 60);
+      break;
+    }
+  }
+  const built = { tp, platforms, hazards, items, path };
+  populateBiome(built, worldSeed);
+  return built;
 }
 // уникальности темы (спека v2.2a §6–§7): пятая часть обычных платформ башни, за счёт тарелок; старт, чекпоинты, крыша и
 // площадки отдыха не трогаются. Решения берутся из своего потока случайных чисел, поэтому раскладка башни та же, что без
@@ -119,8 +135,8 @@ function buildTower(N) {
 const UNIQUE_RULES = {
   shelf: { ok: () => true },                 // полка холодильника: скользкая, ставится где угодно
   toaster: { ok: (p, hz, path, byId) => !launchBlocked(p, hz) && !afterLaunchBlocked(p, hz, path, byId), launch: true }, // тостер и лопатка подбрасывают: столб полёта над ними
-  board: { ok: (p, hz, path, byId, platforms) => boardOk(p, hz, platforms), make: (p, hz, R) => makeBoard(p, hz, R) }, // доска с ножом у стены
-  bowl: { ok: (p, hz, path, byId) => bowlOk(p, path, byId) },  // миска на пути — только перед переходом в один прыжок: после отлипания запас
+  board: { ok: (p, hz, path, byId, platforms) => boardOk(p, hz, platforms), make: (p, hz, R) => makeBoard(p, hz, R() * KNIFE_CYCLE) }, // доска с ножом у стены
+  gum: { ok: (p, hz, path, byId) => gumOk(p, path, byId) },  // миска на пути — только перед переходом в один прыжок: после отлипания запас
   spatula: { ok: (p, hz, path, byId) => !launchBlocked(p, hz) && !afterLaunchBlocked(p, hz, path, byId), launch: true }, // свободен от лопастей и ножей
 };
 // центры Тефы масс 1, 4 и 8 при вертикальном подбросе с платформы p на LAUNCH_H
@@ -145,8 +161,14 @@ const boardOk = (p, hazards, platforms) => {
     for (let x = b.x - BOARD_W / 2; x <= b.x + BOARD_W / 2; x += 5) if (Math.hypot(x - h.x, p.y - R - h.y) < R + BLADES_R) return false; }
   return true;
 };
-const makeBoard = (p, hazards, R) => { const b = boardAt(p); p.x = b.x; p.w = BOARD_W; hazards.push(Object.assign({ id: 10000 + p.id, t: R() * KNIFE_CYCLE, gone: false }, b.knife)); };
-const bowlOk = (p, path, byId) => { const i = path.indexOf(p.id); if (i < 0 || i + 1 >= path.length) return true; const n = byId.get(path[i + 1]);
+function makeBoard(p, hazards, time) {
+  const b = boardAt(p);
+  p.x = b.x; p.w = BOARD_W;
+  const knife = { ...b.knife, id: 10000 + p.id, t: time, gone: false };
+  hazards.push(knife);
+  return knife;
+}
+const gumOk = (p, path, byId) => { const i = path.indexOf(p.id); if (i < 0 || i + 1 >= path.length) return true; const n = byId.get(path[i + 1]);
   return [1, 4, 8].every(m => { const r = radiusFor(m); return !jumpPlan(p.x, p.y - r, r, n.x, n.y).double; }); };
 // тостер или лопатка на пути: от вершины подброса Тефа летит к одной из следующих платформ пути (так делает и бот) — этот полёт тоже мимо лопастей
 const afterLaunchBlocked = (p, hazards, path, byId) => {
@@ -157,14 +179,20 @@ const afterLaunchBlocked = (p, hazards, path, byId) => {
   return false;
 };
 const launchBlocked = (p, hazards) => { const col = launchColumn(p); return hazards.some(h => h.type === 'blades' ? col.some(([x, y, r]) => Math.hypot(x - h.x, y - h.y) < r + BLADES_R) : h.type === 'knife' && knifeHitsColumn(h, col)); };
-function placeUniques(N, tp, platforms, hazards, path) {
+function placeUniques(N, tp, platforms, hazards, path, worldSeed = 0) {
   const kinds = tp.uniques.filter(u => UNIQUE_RULES[u]); if (!kinds.length) return;
-  const RU = mulberry32(N * 7919 + 99), byId = new Map(platforms.map(p => [p.id, p]));
+  const RU = towerRng(N, worldSeed, 99), byId = new Map(platforms.map(p => [p.id, p]));
   for (const p of platforms) {
     if (p.type !== 'plate' || p.start || p.cp || p.roof || p.rest) continue;
     if (RU() >= UNIQUE_SHARE / tp.mix.plate) continue;
     const u = kinds[Math.floor(RU() * kinds.length)];
     if (UNIQUE_RULES[u].ok(p, hazards, path, byId, platforms)) { p.type = u; if (UNIQUE_RULES[u].make) UNIQUE_RULES[u].make(p, hazards, RU); }
+  }
+  for (const u of kinds) {
+    if (u === 'board' || platforms.some(p => p.type === u)) continue;
+    const fallback = platforms.find(p => !p.start && !p.roof && !p.cp && !p.rest && p.type !== 'tray' &&
+      UNIQUE_RULES[u].ok(p, hazards, path, byId, platforms));
+    if (fallback) fallback.type = u;
   }
 }
 // лопасти не встают на дугу прицельного прыжка и туда, где Тефа стоит (финальное ревью v2.1.1: на месте в середине ряда их

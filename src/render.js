@@ -29,11 +29,10 @@ const BG_DRAW = {
     for (let y = off - 240 + 120; y < H + 240; y += 240) { ctx.beginPath(); ctx.moveTo(b.x0, y); ctx.lineTo(b.x1, y); ctx.stroke(); for (let x = Math.floor(b.x0 / 30) * 30 + 20; x < b.x1; x += 30) { ctx.beginPath(); ctx.moveTo(x, y - 24); ctx.lineTo(x, y + 24); ctx.stroke(); } }
     const g = ctx.createLinearGradient(0, H * 0.55, 0, H); g.addColorStop(0, 'rgba(140,60,30,0)'); g.addColorStop(1, 'rgba(140,60,30,0.28)'); ctx.fillStyle = g; ctx.fillRect(b.x0, b.y0, b.x1 - b.x0, b.y1 - b.y0);
   },
-  sink(b) { // мелкая бело-голубая плитка
-    bgGrad(b, 'rgb(52,70,84)', 'rgb(30,42,52)');
-    ctx.strokeStyle = 'rgba(230,240,250,0.12)'; ctx.lineWidth = 2; const off = par(32);
-    for (let y = off - 32; y < H + 32; y += 32) { ctx.beginPath(); ctx.moveTo(b.x0, y); ctx.lineTo(b.x1, y); ctx.stroke(); }
-    for (let x = Math.floor(b.x0 / 32) * 32; x <= b.x1; x += 32) { ctx.beginPath(); ctx.moveTo(x, b.y0); ctx.lineTo(x, b.y1); ctx.stroke(); }
+  cellar(b) {
+    bgGrad(b, '#3c4336', '#1c231e');
+    ctx.fillStyle = '#343025';
+    for (let y = par(160) - 160; y < b.y1; y += 160) ctx.fillRect(b.x0, y, b.x1 - b.x0, 12);
   },
   feast(b) { // скатерть в клетку и свечи
     bgGrad(b, 'rgb(30,58,42)', 'rgb(18,36,26)');
@@ -63,35 +62,81 @@ function drawBg() {
     if (b.y1 > H) { ctx.fillStyle = BAND_BOTTOM[tower.tp.theme] || BAND_BOTTOM.kitchen; ctx.fillRect(0, H, W, b.y1 - H); } // высокий экран: полоса продолжается до его низа
   }
 }
+// По контуру самого предмета читается освещённый верх и тёмный нижний край.
+function drawLedgeRim(top, bottom) {
+  if (!tower || tower.tp.theme === 'fridge') return;
+  const bevel = ctx.createLinearGradient(0, top, 0, bottom);
+  bevel.addColorStop(0, '#ffe5c0');
+  bevel.addColorStop(.42, 'rgba(235,212,185,.68)');
+  bevel.addColorStop(1, 'rgba(38,29,30,.94)');
+  ctx.save(); ctx.strokeStyle = bevel; ctx.lineWidth = 2.6; ctx.stroke(); ctx.restore();
+}
+// Эмалированное блюдо и банкетный фарфор. Верхняя плоскость совпадает с обычной тарелкой.
+function drawServingPlate(p, y, cellar) {
+  const rx = p.w / 2;
+  ctx.save(); ctx.translate(p.x, y + 8);
+  const edge = ctx.createLinearGradient(0, -7, 0, 20);
+  edge.addColorStop(0, cellar ? '#426566' : '#445777');
+  edge.addColorStop(.68, cellar ? '#24494c' : '#25395a');
+  edge.addColorStop(1, '#1d252c');
+  biomeEllipse(0, 4, rx, 16, edge);
+  const glaze = ctx.createLinearGradient(0, -16, 0, 16);
+  glaze.addColorStop(0, cellar ? '#f0f4df' : '#fff7dc');
+  glaze.addColorStop(.55, cellar ? '#c1d5be' : '#efdfbf');
+  glaze.addColorStop(1, cellar ? '#94b4a8' : '#d6c39c');
+  biomeEllipse(0, 0, rx - 1, 15, glaze);
+  ctx.strokeStyle = cellar ? '#335956' : '#415780';
+  ctx.lineWidth = cellar ? 2.5 : 2;
+  ctx.beginPath(); ctx.ellipse(0, 0, rx - 3, 13.8, 0, 0, 2*Math.PI); ctx.stroke();
+  const well = ctx.createLinearGradient(0, -9, 0, 9);
+  well.addColorStop(0, cellar ? '#809b8c' : '#bbaa90');
+  well.addColorStop(.46, cellar ? '#bbd0bc' : '#e7d8b9');
+  well.addColorStop(1, cellar ? '#dce8ce' : '#f5e9cd');
+  biomeEllipse(0, 0, rx * .68, 7.8, well);
+  if (!cellar) {
+    ctx.strokeStyle = '#7486a2'; ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.ellipse(0, 0, rx - 8, 11.3, 0, 0, 2*Math.PI); ctx.stroke();
+  }
+  ctx.restore();
+}
 function drawPlatform(p) {
   const y = p.y - camY; if (y < -40 || y > H + 40) return;
   if (p.type === 'plate') {
-    ctx.fillStyle = '#e9e4da'; ctx.beginPath(); ctx.ellipse(p.x, y + 8, p.w / 2, 16, 0, 0, 7); ctx.fill();
-    ctx.fillStyle = '#c9c2b4'; ctx.beginPath(); ctx.ellipse(p.x, y + 8, p.w / 2 - 30, 9, 0, 0, 7); ctx.fill();
+    const theme = tower?.tp.theme;
+    if (theme === 'cellar' || theme === 'feast') {
+      drawServingPlate(p, y, theme === 'cellar');
+    } else {
+      ctx.fillStyle = '#e9e4da'; ctx.beginPath(); ctx.ellipse(p.x, y + 8, p.w / 2, 16, 0, 0, 7); ctx.fill(); drawLedgeRim(y - 8, y + 24);
+      ctx.fillStyle = '#c9c2b4'; ctx.beginPath(); ctx.ellipse(p.x, y + 8, p.w / 2 - 30, 9, 0, 0, 7); ctx.fill();
+    }
     if (p.cp) { ctx.fillStyle = '#8ff0a4'; ctx.beginPath(); ctx.arc(p.x + p.w / 2 - 10, y + 2, 5, 0, 7); ctx.fill(); } // метка чекпоинта
   } else if (p.type === 'pan') {
     const heat = panHeat(p, tower.tp);
-    ctx.fillStyle = '#2a2624'; ctx.beginPath(); ctx.ellipse(p.x, y + 8, p.w / 2, 16, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = '#2a2624'; ctx.beginPath(); ctx.ellipse(p.x, y + 8, p.w / 2, 16, 0, 0, 7); ctx.fill(); drawLedgeRim(y - 8, y + 24);
     ctx.fillStyle = `rgba(255,${(90 - heat * 60) | 0},20,${0.15 + heat * 0.6})`; ctx.beginPath(); ctx.ellipse(p.x, y + 8, p.w / 2 - 14, 9, 0, 0, 7); ctx.fill();
     ctx.strokeStyle = '#3d3734'; ctx.lineWidth = 8; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(p.x + p.w / 2, y + 8); ctx.lineTo(p.x + p.w / 2 + 40, y + 2); ctx.stroke(); // ручка
     if (heat > 0.3) { ctx.fillStyle = `rgba(255,255,255,${(heat - 0.3) * 0.4})`; for (let i = 0; i < 3; i++) { const t = (tGame * 1.5 + i * 0.33) % 1; ctx.beginPath(); ctx.arc(p.x - 20 + i * 20 + Math.sin(t * 6) * 6, y - 10 - t * 40, 6 + t * 6, 0, 7); ctx.fill(); } } // дымок
   } else if (p.type === 'board') { // разделочная доска (нож над её концом рисуется как обычный нож; спека v2.2a §6.5)
-    ctx.fillStyle = '#c8955a'; rrect(p.x - p.w / 2, y - 4, p.w, 16, 5); ctx.fill(); ctx.fillStyle = '#a5723f'; rrect(p.x - p.w / 2, y + 8, p.w, 5, 3); ctx.fill();
+    ctx.fillStyle = '#c8955a'; rrect(p.x - p.w / 2, y - 4, p.w, 16, 5); ctx.fill(); drawLedgeRim(y - 4, y + 12); ctx.fillStyle = '#a5723f'; rrect(p.x - p.w / 2, y + 8, p.w, 5, 3); ctx.fill();
     ctx.strokeStyle = 'rgba(90,55,25,0.35)'; ctx.lineWidth = 1.5; for (let k = 1; k < 4; k++) { ctx.beginPath(); ctx.moveTo(p.x - p.w / 2 + 10, y + k * 3); ctx.lineTo(p.x + p.w / 2 - 10, y + k * 3); ctx.stroke(); }
-  } else if (p.type === 'bowl') { // миска с пеной (спека v2.2a §6.3)
-    ctx.fillStyle = '#e8eef3'; ctx.beginPath(); ctx.moveTo(p.x - p.w / 2, y - 6); ctx.quadraticCurveTo(p.x, y + 40, p.x + p.w / 2, y - 6); ctx.closePath(); ctx.fill();
-    ctx.strokeStyle = '#9fb4c4'; ctx.lineWidth = 3; ctx.stroke();
-    ctx.fillStyle = 'rgba(255,255,255,0.9)'; for (let k = 0, n = Math.max(3, Math.round(p.w / 22)); k < n; k++) { ctx.beginPath(); ctx.arc(p.x - p.w / 2 + 12 + k * (p.w - 24) / (n - 1), y - 6, 5 + (k % 3) * 2, 0, 7); ctx.fill(); }
+  } else if (p.type === 'gum') { // прилипшая жвачка тонким слоем на доске
+    ctx.fillStyle = '#6b5141'; rrect(p.x - p.w / 2, y - 2, p.w, 13, 4); ctx.fill(); drawLedgeRim(y - 2, y + 11);
+    ctx.fillStyle = '#ce83a1'; ctx.beginPath();
+    ctx.moveTo(p.x - p.w / 2 + 3, y + 2);
+    ctx.bezierCurveTo(p.x - p.w * 0.3, y - 10, p.x - p.w * 0.2, y - 2, p.x, y - 5);
+    ctx.quadraticCurveTo(p.x + p.w * 0.26, y - 8, p.x + p.w / 2 - 3, y + 2);
+    ctx.quadraticCurveTo(p.x + p.w * 0.2, y + 8, p.x, y + 4);
+    ctx.closePath(); ctx.fill();
   } else if (p.type === 'toaster') { // тостер с прорезями; рычаг светится сильнее к концу отсчёта (спека v2.2a §6.2)
     const k = clamp((p.toastT || 0) / TOASTER_T, 0, 1), sh = k > 0 ? Math.sin(tGame * 60) * k * 2 : 0;
     ctx.save(); ctx.translate(p.x + sh, y);
-    ctx.fillStyle = '#c9ccd2'; rrect(-p.w / 2, -30, p.w, 42, 10); ctx.fill(); ctx.fillStyle = '#9aa0a8'; rrect(-p.w / 2, 4, p.w, 8, 4); ctx.fill();
+    ctx.fillStyle = '#c9ccd2'; rrect(-p.w / 2, -30, p.w, 42, 10); ctx.fill(); drawLedgeRim(-30, 12); ctx.fillStyle = '#9aa0a8'; rrect(-p.w / 2, 4, p.w, 8, 4); ctx.fill();
     ctx.fillStyle = '#3a3a40'; rrect(-p.w / 2 + 14, -28, p.w / 2 - 20, 8, 3); ctx.fill(); rrect(6, -28, p.w / 2 - 20, 8, 3); ctx.fill();
     ctx.fillStyle = `rgba(255,224,138,${0.45 + 0.55 * k})`; ctx.shadowColor = 'rgba(255,224,138,0.9)'; ctx.shadowBlur = 6 + 12 * k; rrect(p.w / 2, -18, 10, 16, 3); ctx.fill(); ctx.shadowBlur = 0;
     ctx.restore();
   } else if (p.type === 'spatula') { // лопатка-батут: стальное полотно с прорезями и деревянная ручка (спека v2.2a §6.4)
     ctx.save(); ctx.translate(p.x, y);
-    ctx.fillStyle = '#b9bec6'; rrect(-p.w / 2, -4, p.w - 26, 14, 5); ctx.fill(); ctx.fillStyle = '#2b2f36';
+    ctx.fillStyle = '#b9bec6'; rrect(-p.w / 2, -4, p.w - 26, 14, 5); ctx.fill(); drawLedgeRim(-4, 10); ctx.fillStyle = '#2b2f36';
     for (let k = 0, n = Math.max(2, Math.floor((p.w - 40) / 20)); k < n; k++) { rrect(-p.w / 2 + 10 + k * 20, 0, 12, 5, 2); ctx.fill(); }
     ctx.fillStyle = '#8a5a34'; rrect(p.w / 2 - 30, -1, 40, 9, 4); ctx.fill();
     ctx.restore();
@@ -102,7 +147,7 @@ function drawPlatform(p) {
     if (p.gone) { ctx.strokeStyle = 'rgba(246,195,67,0.3)'; ctx.lineWidth = 2; ctx.setLineDash([6, 6]); rrect(p.x - p.w / 2, y - 4, p.w, 16, 5); ctx.stroke(); ctx.setLineDash([]); return; }
     const sh = p.crumbleT > 0 ? Math.sin(tGame * 60) * 2 : 0;
     ctx.save(); ctx.translate(p.x + sh, y);
-    ctx.fillStyle = '#f6c343'; rrect(-p.w / 2, -4, p.w, 16, 5); ctx.fill();
+    ctx.fillStyle = '#f6c343'; rrect(-p.w / 2, -4, p.w, 16, 5); ctx.fill(); drawLedgeRim(-4, 12);
     ctx.fillStyle = '#dca531'; rrect(-p.w / 2, 7, p.w, 5, 3); ctx.fill(); // корочка снизу
     ctx.fillStyle = '#c98f22'; for (const [hx, hy, hr] of [[-0.3, 3, 4], [0.05, 1, 3], [0.32, 4, 3.5]]) { ctx.beginPath(); ctx.arc(hx * p.w, hy, hr, 0, 7); ctx.fill(); } // дырки
     if (p.crumbleT > 0) { // крошится: трещины и крошки сыплются вниз, чтобы и на стоп-кадре было видно
@@ -115,14 +160,16 @@ function drawPlatform(p) {
     }
     ctx.restore();
   } else { // поднос
-    ctx.fillStyle = '#b08d5a'; rrect(p.x - p.w / 2, y - 4, p.w, 18, 6); ctx.fill();
+    ctx.fillStyle = '#b08d5a'; rrect(p.x - p.w / 2, y - 4, p.w, 18, 6); ctx.fill(); drawLedgeRim(y - 4, y + 14);
     ctx.fillStyle = '#8a6a3e'; rrect(p.x - p.w / 2 + 6, y, p.w - 12, 10, 4); ctx.fill();
     ctx.fillStyle = '#3a2f26'; ctx.beginPath(); ctx.arc(p.x - p.w / 2 + 14, y + 18, 5, 0, 7); ctx.arc(p.x + p.w / 2 - 14, y + 18, 5, 0, 7); ctx.fill();
   }
 }
 function drawHazard(h) {
   if (h.gone) return; const y = h.y - camY; if (y < -320 || y > H + 320) return;
-  if (h.type === 'knife') {
+  if (TRAP_DRAW[h.type]) {
+    ctx.save(); ctx.translate(h.x, y); TRAP_DRAW[h.type](h); ctx.restore();
+  } else if (h.type === 'knife') {
     const ky = knifeY(h) - camY, wind = h.phase === 'wind';
     ctx.save();
     if (wind) { // замах (вариант A листа design_warn_round1): нож дрожит и вспыхивает красным — сейчас ударит
@@ -229,7 +276,8 @@ function drawTefaBall() {
   if (st) { ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(x, st.y - camY + 6, r * 0.9, 8, 0, 0, 7); ctx.fill(); } // тень на платформе
   const pose = { t: tGame, sx: 1 + ball.sq, sy: 1 - ball.sq, tilt: ball.tilt, face: ball.face, mouth: ball.mouth, blink: ball.blink > 0, hot: ball.hot, berserk: bz,
     alpha: run && run.invuln > 0 && Math.floor(tGame * 12) % 2 === 0 ? 0.45 : 1,
-    hp: { cur: ball.mass, max: massMax() }, charged: powerReady(),
+    hp: { cur: ball.mass, max: massMax() }, charged: powerReady(), sideLight: tower.tp.theme !== 'fridge',
+    castShadow: tower.tp.theme === 'cellar' || tower.tp.theme === 'feast',
     tint: ball.mass === 1 ? 0.5 + 0.5 * Math.sin(tGame * Math.PI * 3) : 0, // последний кусок мигает ≈ 1.5 раза в секунду
     heal: ball.healT > 0 ? 1 - ball.healT / HEAL_T : 0,
     bake: radiusFor(ball.mass) * (bz ? 1.6 : 1) }; // кэш тела печётся под целевой радиус массы, пока ball.r его догоняет
@@ -281,11 +329,17 @@ function drawHUD() { // жизни показывает сама Тефа; зд�
     ctx.globalAlpha = clamp(run.bannerT / 0.5, 0, 1); ctx.font = '900 30px system-ui, sans-serif';
     ctx.lineJoin = 'round'; ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(20,12,8,0.7)'; ctx.fillStyle = '#fff';
     const s = T('tower') + ' ' + tower.tp.N + ' · ' + T('theme.' + tower.tp.theme);
-    ctx.strokeText(s, W / 2, H * 0.3); ctx.fillText(s, W / 2, H * 0.3); ctx.globalAlpha = 1;
+    ctx.strokeText(s, W / 2, H * 0.3); ctx.fillText(s, W / 2, H * 0.3);
+    if (tower.tp.mods.length) {
+      ctx.font = '700 17px system-ui'; ctx.fillStyle = '#ffe08a';
+      const mods = modifiersText(tower.tp);
+      ctx.strokeText(mods, W / 2, H * .3 + 30, W - 28); ctx.fillText(mods, W / 2, H * .3 + 30, W - 28);
+    }
+    ctx.globalAlpha = 1;
   }
 }
 // нижний цвет полосы темы: им же заливается экран под полем на высоких телефонах (drawBg)
-const BAND_BOTTOM = { fridge: 'rgba(160,200,235,0.95)', oven: 'rgba(40,14,8,0.97)', sink: 'rgba(24,64,110,0.97)', feast: 'rgba(0,0,0,0.98)', kitchen: 'rgba(8,6,5,0.97)' };
+const BAND_BOTTOM = { fridge: 'rgba(160,200,235,0.95)', oven: 'rgba(40,14,8,0.97)', cellar: 'rgba(21,26,20,0.97)', feast: 'rgba(0,0,0,0.98)', kitchen: 'rgba(8,6,5,0.97)' };
 // нижняя смертельная полоса темы (спека v2.2a §4): едет с камерой, верхний край колышется; поверх мира, под надписями и HUD.
 // Низ уходит за край поля: тряска камеры не открывает щель над заливкой из drawBg
 function drawBand() {
@@ -298,9 +352,10 @@ function drawBand() {
   } else if (theme === 'oven') { // тлеющие угли, приглушённые — не цвет опасности
     g.addColorStop(0, 'rgba(90,36,20,0.6)'); g.addColorStop(1, bottom); edge(); ctx.fillStyle = g; ctx.fill();
     for (let x = 12; x < W; x += 26) { ctx.fillStyle = `rgba(200,${90 + (x % 50)},50,${0.4 + 0.2 * Math.sin(tGame * 4 + x)})`; ctx.beginPath(); ctx.arc(x, y0 + 12 + (x % 11), 2.5, 0, 7); ctx.fill(); }
-  } else if (theme === 'sink') { // вода с волной
-    g.addColorStop(0, 'rgba(60,130,190,0.7)'); g.addColorStop(1, bottom); edge(); ctx.fillStyle = g; ctx.fill();
-    ctx.strokeStyle = 'rgba(210,240,255,0.8)'; ctx.lineWidth = 2; ctx.beginPath(); for (let x = -40; x <= W + 40; x += 8) { const y = y0 + wave(x); x > -40 ? ctx.lineTo(x, y) : ctx.moveTo(x, y); } ctx.stroke();
+  } else if (theme === 'cellar') { // край тёмного провала под стеллажом
+    g.addColorStop(0, 'rgba(90,86,58,0.6)'); g.addColorStop(1, bottom);
+    ctx.fillStyle = g; ctx.fillRect(-40, y0, W + 80, low - y0);
+    ctx.fillStyle = '#766746'; ctx.fillRect(-40, y0, W + 80, 3);
   } else if (theme === 'feast') { // тёмная щель под подолом скатерти
     g.addColorStop(0, 'rgba(6,5,5,0.6)'); g.addColorStop(1, bottom); edge(); ctx.fillStyle = g; ctx.fill();
     ctx.fillStyle = 'rgba(30,58,42,0.95)'; ctx.beginPath(); ctx.moveTo(-40, y0 - 6); for (let x = -40; x <= W + 40; x += 24) ctx.arc(x + 12, y0 - 6, 12, Math.PI, 0, true); ctx.lineTo(W + 40, y0 - 14); ctx.lineTo(-40, y0 - 14); ctx.closePath(); ctx.fill();
@@ -312,10 +367,15 @@ function drawBand() {
 function drawWorld() { // всё внутри поля; вызывающий ставит clip и shake
   if (!tower) return;
   for (const p of tower.platforms) drawPlatform(p);
-  for (const h of tower.hazards) drawHazard(h);
   for (const it of tower.items) if (!it.dead) drawItem(it);
+  const dark = tower.tp.effects.dark;
+  if (dark) drawCellarLight();
+  for (const p of tower.platforms) drawBiomeSurface(p);
+  ctx.save();
+  if (dark) { ctx.shadowColor = '#e5b079'; ctx.shadowBlur = 7; }
+  for (const h of tower.hazards) drawHazard(h);
   for (const f of flies) drawFly(f);
-  drawPours();
+  drawPours(); ctx.restore();
   if (ball.alive || state === 'title' || state === 'finish') drawTefaBall();
   for (const p of particles) {
     ctx.globalAlpha = clamp(p.t / p.life, 0, 1);

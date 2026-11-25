@@ -118,12 +118,12 @@ const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addCol
     assert.ok(Math.abs(sp.y - top - d.LAUNCH_H) < 12, 'подъём ≈ LAUNCH_H: ' + (sp.y - top).toFixed(0)); }
   // миска (спека v2.2a §6.3): липкая — первый тап отлепляет и тратит заряд, не прыгая; второй прыгает; новая посадка — снова липко
   { d.startTower(4); d.state = 'play'; d.resetPours(1e9); d.hazards.length = 0; d.resetFlies(); for (const it of d.items) it.dead = true;
-    const bowl = { id: 9200, type: 'bowl', x: 240, y: ball.y + ball.r - 240, w: 120, row: 2 }; d.platforms.push(bowl);
-    const dropIn = () => { ball.onPlatform = null; ball.x = 240; ball.vx = 0; ball.y = bowl.y - ball.r - 20; ball.vy = 100; for (let i = 0; i < 30 && ball.onPlatform !== 9200; i++) d.update(1 / 60); };
+    const gum = { id: 9200, type: 'gum', x: 240, y: ball.y + ball.r - 240, w: 120, row: 2 }; d.platforms.push(gum);
+    const dropIn = () => { ball.onPlatform = null; ball.x = 240; ball.vx = 0; ball.y = gum.y - ball.r - 20; ball.vy = 100; for (let i = 0; i < 30 && ball.onPlatform !== 9200; i++) d.update(1 / 60); };
     dropIn(); assert.strictEqual(ball.onPlatform, 9200); assert.strictEqual(ball.charges, d.chargesMax());
-    assert.ok(d.jumpTo(240, bowl.y - 200), 'тап принят'); assert.strictEqual(ball.onPlatform, 9200, 'первый тап только отлепляет'); assert.strictEqual(ball.charges, d.chargesMax() - 1, 'и тратит заряд');
-    assert.ok(d.jumpTo(240, bowl.y - 200)); assert.strictEqual(ball.onPlatform, null, 'второй тап прыгает'); assert.strictEqual(ball.charges, d.chargesMax() - 2, 'прыжок из миски стоит двух зарядов');
-    dropIn(); d.jumpTo(240, bowl.y - 200); assert.strictEqual(ball.onPlatform, 9200, 'после новой посадки снова липко');
+    assert.ok(d.jumpTo(240, gum.y - 200), 'тап принят'); assert.strictEqual(ball.onPlatform, 9200, 'первый тап только отлепляет'); assert.strictEqual(ball.charges, d.chargesMax() - 1, 'и тратит заряд');
+    assert.ok(d.jumpTo(240, gum.y - 200)); assert.strictEqual(ball.onPlatform, null, 'второй тап прыгает'); assert.strictEqual(ball.charges, d.chargesMax() - 2, 'прыжок из миски стоит двух зарядов');
+    dropIn(); d.jumpTo(240, gum.y - 200); assert.strictEqual(ball.onPlatform, 9200, 'после новой посадки снова липко');
     // появление — не посадка: после смерти в миске «Заново» не липнет, скольжение полки не переносится (финальное ревью v2.2a)
     dropIn(); assert.ok(ball.stuck); ball.slide = 50; d.die('fly'); d.restartTower(); assert.strictEqual(ball.stuck, false, '«Заново» не липнет'); assert.strictEqual(ball.slide, 0, 'и не скользит');
     assert.ok(d.jumpTo(ball.x, ball.y - 200)); assert.strictEqual(ball.onPlatform, null, 'первый тап после «Заново» прыгает'); }

@@ -85,9 +85,9 @@ const ctx = new Proxy({}, { get: (t, k) => k === 'fillText' ? s => texts.push(St
   d.doubleCoins(); texts.length = 0; d.finishScreen(true); assert.deepStrictEqual(d.buttons.map(b => b.id), ['next']); assert.ok(texts.some(t => t.includes('×2')));
   d.startTower(1); d.state = 'play'; d.run.deaths = 1; d.run.foodEaten = d.run.foodTotal; d.finishTower(); texts.length = 0; d.finishScreen(true); assert.ok(texts.includes('A') && texts.some(t => t.startsWith('✗ Без смертей')));
   // названия тем на трёх языках
-  for (const lang of ['ru', 'en', 'tr']) { d.setLang(lang); for (const id of ['kitchen', 'fridge', 'oven', 'sink', 'feast']) assert.ok(d.T('theme.' + id) && d.T('theme.' + id) !== 'theme.' + id, lang + ': название темы ' + id); }
+  for (const lang of ['ru', 'en', 'tr']) { d.setLang(lang); for (const id of ['kitchen', 'fridge', 'oven', 'cellar', 'feast']) assert.ok(d.T('theme.' + id) && d.T('theme.' + id) !== 'theme.' + id, lang + ': название темы ' + id); }
   d.setLang('ru');
-  assert.deepStrictEqual(['kitchen', 'fridge', 'oven', 'sink', 'feast'].map(id => d.T('theme.' + id)), ['Кухня', 'Холодильник', 'Духовка', 'Раковина', 'Праздничный стол']);
+  assert.deepStrictEqual(['kitchen', 'fridge', 'oven', 'cellar', 'feast'].map(id => d.T('theme.' + id)), ['Кухня', 'Холодильник', 'Духовка', 'Погреб', 'Пиршественный зал']);
   // локализация и тексты без гендерных форм
   d.setLang('en'); texts.length = 0; d.finishScreen(true); assert.ok(texts.includes('Tower 1 cleared!'));
   d.setLang('tr'); texts.length = 0; d.deadScreen(true); assert.ok(texts.includes('Pat!'));
@@ -126,12 +126,27 @@ const ctx = new Proxy({}, { get: (t, k) => k === 'fillText' ? s => texts.push(St
     const t0 = Date.now(); d4.ART_IMG.oven = null; await d4.artPrepare('oven', 60); assert.ok(Date.now() - t0 < 1000 && !d4.ART.oven, 'картинки не пришли — ждём не дольше maxMs и живём без арта');
     assert.strictEqual(d4.artWarm(), false, 'прогрев: следующая тема ещё не готова'); d4.ART_IMG.oven = undefined; delete d4.ART_IMG.oven;
     const pic = (w, h, c) => { const cv = createCanvas(w, h), g = cv.getContext('2d'); g.fillStyle = c; g.fillRect(0, 0, w, h); return cv; };
-    const towerOf = { kitchen: 1, fridge: 2, oven: 3, sink: 4, feast: 5 };
+    const towerOf = { kitchen: 1, fridge: 2, oven: 3, cellar: 4, feast: 5 };
     for (const theme of Object.keys(d4.ART_SRC)) { // каждая тема на своей башне: картинки-заглушки по списку имён, слои, покрытие поля, бюджет памяти
       d4.startTower(towerOf[theme]); d4.ART_IMG[theme] = Object.fromEntries(d4.ART_SRC[theme].map((n, i) => [n, pic(n === 'back' ? 96 : 30 + i * 7, n === 'back' ? 140 : 72, n === 'back' ? '#889' : '#a75')]));
-      await d4.artPrepare(theme); const a = d4.ART[theme]; assert.ok(a && a.back.length >= 2 && typeof a.anim === 'function', 'слои темы ' + theme + ' испечены');
+      const imgs = d4.ART_IMG[theme];
+      if (theme === 'fridge') {
+        imgs.milk = pic(240, 480, '#101010');
+        const label = imgs.milk.getContext('2d');
+        label.fillStyle = '#f0f0f0'; label.fillRect(120, 0, 120, 480);
+      }
+      await d4.artPrepare(theme); const a = d4.ART[theme];
+      if (theme === 'fridge') {
+        assert.ok(a.back.length >= 2 && typeof a.anim === 'function', 'холодильник со стеклянными полками');
+        const shelf = a.back[1].c, scale = shelf.width / 480;
+        const cx = Math.round(400 * scale), cy = Math.round(1450 * scale);
+        const line = shelf.getContext('2d').getImageData(cx - 8, cy, 17, 1).data;
+        const red = dx => line[(8 + dx) * 4];
+        const contrast = red(8) - red(-8);
+        assert.ok(contrast > 90 && red(2) - red(-2) > .8 * contrast, 'граница этикетки на полке остаётся резкой');
+      } else assert.strictEqual(a.scene, imgs.scene, theme + ': цельная сцена рисуется в исходном разрешении');
       assert.ok(!a.front && typeof d4.artFg === 'undefined', theme + ': арт ничего не рисует поверх мира — размытая вещь у края закрывала Тефу и платформы (плейтест владельца 30.09)');
-      const mpx = a.back.reduce((s, l) => s + l.c.width * l.c.height, 0) / 1e6; assert.ok(mpx <= 6, theme + ': холсты слоёв ' + mpx.toFixed(1) + ' МПкс, не больше 6');
+      const mpx = (a.back || []).reduce((s, l) => s + l.c.width * l.c.height, a.scene ? a.scene.width * a.scene.height : 0) / 1e6; assert.ok(mpx <= 6, theme + ': холсты слоёв ' + mpx.toFixed(1) + ' МПкс, не больше 6');
       await d4.artPrepare(theme); assert.strictEqual(d4.ART[theme], a, 'повторный artPrepare (смерть, «Продолжить», «Заново») не печёт заново');
       assert.ok(Object.keys(d4.ART).length <= 2, 'испечены не больше двух тем — текущая и следующая, память телефона');
       for (const cy of [0, -1234, -5000, -12345]) { d4.setCamY(cy); rctx.fillStyle = '#f0f'; rctx.fillRect(0, 0, 480, 854); assert.ok(d4.artBg(theme, b), 'арт рисуется');
@@ -144,14 +159,20 @@ const ctx = new Proxy({}, { get: (t, k) => k === 'fillText' ? s => texts.push(St
     assert.strictEqual(warm(), true, 'следующая тема (духовка) испечена прогревом'); assert.deepStrictEqual(Object.keys(d4.ART).sort(), ['fridge', 'oven'], 'испечены текущая и следующая');
     d4.setCamY(0); assert.ok(d4.artBg('fridge', b)); assert.strictEqual(d4.ART.fridge, fr, 'текущая тема после прогрева та же, не перепечена');
     d4.startTower(3); d4.state = 'play'; delete d4.ART.oven; assert.strictEqual(d4.artBg('oven', b), false, 'в игре artBg не печёт — рисует старый фон'); assert.ok(!d4.ART.oven);
-    assert.strictEqual(d4.artWarm(), false, 'в игре прогрев ждёт'); assert.ok(!d4.ART.sink);
-    await d4.artPrepare('oven', 0); assert.ok(d4.ART.oven && d4.artBg('oven', b), 'artPrepare печёт и arтBg рисует'); d4.state = 'finish'; assert.strictEqual(warm(), true); assert.ok(d4.ART.sink, 'вне игры прогрев печёт следующую');
+    assert.strictEqual(d4.artWarm(), false, 'в игре прогрев ждёт'); assert.ok(!d4.ART.cellar);
+    await d4.artPrepare('oven', 0); assert.ok(d4.ART.oven && d4.artBg('oven', b), 'artPrepare печёт и arтBg рисует'); d4.state = 'finish'; assert.strictEqual(warm(), true); assert.ok(d4.ART.cellar, 'вне игры прогрев печёт следующую');
     delete document.createElement; }
   // финальное ревью v2.2c: шов между повторами задника при дробном масштабе экрана (390×844 → scale 0.8125) — антиалиас кромок
   // двух соседних drawImage давал строку, где просвечивала подложка; проверяем поверх розовой подложки
   { const { createCanvas } = require('canvas'); const real = createCanvas(390, 844), rctx = real.getContext('2d');
     const g5 = require('./_env')(rctx, { width: 390, height: 844 }); const d5 = g5.dbg(); await d5.YG.init(); await d5.loadSave(); d5.startTower(2); d5.state = 'play';
-    document.createElement = () => createCanvas(1, 1); const b = d5.fieldBounds();
+    // При запуске через file:// браузер может разрешать drawImage и запрещать чтение пикселей изображения.
+    document.createElement = () => {
+      const canvas = createCanvas(1, 1);
+      canvas.getContext('2d').getImageData = () => { throw new DOMException('Local image', 'SecurityError'); };
+      return canvas;
+    };
+    const b = d5.fieldBounds();
     const pic = (w, h, c) => { const cv = createCanvas(w, h), g = cv.getContext('2d'); g.fillStyle = c; g.fillRect(0, 0, w, h); return cv; };
     d5.ART_IMG.fridge = Object.fromEntries(d5.ART_SRC.fridge.map((n, i) => [n, pic(n === 'back' ? 96 : 30 + i * 7, n === 'back' ? 140 : 72, n === 'back' ? '#889' : '#a75')]));
     await d5.artPrepare('fridge'); d5.ART.fridge.base = '#f0f';

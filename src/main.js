@@ -9,11 +9,19 @@ function devTower() {
   if (typeof location === 'undefined' || !/^(localhost|127\.0\.0\.1)$/.test(location.hostname || '')) return 0;
   const m = /[?&]tower=(\d{1,3})(&|$)/.exec(location.search || ''); return m ? Math.max(1, +m[1]) : 0;
 }
+function biomePreview() {
+  if (typeof location === 'undefined' ||
+      !(location.protocol === 'file:' || /^(localhost|127\.0\.0\.1)$/.test(location.hostname))) return 0;
+  const match = /[?&]biome=([1-5])(?:&|$)/.exec(location.search || '');
+  return match ? Number(match[1]) : 0;
+}
 async function boot() {
   await YG.init();
   setLang(YG.lang);
-  await loadSave();
-  const dev = devTower(); // плейтест: ?tower=N на локальном адресе открывает башню N, сохранение не трогает
+  const preview = biomePreview();
+  if (preview) Object.assign(save, migrate(null), { worldSeed: 42, tower: preview });
+  else await loadSave();
+  const dev = preview || devTower(); // плейтест: ?tower=N на локальном адресе открывает башню N, сохранение не трогает
   startTower(dev || save.tower, dev ? 0 : save.cp); state = 'title';
   YG.onPause(pauseGame); YG.onResume(resumeGame);
   await artPrepare(tower.tp.theme); // экран загрузки ждёт картинки первой темы (не дольше ART_WAIT_MS) и печёт её слои

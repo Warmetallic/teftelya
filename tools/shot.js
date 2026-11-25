@@ -73,10 +73,10 @@ const finish = async (g, d) => { d.state = 'play'; d.run.foodEaten = Math.round(
   await shoot('banner', 480, 854, banner, towerN(2));
   await shoot('theme_fridge', 480, 854, themeScene('shelf'), towerN(2));
   await shoot('theme_oven', 480, 854, themeScene('toaster'), towerN(3));
-  await shoot('theme_sink', 480, 854, themeScene('bowl'), towerN(4));
+  await shoot('theme_cellar', 480, 854, themeScene('gum'), towerN(4));
   await shoot('theme_feast', 480, 854, themeScene('spatula'), towerN(5));
   await shoot('theme_kitchen2', 480, 854, themeScene('board'), towerN(6));
-  await shoot('theme_sink_tall', 390, 844, themeScene('bowl'), towerN(4)); // высокий телефон: полоса до низа экрана
+  await shoot('theme_cellar_tall', 390, 844, themeScene('gum'), towerN(4)); // высокий телефон: полоса до низа экрана
   await shoot('fly_warn', 480, 854, async (g, d) => { await up(g, d, 2); d.spawnFly(true); steps(g, 3); });
   await shoot('dead', 480, 854, dead);
   await shoot('finish', 480, 854, finish);

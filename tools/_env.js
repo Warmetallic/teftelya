@@ -18,6 +18,8 @@ function readSources(dist) {
 }
 module.exports = function makeEnv(ctx, opts = {}) {
   const src = readSources(opts.dist);
+  // Зерно нового профиля воспроизводимо в тестах и при съёмке. Ноль даёт исторические раскладки снимков.
+  const crypto = { getRandomValues: values => values.fill(opts.worldSeed ?? 0) };
   const noop = () => {};
   const listeners = {};
   const store = new Map();

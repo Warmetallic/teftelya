@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="ru">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Тефтеля · Пять биомов</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#181712;color:#f4eddd;font:16px "Trebuchet MS",system-ui,sans-serif}
+main{min-height:100svh;display:flex;align-items:center;justify-content:center;gap:clamp(24px,6vw,88px);padding:26px}
+aside{max-width:310px}h1{font:700 clamp(35px,5vw,58px)/1 Georgia,serif;margin:0 0 15px}p{color:#c9bdab;line-height:1.45;margin:0 0 22px}
+nav{display:grid;gap:5px}a{display:flex;align-items:center;gap:12px;color:#ddcfbc;border-radius:7px;text-decoration:none;padding:11px 12px;border:1px solid transparent}
+a::before{content:"";width:9px;height:9px;background:var(--t);border-radius:50%}a[aria-current]{background:#312c24;border-color:#645846;color:#fff1d9}
+a:hover,a:focus-visible{background:#353027}iframe{display:block;width:min(460px,calc((100svh - 52px)*.562));height:auto;aspect-ratio:480 / 854;background:#241f1a;border:1px solid #635743;border-radius:8px}
+@media(max-width:700px){main{flex-direction:column;gap:12px;padding:10px;justify-content:flex-start}aside{width:100%;max-width:480px}h1{font-size:26px;margin:0 0 5px}p{font-size:13px;margin:0 0 6px}nav{display:flex;flex-wrap:wrap;gap:2px}a{padding:4px 6px;gap:4px;font-size:13px}a::before{width:6px;height:6px}iframe{width:min(100%,calc((100svh - 142px)*.562));min-height:300px}}
+</style>
+<main>
+<aside><h1>Пять биомов</h1><p>Выбери башню и нажми «Играть». Прыгай щелчком или касанием туда, где хочешь приземлиться. Прогресс просмотра хранится до смены башни.</p>
+<nav aria-label="Биомы">
+<a href="index.html?biome=1" target="play" style="--t:#e2b277" aria-current="true">Кухня</a>
+<a href="index.html?biome=2" target="play" style="--t:#9accdf">Холодильник</a>
+<a href="index.html?biome=3" target="play" style="--t:#f98d53">Духовка</a>
+<a href="index.html?biome=4" target="play" style="--t:#a1b28b">Погреб</a>
+<a href="index.html?biome=5" target="play" style="--t:#c39bb4">Пиршественный зал</a>
+</nav></aside>
+<iframe name="play" src="index.html?biome=1" title="Игровое поле"></iframe>
+</main>
+<script>
+for (const link of document.querySelectorAll('nav a')) link.addEventListener('click', () => {
+  document.querySelector('[aria-current]')?.removeAttribute('aria-current');
+  link.setAttribute('aria-current','true');
+});
+</script>
+</html>
