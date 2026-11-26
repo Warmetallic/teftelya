@@ -74,5 +74,63 @@ const ctx = new Proxy({}, { get: (t, k) => /Gradient$/.test(k) ? () => ({ addCol
   const reopened = await openWorld(77,null,previous.snapshot());
   assert.deepStrictEqual(reopened.tower,previous.tower);
   assert.equal(reopened.save.oldBiomesThrough,29);
+
+  // Два устройства, разные локальные хранилища, один профиль у поставщика.
+  let cloudRecord = {...firstSave, tower:9, cp:2, earned:350};
+  let readFails = true, writeFails = false, holdWrite, releaseWrite;
+  const attempts = [];
+  const player = {
+    async getData() {
+      if (readFails) throw new Error('offline');
+      return cloudRecord;
+    },
+    async setData(record) {
+      attempts.push(record.earned);
+      if (holdWrite) await holdWrite;
+      if (writeFails) throw new Error('offline');
+      cloudRecord = record;
+    },
+  };
+  const YaGames = { init:async () => ({getStorage:async () => global.localStorage, getPlayer:async () => player}) };
+  const device = require('./_env')(ctx, {YaGames});
+  await device.boot();
+  device.dbg().save.earned = 25;
+  device.dbg().persist();
+  await device.flush();
+  assert.deepStrictEqual(attempts, [], 'сбой чтения запрещает запись даже при локальном прогрессе');
+  assert.equal(JSON.parse(device.store.get('teft_save')).earned,25);
+  assert.equal(cloudRecord.tower,9);
+  readFails = false;
+  const online = require('./_env')(ctx, {YaGames});
+  online.store.set('teft_save',device.store.get('teft_save'));
+  await online.boot();
+  assert.equal(online.dbg().save.tower,9);
+  assert.equal(online.dbg().save.cp,2);
+  assert.equal(online.dbg().save.earned,350);
+  writeFails = true;
+  online.dbg().save.earned = 375;
+  online.dbg().persist();
+  await online.flush();
+  assert.equal(cloudRecord.earned,350);
+  writeFails = false;
+  online.dbg().persist(); // тот же снимок, сеть уже доступна
+  await online.flush();
+  assert.equal(cloudRecord.earned,375);
+
+  holdWrite = new Promise(resolve => { releaseWrite=resolve; });
+  for (const count of [400,410,440]) {
+    online.dbg().save.earned = count;
+    online.dbg().persist();
+  }
+  await online.flush();
+  assert.equal(attempts.at(-1),400);
+  releaseWrite();
+  await online.flush();
+  assert.deepStrictEqual(attempts.slice(-2),[400,440]);
+  const clean = require('./_env')(ctx, {YaGames});
+  await clean.boot();
+  assert.equal(clean.dbg().save.earned,440);
+  assert.equal(clean.dbg().save.cp,2);
+  assert.equal(clean.dbg().save.worldSeed,cloudRecord.worldSeed);
   console.log('test_save ok');
 })().catch(e => { console.error(e); process.exit(1); });

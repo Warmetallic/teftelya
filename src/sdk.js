@@ -109,16 +109,25 @@ YG._getPlayer = async function () {
   return YG._player;
 };
 const CLOUD_MOCK_KEY = 'teft_cloud_mock';
+// null — облако ответило пустым профилем; undefined — его содержимое неизвестно.
 YG.getData = async function () {
   if (YG.isMock) {
-    try { const s = YG.storage && YG.storage.getItem(CLOUD_MOCK_KEY); return s ? JSON.parse(s) : null; } catch (e) { return null; }
+    if (!YG.storage) return undefined;
+    try { const s = YG.storage.getItem(CLOUD_MOCK_KEY); return s ? JSON.parse(s) : null; } catch (e) { return undefined; }
   }
-  const p = await YG._getPlayer(); if (!p) return null;
-  try { const d = await p.getData(); return d && Object.keys(d).length ? d : null; } catch (e) { return null; }
+  const p = await YG._getPlayer(); if (!p) return undefined;
+  try {
+    const d = await p.getData();
+    if (!d || typeof d !== 'object' || Array.isArray(d)) return undefined;
+    return Object.keys(d).length ? d : null;
+  } catch (e) { return undefined; }
 };
 YG.setData = async function (obj) {
-  if (YG.isMock) { try { if (YG.storage) YG.storage.setItem(CLOUD_MOCK_KEY, JSON.stringify(obj)); } catch (e) {} return; }
-  const p = await YG._getPlayer(); if (!p) return;
-  try { await p.setData(obj, true); } catch (e) { console.warn('setData failed', e); }
+  if (YG.isMock) {
+    if (!YG.storage) return false;
+    try { YG.storage.setItem(CLOUD_MOCK_KEY, JSON.stringify(obj)); return true; } catch (e) { return false; }
+  }
+  const p = await YG._getPlayer(); if (!p) return false;
+  try { await p.setData(obj, true); return true; } catch (e) { console.warn('setData failed', e); return false; }
 };
 expose({ YG });

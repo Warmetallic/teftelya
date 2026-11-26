@@ -88,7 +88,21 @@ function _readLocal() {
   return null;
 }
 function _writeLocal(obj) { try { if (YG.storage) YG.storage.setItem(SAVE_KEY, JSON.stringify(obj)); } catch (e) {} }
-let lastSent = '';
+let cloudReadable = false, confirmedCloud = '', pendingCloud = null, writingCloud = false;
+
+async function saveToCloud(snap) {
+  if (!cloudReadable) return;
+  pendingCloud = snap;
+  if (writingCloud) return;
+  writingCloud = true;
+  try {
+    while (pendingCloud) {
+      const next = pendingCloud, json = JSON.stringify(next);
+      pendingCloud = null;
+      if (json !== confirmedCloud && await YG.setData(next)) confirmedCloud = json;
+    }
+  } finally { writingCloud = false; }
+}
 async function loadSave() {
   const cloudRaw = await YG.getData(), localRaw = _readLocal();
   const cloud = migrate(cloudRaw), local = migrate(localRaw);
@@ -96,15 +110,17 @@ async function loadSave() {
   if (merged.worldSeed === null) merged.worldSeed = crypto.getRandomValues(new Uint32Array(1))[0];
   Object.assign(save, merged);
   if (!localRaw || localRaw.v !== SAVE_VERSION || !sameSave(local, merged)) _writeLocal(merged);
-  if (!cloudRaw || cloudRaw.v !== SAVE_VERSION || !sameSave(cloud, merged)) YG.setData(merged);
-  lastSent = JSON.stringify(merged);
+  // При недоступном облаке играем с локальной копией. При следующем входе сначала объединим обе.
+  cloudReadable = cloudRaw !== undefined;
+  confirmedCloud = cloudRaw?.v === SAVE_VERSION ? JSON.stringify(cloud) : '';
+  saveToCloud(merged);
   return save;
 }
 // вызывать только при смерти, финише, чекпоинте, наградах и покупках: лимит облака 100 запросов за 5 минут
 function persist() {
   if (biomePreview()) return;
-  const snap = snapshot(), json = JSON.stringify(snap);
+  const snap = snapshot();
   _writeLocal(snap);
-  if (json !== lastSent) { lastSent = json; YG.setData(snap); }
+  saveToCloud(snap);
 }
 expose({ save, coins, loadSave, persist, migrate, mergeSaves, snapshot, UP_MAX, SKIN_ORDER, RANK });
